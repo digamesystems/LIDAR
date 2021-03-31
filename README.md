@@ -1,5 +1,5 @@
 ## Title: 
-Next generation systems for Park Data collection
+Next-Generation systems for Park Data collection
 
 ### Authors: 
 John Price, Jason Pitts
