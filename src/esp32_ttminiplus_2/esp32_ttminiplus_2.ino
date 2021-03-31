@@ -3,6 +3,12 @@
  * Copyright 2021, Digame Systems. All rights reserved.
  */
 
+
+#define useRTC true
+#define useWiFi true
+#define useSDCard true
+
+
 #include <TFMPlus.h>    // Include TFMini Plus LIDAR Library v1.4.0
 #include <WiFi.h>       // WiFi stack
 #include <HTTPClient.h> // To post to the ParkData Server
@@ -15,15 +21,10 @@
 
 CircularBuffer<int, 100> buffer;
 
-
 TFMPlus tfmP;           // Create a TFMini Plus object
-
 
 RTClib myRTC;
 float rtcTemp;
-
-// Aliases for easier reading
-#define debugUART Serial
 
 bool Century=false;
 byte Year;
@@ -61,20 +62,6 @@ int LED_BUILTIN = 12; // Our built in indicator LED
 // Aliases for easier reading
 #define debugUART Serial
 #define tfMiniUART Serial2   
-
-class Foo {
-  public: 
-
-     int i;
-     int j;
-  
-     Foo(){
-      i=j=0;
-     };
-  };
-
-
-
 
 
 //****************************************************************************************
@@ -430,7 +417,7 @@ void postDatalog(){
 
 
 
-// Initialize variables
+// Initialize some variables
 int16_t tfDist = 0;    // Distance to object in centimeters
 int16_t tfFlux = 0;    // Strength or quality of return signal
 int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
