@@ -1,0 +1,9 @@
+Current Time: 1/13/2021 2:48:01 PM
+Error Info: Access to the port 'COM14' is denied.
+Error Source: System
+Error Stack: at System.IO.Ports.InternalResources.WinIOError(Int32 errorCode, String str)
+   at System.IO.Ports.SerialStream..ctor(String portName, Int32 baudRate, Parity parity, Int32 dataBits, StopBits stopBits, Int32 readTimeout, Int32 writeTimeout, Handshake handshake, Boolean dtrEnable, Boolean rtsEnable, Boolean discardNull, Byte parityReplace)
+   at System.IO.Ports.SerialPort.Open()
+   at WINCC_TFMini.SensorDataAcquirer.Start()
+Trigger Mode: Void WinIOError(Int32, System.String)
+
