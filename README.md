@@ -1,5 +1,5 @@
 ## Title: 
-A LIDAR-Based Vehicle Counting System
+Next generation systems for Park Data collection
 
 ### Authors: 
 John Price, Jason Pitts
