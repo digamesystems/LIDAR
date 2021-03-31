@@ -25,6 +25,7 @@ Other applications include Vehicle counting to better understand Park Visitation
 A working prototype will be developed to allow the exploration of: 
 - Power and cost limitations for a next generation system
 - Wireless performance under various conditions including range, connection speed and reliability
+- New sensor technologies like LIDAR that might eliminate the drawbacks of current "On Road" sensor solutions
 - Environmental requirements 
 - User experience and UI design 
 - Impact of ‘touchless’ downloads on system reliability
