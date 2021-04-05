@@ -60,6 +60,13 @@ float   smoothed = 0.0;
 int lidarUpdateRate = 10; // 100Hz -> 10 ms
 
 
+// For our primitive people detector
+bool iSeeAPersonNow    = false;
+bool iSawAPersonBefore = false;
+float personSignal = 0.0;
+int32_t personCount = 0;
+
+
 //************************************************************************
 //************************************************************************
 void loop()
@@ -71,14 +78,36 @@ void loop()
 
     //Filter the measured distance
     smoothed = smoothed * 0.99 + (float)tfDist * 0.01;
-   
+
+
+    //Our primitive people detector
+    iSeeAPersonNow = (smoothed < 100);
+
+    if ((iSawAPersonBefore == true) && (iSeeAPersonNow == false)){
+      personSignal = 200.0;
+      personCount += 10;
+    } else {
+      personSignal = 0.0;
+    }
+
+    iSawAPersonBefore = iSeeAPersonNow; 
+        
     debugUART.print(tfDist);
     debugUART.print(" ");
-    debugUART.println(smoothed);
-
+    debugUART.print(smoothed);
+    debugUART.print(" ");
+    debugUART.print(personSignal);
+    debugUART.print(" ");
+    debugUART.println(personCount);
+    
     SerialBT.print(tfDist);
     SerialBT.print(" ");
-    SerialBT.println(smoothed);
+    SerialBT.print(smoothed);
+    SerialBT.print(" ");
+    SerialBT.print(personSignal);
+    SerialBT.print(" ");
+    SerialBT.println(personCount);
+
    
   }
 }
