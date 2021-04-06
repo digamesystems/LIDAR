@@ -20,8 +20,9 @@ TFMPlus tfmP;           // Create a TFMini Plus object
 
 BluetoothSerial SerialBT;
 
-// Parameters found in CONFIG.TXT on the SD card. 
+// Should put this in flash. TODO.
 String stringDeviceName = "Bailee\'s Office";       
+
 
 //****************************************************************************************
 // Return the device's MAC address
@@ -51,23 +52,20 @@ void setup()
     delay(1000);               // Give port time to initalize
 
     SerialBT.begin("ShuttleCounter"); //Bluetooth device name
-    debugUART.println("The device started, now you can pair it with bluetooth!");
-    
+    delay(1000);
+  
     debugUART.println("*****************************************************");
     debugUART.println("ParkData LIDAR Sensor Example");
     debugUART.println("Version 1.0");
     debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
     debugUART.println("*****************************************************");
-    debugUART.print("MAC Address: ");
-    debugUART.println(getMACAddress());
-    delay(5000);
 
     tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
     delay(1000);               // Give port time to initalize
     tfmP.begin(&tfMiniUART);   // Initialize device library object and...
                                // pass device serial port to the object.
 
-    // Send some commands to the TFMini-Plus
+    // TFMini-Plus
     // - - Perform a system reset - -
     debugUART.printf( "Activating LIDAR Sensor... ");
     if( tfmP.sendCommand(SYSTEM_RESET, 0)){
