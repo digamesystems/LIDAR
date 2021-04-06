@@ -10,6 +10,8 @@
 #endif
 
 #include <TFMPlus.h>    // Include TFMini Plus LIDAR Library v1.4.0
+#include <WiFi.h>       // WiFi stack
+
 TFMPlus tfmP;           // Create a TFMini Plus object
 
 // Aliases for easier reading
@@ -17,6 +19,28 @@ TFMPlus tfmP;           // Create a TFMini Plus object
 #define tfMiniUART Serial2   
 
 BluetoothSerial SerialBT;
+
+// Parameters found in CONFIG.TXT on the SD card. 
+String stringDeviceName = "Bailee\'s Office";       
+
+//****************************************************************************************
+// Return the device's MAC address
+String getMACAddress(){
+  byte mac[6];
+
+  WiFi.macAddress(mac);
+  String retString= String(String(mac[5],HEX)+":");
+  
+  retString = String(retString + String(mac[4],HEX) +":");
+  retString = String(retString + String(mac[3],HEX) +":");  
+  retString = String(retString + String(mac[2],HEX) +":");
+  retString = String(retString + String(mac[1],HEX) +":");
+  retString = String(retString + String(mac[0],HEX));
+
+  return retString;
+}
+
+
 
 //****************************************************************************************
 // Device initialization                                   
@@ -34,6 +58,9 @@ void setup()
     debugUART.println("Version 1.0");
     debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
     debugUART.println("*****************************************************");
+    debugUART.print("MAC Address: ");
+    debugUART.println(getMACAddress());
+    delay(5000);
 
     tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
     delay(1000);               // Give port time to initalize
@@ -77,15 +104,24 @@ void loop()
   if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
 
     //Filter the measured distance
-    smoothed = smoothed * 0.99 + (float)tfDist * 0.01;
+    smoothed = smoothed * 0.5 + (float)tfDist * 0.5;
 
 
     //Our primitive people detector
-    iSeeAPersonNow = (smoothed < 100);
+    iSeeAPersonNow = (smoothed < 150);
 
     if ((iSawAPersonBefore == true) && (iSeeAPersonNow == false)){
       personSignal = 200.0;
-      personCount += 10;
+      personCount += 1;
+
+      String jsonPayload = "{\"deviceName\":\"" + stringDeviceName + 
+                       "\",\"deviceMAC\":\"" + getMACAddress() +  
+                       "\",\"eventType\":\"person" +
+                       "\",\"count\":\"" + personCount + "\"" +
+                       "}";
+
+      SerialBT.println(jsonPayload);
+      
     } else {
       personSignal = 0.0;
     }
@@ -99,7 +135,8 @@ void loop()
     debugUART.print(personSignal);
     debugUART.print(" ");
     debugUART.println(personCount);
-    
+
+    /*
     SerialBT.print(tfDist);
     SerialBT.print(" ");
     SerialBT.print(smoothed);
@@ -107,7 +144,7 @@ void loop()
     SerialBT.print(personSignal);
     SerialBT.print(" ");
     SerialBT.println(personCount);
-
+    */
    
   }
 }
