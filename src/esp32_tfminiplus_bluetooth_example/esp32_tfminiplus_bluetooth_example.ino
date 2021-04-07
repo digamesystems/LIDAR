@@ -12,15 +12,14 @@
 #include <TFMPlus.h>    // Include TFMini Plus LIDAR Library v1.4.0
 #include <WiFi.h>       // WiFi stack
 
-TFMPlus tfmP;           // Create a TFMini Plus object
-
 // Aliases for easier reading
 #define debugUART Serial
 #define tfMiniUART Serial2   
 
-BluetoothSerial SerialBT;
+BluetoothSerial btUART; // Create a BlueTooth Serial Port
+TFMPlus tfmP;           // Create a TFMini Plus object
 
-// Should put this in flash. TODO.
+// Should put this in flash or SD card. TODO.
 String stringDeviceName = "Bailee\'s Office";       
 
 
@@ -42,7 +41,6 @@ String getMACAddress(){
 }
 
 
-
 //****************************************************************************************
 // Device initialization                                   
 //****************************************************************************************
@@ -51,7 +49,7 @@ void setup()
     debugUART.begin(115200);   // Intialize terminal serial port
     delay(1000);               // Give port time to initalize
 
-    SerialBT.begin("ShuttleCounter"); //Bluetooth device name
+    btUART.begin("ShuttleCounter"); //Bluetooth device name
     delay(1000);
   
     debugUART.println("*****************************************************");
@@ -77,18 +75,18 @@ void setup()
 
 
 // Initialize some variables
-int16_t tfDist = 0;    // Distance to object in centimeters
-int16_t tfFlux = 0;    // Strength or quality of return signal
-int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
-float   smoothed = 0.0;
-
+int16_t tfDist = 0;       // Distance to object in centimeters
+int16_t tfFlux = 0;       // Strength or quality of return signal
+int16_t tfTemp = 0;       // Internal temperature of Lidar sensor chip
+float smoothed = 0.0;     // The filtered value of the raw sensor readings
+float distanceThreshold = 190.0; // Closer than this counts as a person being present
+float smoothingCoef = 0.9;// Filter parameter. (0-1.0) The closer to 1.0, the smoother / slower the filtered response.
 int lidarUpdateRate = 10; // 100Hz -> 10 ms
-
 
 // For our primitive people detector
 bool iSeeAPersonNow    = false;
 bool iSawAPersonBefore = false;
-float personSignal = 0.0;
+float personSignal = 0.0; // For charting
 int32_t personCount = 0;
 
 
@@ -102,11 +100,10 @@ void loop()
   if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
 
     //Filter the measured distance
-    smoothed = smoothed * 0.5 + (float)tfDist * 0.5;
-
+    smoothed = smoothed * smoothingCoef + (float)tfDist * (1-smoothingCoef);
 
     //Our primitive people detector
-    iSeeAPersonNow = (smoothed < 150);
+    iSeeAPersonNow = (smoothed < distanceThreshold);
 
     if ((iSawAPersonBefore == true) && (iSeeAPersonNow == false)){
       personSignal = 200.0;
@@ -117,15 +114,15 @@ void loop()
                        "\",\"eventType\":\"person" +
                        "\",\"count\":\"" + personCount + "\"" +
                        "}";
-
-      SerialBT.println(jsonPayload);
+                       
+      btUART.println(jsonPayload);
       
     } else {
       personSignal = 0.0;
     }
 
     iSawAPersonBefore = iSeeAPersonNow; 
-        
+           
     debugUART.print(tfDist);
     debugUART.print(" ");
     debugUART.print(smoothed);
@@ -134,7 +131,8 @@ void loop()
     debugUART.print(" ");
     debugUART.println(personCount);
 
-    /*
+/*
+// For testing:
     SerialBT.print(tfDist);
     SerialBT.print(" ");
     SerialBT.print(smoothed);
@@ -142,7 +140,7 @@ void loop()
     SerialBT.print(personSignal);
     SerialBT.print(" ");
     SerialBT.println(personCount);
-    */
+*/
    
   }
 }
