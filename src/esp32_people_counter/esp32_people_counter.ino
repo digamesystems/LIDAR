@@ -1,7 +1,7 @@
 /*
-    People-Counter
+    People-Counter 
 
-    "ONE! One person!... TWO! Two people!... THREE! Three people! Ha! Ha! Ha!"
+    "ONE! One person!... TWO! Two people!... THREE! Three people! Ah! Ah! Ah!"
                                                                  -- The Count.
 
     This program uses a TFMini-plus LIDAR to count people boarding /
