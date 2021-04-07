@@ -174,7 +174,7 @@ void loop()
 
     //Our primitive people detector
     //iSeeAPersonNow = (smoothedDistance < distanceThreshold);
-    iSeeAPersonNow = (smoothedDistance < baseline * 0.95);
+    iSeeAPersonNow = (smoothedDistance < baseline * 0.95); // No more hard coding of the baseline!
 
     if ((iSawAPersonBefore == true) && (iSeeAPersonNow == false)) {
       personSignal = 200.0;
