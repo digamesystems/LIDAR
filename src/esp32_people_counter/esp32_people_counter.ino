@@ -40,14 +40,17 @@ TFMPlus tfmP;           // Create a TFMini Plus Object
 //****************************************************************************************
 // Globals
 //****************************************************************************************
+//Operating modes. -- Currently only one
+const int EXPSMOOTH = 1;
+
 // TODO: Move magic values to flash / SD
 String    stringDeviceName  = "Bailee\'s Office";
 int16_t   rawDistance       = 0;      // Distance to object in centimeters
 float     smoothedDistance  = 0.0;    // The filtered value of the raw sensor readings
-float     distanceThreshold = 190.0;  // Closer than this counts as a person being present
 float     smoothingCoef     = 0.95;    // Filter parameter. (0-1.0) The closer to 1.0, the smoother / slower the filtered response.
 const int lidarUpdateRate   = 10;     // 100Hz -> 10 ms
 float     baseline          = 0.0;    // The distance to the floor...
+int16_t   operatingMode     = EXPSMOOTH;
 
 // For our primitive people detector
 bool      iSeeAPersonNow    = false;
@@ -55,12 +58,46 @@ bool      iSawAPersonBefore = false;
 float     personSignal      = 0.0;    // For charting in Serial Plotter
 int32_t   personCount       = 0;
 
+
+
 // Parameters found in CONFIG.TXT on the SD card.      
-String stringDistThreshold; // Lane width parameter for counting
-String stringOpMode;        // Currently only opmodeNetwork is supported
-String stringSSID;          // Wireless network name. 
-String stringPassword;      // Network PW
-String stringServerURL;     // The ParkData server URL
+String stringOpMode = "1";          // Gives us the ability to play with algorithms.
+String stringSmoothingCoef= "0.96"; // Filter parameter (See above)
+
+//****************************************************************************************
+// Grab parameters from the SD Card.
+void writeDefaults(){
+  debugUART.println("Writing default values...");
+  debugUART.print("Initializing SD card...");
+
+  // see if the card is present and can be initialized:
+  if (!SD.begin()) {
+    debugUART.println("Card failed, or not present");
+    // don't do anything more:
+    // TODO: Fix this. 'Can't just stop in the real world.
+    while (1);
+  }
+  debugUART.println(" Card initialized.");
+
+  // open the file. note that only one file can be open at a time,
+  // so you have to close this one before opening another.
+  File dataFile = SD.open("/CONFIG2.TXT", FILE_WRITE);
+
+
+  // if the file is available, write to it:
+  if (dataFile) {
+      dataFile.println(stringDeviceName);
+      dataFile.println(stringOpMode);
+      dataFile.println(stringSmoothingCoef);
+      
+      dataFile.close();
+  }
+  // if the file isn't open, pop up an error:
+  else {
+    debugUART.println("Error opening CONFIG2.TXT");
+  }
+
+}
 
 //****************************************************************************************
 // Grab parameters from the SD Card.
@@ -80,7 +117,7 @@ void readDefaults(){
 
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
-  File dataFile = SD.open("/CONFIG.TXT");
+  File dataFile = SD.open("/CONFIG2.TXT");
 
   // if the file is available, read from to it:
   if (dataFile) {
@@ -89,16 +126,17 @@ void readDefaults(){
       debugUART.print("Device Name: ");
       debugUART.println(stringDeviceName);
 
-      stringDistThreshold = dataFile.readStringUntil('\r');
-      stringDistThreshold.trim();
-      debugUART.print("Distance Threshold: ");
-      debugUART.println(stringDistThreshold);
-      distanceThreshold = stringDistThreshold.toFloat();
-
       stringOpMode = dataFile.readStringUntil('\r');
       stringOpMode.trim();
       debugUART.print("Operating Mode: ");
       debugUART.println(stringOpMode);
+      operatingMode = stringOpMode.toInt();
+
+      stringSmoothingCoef = dataFile.readStringUntil('\r');
+      stringSmoothingCoef.trim();
+      debugUART.print("Smoothing Coefficient: ");
+      debugUART.println(stringSmoothingCoef);
+      smoothingCoef = stringSmoothingCoef.toFloat();
       
       dataFile.close();
   }
@@ -107,6 +145,7 @@ void readDefaults(){
     debugUART.println("Error opening CONFIG.TXT");
   }
 
+  delay(3000);
 }
 
 //****************************************************************************************
@@ -114,10 +153,13 @@ void readDefaults(){
 //****************************************************************************************
 void setup()
 {
-  //readDefaults();
   
   debugUART.begin(115200);        // Intialize terminal serial port
   delay(1000);                    // Give port time to initalize
+
+  readDefaults();
+  //writeDefaults();
+  
 
   btUART.begin("ShuttleCounter"); //Bluetooth device name -- TODO: Provide opportunity to change names. 
   delay(1000);                    // Give port time to initalize
@@ -173,7 +215,6 @@ void loop()
     smoothedDistance = smoothedDistance * smoothingCoef + (float)rawDistance * (1 - smoothingCoef);
 
     //Our primitive people detector
-    //iSeeAPersonNow = (smoothedDistance < distanceThreshold);
     iSeeAPersonNow = (smoothedDistance < baseline * 0.95); // No more hard coding of the baseline!
 
     if ((iSawAPersonBefore == true) && (iSeeAPersonNow == false)) {
