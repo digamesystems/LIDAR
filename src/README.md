@@ -16,7 +16,11 @@ EX:
 
 `
 {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"1"}
+
 {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"2"}
+
 {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"3"}
+
 {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"4"}
+
 `
