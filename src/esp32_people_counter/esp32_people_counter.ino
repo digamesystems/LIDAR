@@ -156,11 +156,7 @@ void setup()
   
   debugUART.begin(115200);        // Intialize terminal serial port
   delay(1000);                    // Give port time to initalize
-
-  readDefaults();
-  //writeDefaults();
   
-
   btUART.begin("ShuttleCounter"); //Bluetooth device name -- TODO: Provide opportunity to change names. 
   delay(1000);                    // Give port time to initalize
 
@@ -170,6 +166,9 @@ void setup()
   debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
   debugUART.println("*****************************************************");
 
+  readDefaults();
+  //writeDefaults();
+  
   tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
   delay(1000);               // Give port time to initalize
   tfmP.begin(&tfMiniUART);   // Initialize device library object and...
