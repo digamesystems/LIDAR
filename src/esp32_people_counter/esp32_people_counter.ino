@@ -43,11 +43,12 @@ TFMPlus tfmP;           // Create a TFMini Plus Object
 //Operating modes. -- Currently only one
 const int EXPSMOOTH = 1;
 
-// TODO: Move magic values to flash / SD
+// These will be updated from values in the SD card 
 String    stringDeviceName  = "Bailee\'s Office";
+float     smoothingCoef     = 0.95;    // Filter parameter. (0-1.0) The closer to 1.0, the smoother / slower the filtered response.
+
 int16_t   rawDistance       = 0;      // Distance to object in centimeters
 float     smoothedDistance  = 0.0;    // The filtered value of the raw sensor readings
-float     smoothingCoef     = 0.95;    // Filter parameter. (0-1.0) The closer to 1.0, the smoother / slower the filtered response.
 const int lidarUpdateRate   = 10;     // 100Hz -> 10 ms
 float     baseline          = 0.0;    // The distance to the floor...
 int16_t   operatingMode     = EXPSMOOTH;
@@ -57,8 +58,6 @@ bool      iSeeAPersonNow    = false;
 bool      iSawAPersonBefore = false;
 float     personSignal      = 0.0;    // For charting in Serial Plotter
 int32_t   personCount       = 0;
-
-
 
 // Parameters found in CONFIG.TXT on the SD card.      
 String stringOpMode = "1";          // Gives us the ability to play with algorithms.
