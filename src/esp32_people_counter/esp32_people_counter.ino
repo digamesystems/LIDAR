@@ -11,6 +11,8 @@
     http://en.benewake.com/product/detail/5c345cd0e5b3a844c472329b.html
     (See manual in /docs folder.)
 
+    
+
     Written for the ESP32 WROOM Dev board V4 
     (Incl. WiFi, Bluetooth, and stacks of I/O.)
 
@@ -21,11 +23,20 @@
 //****************************************************************************************
 // Includes
 //****************************************************************************************
-#include "BluetoothSerial.h"
+#include "BluetoothSerial.h" // Part of the ESP32 board package. 
+                             // By Evandro Copercini - 2018
+                        
 #include <TFMPlus.h>    // Include TFMini Plus LIDAR Library v1.4.0
+                        // https://github.com/budryerson/TFMini-Plus
+                        
 #include <WiFi.h>       // WiFi stack (Needed to grab the MAC Address)
+                        // https://www.arduino.cc/en/Reference/WiFi
+                        
 #include <SPI.h>        // SPI bus functions to talk to the SD Card
-#include <SD.h>         // SD file handling
+                        // Part of the Arduino Core 
+
+#include <SD.h>         // SD file handling 
+                        // https://www.arduino.cc/en/Reference/SD
 
 // Aliases for easier reading
 #define debugUART  Serial
