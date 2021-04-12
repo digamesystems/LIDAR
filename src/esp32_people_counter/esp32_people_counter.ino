@@ -17,6 +17,13 @@
     (Incl. WiFi, Bluetooth, and stacks of I/O.)
 
     Copyright 2021, Digame Systems. All rights reserved.
+
+    Testing the Sensor: 
+    https://youtu.be/LPxUawpHUEk
+    https://youtu.be/7mM1T-jgChU
+    https://youtu.be/dQw4w9WgXcQ
+
+    
 */
 
 
