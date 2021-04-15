@@ -1,20 +1,20 @@
 /*
-    People-Counter 
+    Heimdall -- "Heimdall sees all!" 
 
     "ONE! One person!... TWO! Two people!... THREE! Three people! Ah! Ah! Ah!"
                                                                  -- The Count.
-
     This program uses a TFMini-plus LIDAR to count people boarding /
     unboarding shuttle busses. Data is reported in JSON format via Bluetooth
-    classic. Program parameters are read from an SD card module. 
+    classic. Program parameters are read from an SD card module or hardcoded 
+    defaults depending on compile time parameters. 
 
+    LIDAR Sensor:
     http://en.benewake.com/product/detail/5c345cd0e5b3a844c472329b.html
     (See manual in /docs folder.)
 
-    
-
     Written for the ESP32 WROOM Dev board V4 
     (Incl. WiFi, Bluetooth, and stacks of I/O.)
+    https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/hw-reference/esp32c3/user-guide-devkitc-02.html
 
     Copyright 2021, Digame Systems. All rights reserved.
 
@@ -23,7 +23,6 @@
     https://youtu.be/7mM1T-jgChU
     https://youtu.be/dQw4w9WgXcQ
 
-    
 */
 
 
@@ -48,6 +47,9 @@
 // Aliases for easier reading
 #define debugUART  Serial
 #define tfMiniUART Serial2
+
+#define USE_SD_CARD true // A compile-time switch for whether or not we want to include an
+                         // SD card in the system.
 
 //****************************************************************************************
 // Objects
@@ -78,8 +80,8 @@ float     personSignal      = 0.0;    // For charting in Serial Plotter
 int32_t   personCount       = 0;
 
 // Parameters found in CONFIG.TXT on the SD card.      
-String stringOpMode = "1";          // Gives us the ability to play with algorithms.
-String stringSmoothingCoef= "0.96"; // Filter parameter (See above)
+String    stringOpMode = "1";          // Gives us the ability to play with algorithms.
+String    stringSmoothingCoef= "0.96"; // Filter parameter (See above)
 
 //****************************************************************************************
 // Grab parameters from the SD Card.
@@ -183,8 +185,10 @@ void setup()
   debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
   debugUART.println("*****************************************************");
 
+#if USE_SD_CARD
   readDefaults();
   //writeDefaults();
+#endif
   
   tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
   delay(1000);               // Give port time to initalize
