@@ -242,7 +242,7 @@ void loop()
     smoothedDistance = smoothedDistance * smoothingCoef + (float)rawDistance * (1 - smoothingCoef);
 
     //Our primitive people detector
-    iSeeAPersonNow = (smoothedDistance < baseline * 0.95); // No more hard coding of the baseline!
+    iSeeAPersonNow = (smoothedDistance < baseline * 0.95); 
 
     if ((iSawAPersonBefore == true) && (iSeeAPersonNow == false)) {
       personSignal = 200.0;
