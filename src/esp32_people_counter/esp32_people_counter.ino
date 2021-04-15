@@ -84,7 +84,7 @@ String    stringOpMode = "1";          // Gives us the ability to play with algo
 String    stringSmoothingCoef= "0.96"; // Filter parameter (See above)
 
 //****************************************************************************************
-// Grab parameters from the SD Card.
+// Write parameters to the SD Card.
 void writeDefaults(){
   debugUART.println("Writing default values...");
   debugUART.print("Initializing SD card...");
@@ -119,7 +119,7 @@ void writeDefaults(){
 }
 
 //****************************************************************************************
-// Grab parameters from the SD Card.
+// Read parameters from the SD Card.
 void readDefaults(){
   
   debugUART.println("Reading default values...");
@@ -226,11 +226,18 @@ void loop()
   // Read the LIDAR Sensor
   if (tfmP.getData(rawDistance)) {
 
+    /*
+    // Automatic Baseline Code:
     // Give the smoothedDistance a little time to settle in.
     if (baselineCounter<500){
       baselineCounter++;
       if (baselineCounter == 500) baseline = smoothedDistance; //Set our baseline.   
     }
+    */
+    
+    // Hardcoded baseline: 
+    baseline = 200; // Set to an appropriate value...
+    
     //Filter the measured distance
     smoothedDistance = smoothedDistance * smoothingCoef + (float)rawDistance * (1 - smoothingCoef);
 
