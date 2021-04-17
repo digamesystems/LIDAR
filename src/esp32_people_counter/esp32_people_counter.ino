@@ -51,6 +51,9 @@
 #define USE_SD_CARD true // A compile-time switch for whether or not we want to include an
                          // SD card in the system.
 
+#define USE_AUTO_BASELINE false // A compile-time swich for whether or not we try to 
+                         // determine the baseline distance dynamically, or just hardcode.
+
 //****************************************************************************************
 // Objects
 //****************************************************************************************
@@ -205,7 +208,6 @@ void setup()
   debugUART.println("Running!");
 }
 
-
 /*
  * TODO: Explore multiple algorithms for detection simultaneously... 
  *  Self calibration 
@@ -214,7 +216,6 @@ void setup()
  *  
  */
  
-
 int baselineCounter = 0;
 
 //************************************************************************
@@ -226,17 +227,17 @@ void loop()
   // Read the LIDAR Sensor
   if (tfmP.getData(rawDistance)) {
 
-    /*
+#if USE_AUTO_BASELINE   
     // Automatic Baseline Code:
     // Give the smoothedDistance a little time to settle in.
     if (baselineCounter<500){
       baselineCounter++;
       if (baselineCounter == 500) baseline = smoothedDistance; //Set our baseline.   
-    }
-    */
-    
+    }   
+#else    
     // Hardcoded baseline: 
     baseline = 200; // Set to an appropriate value...
+#endif
     
     //Filter the measured distance
     smoothedDistance = smoothedDistance * smoothingCoef + (float)rawDistance * (1 - smoothingCoef);
