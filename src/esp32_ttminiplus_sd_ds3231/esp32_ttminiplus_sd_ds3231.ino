@@ -19,7 +19,7 @@
 #include <SD.h>         // SD file handling
 #include <CircularBuffer.h> // Adafruit library. Pretty small!
 
-CircularBuffer<int, 100> buffer;
+CircularBuffer<int, 100> buffer; // We're going to hang onto the last 100 points to visualize what the sensor sees
 
 TFMPlus tfmP;           // Create a TFMini Plus object
 
@@ -65,7 +65,7 @@ int LED_BUILTIN = 12; // Our built in indicator LED
 
 
 //****************************************************************************************
-// Utility Function to format time values
+// Silly Utility Function to format time values
 // Format a byte as a left zero-padded, two-digit decimal string
 String two_digits(byte value){
   String message = String(value, DEC);
@@ -121,7 +121,7 @@ String getLocalTime()
 
 
 
-// Retrieve the time from the RTC and format to be consistent with what the TRAFx is expecting
+// Retrieve the time from the RTC and format 
 String getRTCTime(){
     String message = "";
     DateTime now = myRTC.now();
@@ -482,9 +482,7 @@ void loop()
         }
 
         jsonPayload = jsonPayload + "]}";
-        
-        
-        
+          
         if(WiFi.status()== WL_CONNECTED){
             // We have a WiFi connection. -- Upload the data to the the server. 
             postJSON(jsonPayload);
@@ -500,7 +498,6 @@ void loop()
               if (WiFi.status() != WL_CONNECTED){
                 connectToWiFi();  // Twice
               }
-              
               
               if (WiFi.status() == WL_CONNECTED){
                 postDatalog();  // POSTS and clears out the log.

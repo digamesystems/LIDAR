@@ -84,7 +84,7 @@ int32_t   personCount       = 0;
 
 // Parameters found in CONFIG.TXT on the SD card.      
 String    stringOpMode = "1";          // Gives us the ability to play with algorithms.
-String    stringSmoothingCoef= "0.96"; // Filter parameter (See above)
+String    stringSmoothingCoef = "0.96"; // Filter parameter (See above)
 
 //****************************************************************************************
 // Write parameters to the SD Card.
@@ -94,7 +94,7 @@ void writeDefaults(){
 
   // see if the card is present and can be initialized:
   if (!SD.begin()) {
-    debugUART.println("Card failed, or not present");
+    debugUART.println("Card failed, or not present!");
     // don't do anything more:
     // TODO: Fix this. 'Can't just stop in the real world.
     while (1);
@@ -105,13 +105,11 @@ void writeDefaults(){
   // so you have to close this one before opening another.
   File dataFile = SD.open("/CONFIG2.TXT", FILE_WRITE);
 
-
   // if the file is available, write to it:
   if (dataFile) {
       dataFile.println(stringDeviceName);
       dataFile.println(stringOpMode);
       dataFile.println(stringSmoothingCoef);
-      
       dataFile.close();
   }
   // if the file isn't open, pop up an error:
