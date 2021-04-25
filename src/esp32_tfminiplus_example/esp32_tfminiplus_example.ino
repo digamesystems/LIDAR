@@ -59,7 +59,7 @@ void loop()
     if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
 
       //Filter the measured distance
-      smoothed = smoothed * 0.99 + (float)tfDist * 0.01;
+      smoothed = smoothed * 0.95 + (float)tfDist * 0.05;
      
       debugUART.print(tfDist);
       debugUART.print(" ");
