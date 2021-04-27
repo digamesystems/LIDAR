@@ -221,8 +221,14 @@ int baselineCounter = 0;
 
 //************************************************************************
 //************************************************************************
-void loop()
-{
+void loop(){
+
+  delay(1000);
+  btUART.println(baselineCounter);
+  baselineCounter++;
+
+}
+/*  
   delay(lidarUpdateRate);
 
   // Read the LIDAR Sensor
@@ -279,3 +285,4 @@ void loop()
     debugUART.println(personCount);
   }
 }
+*/
