@@ -37,6 +37,21 @@ void setup()
     }
     else tfmP.printReply();
     debugUART.println("Running!");  
+
+      pinMode(34, OUTPUT);
+      pinMode(35, OUTPUT);
+      pinMode(32, OUTPUT);
+
+      for (int i = 0; i<10; i++){
+          digitalWrite(34,HIGH);
+          digitalWrite(35,HIGH);   
+          digitalWrite(32,HIGH);
+          delay(500);
+          digitalWrite(34,LOW);
+          digitalWrite(35,LOW);   
+          digitalWrite(32,LOW);
+          delay(500);
+      }
 }
 
 

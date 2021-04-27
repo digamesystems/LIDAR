@@ -48,7 +48,7 @@
 #define debugUART  Serial
 #define tfMiniUART Serial2
 
-#define USE_SD_CARD true // A compile-time switch for whether or not we want to include an
+#define USE_SD_CARD false // A compile-time switch for whether or not we want to include an
                          // SD card in the system.
 
 #define USE_AUTO_BASELINE false // A compile-time swich for whether or not we try to 
@@ -190,6 +190,9 @@ void setup()
   readDefaults();
   //writeDefaults();
 #endif
+
+  pinMode(32, OUTPUT);
+  debugUART.println("Initializing Sensor...");
   
   tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
   delay(1000);               // Give port time to initalize
@@ -246,6 +249,10 @@ void loop()
     if ((iSawAPersonBefore == true) && (iSeeAPersonNow == false)) {
       personSignal = 200.0;
       personCount += 1;
+      digitalWrite(32,HIGH);
+      delay(10);
+      digitalWrite(32,LOW);
+
       
       String jsonPayload = "{\"deviceName\":\"" + stringDeviceName +
                            "\",\"deviceMAC\":\"" + WiFi.macAddress() +
