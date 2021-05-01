@@ -1,11 +1,10 @@
-## Arduino Sketch: 
-esp32_tfminiplus_sd_ds3231.ino
-
-### Authors: 
-John Price
+## esp32_tfminiplus_sd_ds3231.ino
 
 ### Description:
 This application supports the Digame Systems HEIMDALL traffic counting system. 
+
+### Authors: 
+John Price
 
 ### System Components:
 * ESP32 WROOM 32D development board
@@ -35,5 +34,28 @@ Passing vehicles generate a characteristic signature as they travel through the 
 
 On the detection of a vehicle, a JSON message is created for delivery to the server URL specified in the configuration. JSON messages are of the following format: 
 
+    "{"deviceName": "YourDeviceName",
+      "deviceMAC":  "YourMACAddress",
+      "timeStamp":" "YourRTCTime (UTC)",
+      "eventType":  "<boot|heartbeat|vehicle"}"
+      
+For "vehicle" events, an optional array of raw LIDAR data maybe included in the payload:
+   
+    <snippet...>
+    using index_t = decltype(buffer)::index_t;
+    for (index_t i = 0; i < buffer.size(); i++) {
+        jsonPayload = jsonPayload + buffer[i]; 
+        if (i<buffer.size()-1){ 
+          jsonPayload = jsonPayload + ",";
+        }
+    }
+    //Close out the message
+    jsonPayload = jsonPayload + "]}";
+          
+This allows us to analyze the last second or so of raw data before the sensor claimed that a car had passed.
+
+An attempt is then made to send the data to the server. If this fails, data is saved to the SD card until a successful connection can be reestablished. Reconnect attempts are made every 5 minutes by default. Once a successful connection has been made, the data saved locally is sent to the server and upon completion, the data stored on the SD card is deleted. 
+    
+    
 
 
