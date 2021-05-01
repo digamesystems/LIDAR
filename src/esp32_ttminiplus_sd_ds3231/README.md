@@ -7,7 +7,7 @@ This application supports the Digame Systems HEIMDALL traffic counting system.
 John Price
 
 ### System Components:
-* [ESP32 WROOM 32D development board](https://www.mouser.com/ProductDetail/Espressif-Systems/ESP32-DevKitC-32D)
+* [ESP32 WROOM 32D development board](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-devkitc.html)
 * One of several compatible LIDAR sensors (see below)
 * A [micro SD card breakout module](https://www.adafruit.com/product/254) for system configuration settings and backup.
 * A battery backed [real time clock module](https://www.adafruit.com/product/3013)
