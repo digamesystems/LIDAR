@@ -29,6 +29,6 @@ The software is compatible with several LIDAR sensors from the [Benewake](http:/
 * [TF-03](http://en.benewake.com/product/detail/5c345cc2e5b3a844c472329a.html) 0-180 M Range!, IP67
 
 ### Testing the Sensor: 
-    https://youtu.be/LPxUawpHUEk
-    https://youtu.be/7mM1T-jgChU
-    https://youtu.be/dQw4w9WgXcQ
+* https://youtu.be/LPxUawpHUEk
+* https://youtu.be/7mM1T-jgChU
+* https://youtu.be/dQw4w9WgXcQ
