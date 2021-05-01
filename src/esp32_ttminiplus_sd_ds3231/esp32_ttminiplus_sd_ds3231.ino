@@ -417,6 +417,8 @@ void postDatalog(){
 
 
 
+
+
 // Initialize some variables
 int16_t tfDist = 0;    // Distance to object in centimeters
 int16_t tfFlux = 0;    // Strength or quality of return signal
@@ -429,6 +431,14 @@ int  carEvent = 0;
 
 int lidarUpdateRate = 10;
 
+String buildJSONHeader(String eventType){
+  String jsonHeader = "{\"deviceName\":\"" + stringDeviceName + 
+                               "\",\"deviceMAC\":\"" + getMACAddress() + 
+                               "\",\"timeStamp\":\""+ getRTCTime() + 
+                               "\",\"eventType\":\eventType";
+  return jsonHeader;
+  
+}
 
 //************************************************************************
 //************************************************************************
@@ -445,7 +455,7 @@ void loop()
 
       buffer.push(intSmoothed);
       
-
+      
       if (smoothed < distanceThreshold) {
         carPresent = true; 
       } else {
@@ -467,12 +477,10 @@ void loop()
          
         carEvent = 500;
         
-        String jsonPayload = "{\"deviceName\":\"" + stringDeviceName + 
-                               "\",\"deviceMAC\":\"" + getMACAddress() + 
-                               "\",\"timeStamp\":\""+ getRTCTime() + 
-                               "\",\"eventType\":\"vehicle" +
-                               "\",\"rawSignal\":[";
+        String jsonPayload = buildJSONHeader("vehicle");
 
+        //Tack the data buffer on the JSON message
+        jsonPayload = jsonPayload + "\",\"rawSignal\":[";
         using index_t = decltype(buffer)::index_t;
         for (index_t i = 0; i < buffer.size(); i++) {
             jsonPayload = jsonPayload + buffer[i]; 
@@ -481,6 +489,7 @@ void loop()
             }
         }
 
+        //Close out the message
         jsonPayload = jsonPayload + "]}";
           
         if(WiFi.status()== WL_CONNECTED){
