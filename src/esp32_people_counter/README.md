@@ -16,10 +16,10 @@ John Price, Bailee Allen, Jared Plunket
 
 The Sensor reports 'people' events over Bluetooth in JSON format. Examples:`
 
-  {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"1"}
-  {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"2"}
-  {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"3"}
-  {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"4"}
+    {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"1"}
+    {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"2"}
+    {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"3"}
+    {"deviceName":"Bailee's Office","deviceMAC":"60:3a:6a:2a:3:a8","eventType":"person","count":"4"}
 
 ### Sensors:
 The software is compatible with several LIDAR sensors from the [Benewake](http://en.benewake.com/) "TF" family: 
