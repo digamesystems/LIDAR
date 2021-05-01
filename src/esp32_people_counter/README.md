@@ -27,3 +27,8 @@ The software is compatible with several LIDAR sensors from the [Benewake](http:/
 * [TFMini-Plus](http://en.benewake.com/product/detail/5c345cd0e5b3a844c472329b.html) 0-12 M Range, IP67
 * [TF-Luna](http://en.benewake.com/product/detail/5e1c1fd04d839408076b6255.html) 0-8 M Range, Low Cost
 * [TF-03](http://en.benewake.com/product/detail/5c345cc2e5b3a844c472329a.html) 0-180 M Range!, IP67
+
+### Testing the Sensor: 
+    https://youtu.be/LPxUawpHUEk
+    https://youtu.be/7mM1T-jgChU
+    https://youtu.be/dQw4w9WgXcQ
