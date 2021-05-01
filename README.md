@@ -11,7 +11,7 @@ Recent advances in low power wireless technologies have enabled simple, high-spe
 ### Technical Approach: 
 The need for accurate statistics around the use of our recreation areas has been well appreciated for some time:
 
-“Every manager of a recreation site needs three essential statistics: man-hours of use, number of visits, and peak loads.” (James and Ripley,1963 [[1](https://github.com/digamesystems/LIDAR/blob/main/docs/Reference/rp_se003.pdf))]
+“Every manager of a recreation site needs three essential statistics: man-hours of use, number of visits, and peak loads.” (James and Ripley,1963) [[1](https://github.com/digamesystems/LIDAR/blob/main/docs/Reference/rp_se003.pdf)]
 
 In trail utilization applications, these statistics are often gathered by infrared detectors tied to a microprocessor-controlled counter with memory that logs the data as a function of time. One popular system of this type is made by TRAFX Research Ltd. [[2](https://www.trafx.net/about)]. We propose to add a combination of WiFi, Bluetooth and LoRaWAN connectivity to the system to enable ‘touchless’ downloading of information from the device’s memory when a researcher is near. 
  
