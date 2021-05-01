@@ -34,6 +34,6 @@ A working prototype will be developed to allow the exploration of:
 The project would also serve as a learning platform for the student intern community, offering opportunities in electrical, mechanical and software engineering.
 
 ### References: 
-[1](https://github.com/digamesystems/LIDAR/blob/main/docs/Reference/rp_se003.pdf) - Instructions for Using Traffic Counters to Estimate Recreation Visits and Use George A. James; Thomas H. Ripley, Res. Pap. SE-3. Asheville, NC: U.S. Department of Agriculture, Forest Service, Southeastern Forest Experiment Station. 14 p. (1963).
+[[1](https://github.com/digamesystems/LIDAR/blob/main/docs/Reference/rp_se003.pdf)] - Instructions for Using Traffic Counters to Estimate Recreation Visits and Use George A. James; Thomas H. Ripley, Res. Pap. SE-3. Asheville, NC: U.S. Department of Agriculture, Forest Service, Southeastern Forest Experiment Station. 14 p. (1963).
 
 [[2](https://www.trafx.net/about)] – TRAFX Research Ltd. 
