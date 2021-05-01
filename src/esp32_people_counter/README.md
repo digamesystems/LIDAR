@@ -5,7 +5,7 @@
 A LIDAR-based sensor system for detecting people boarding and unboarding shuttle buses. Events are reported via Bluetooth Classic to a networked tablet that relays the information to a server. 
 
 ### Authors: 
-John Price, Bailee Allen
+John Price, Bailee Allen, Jared Plunket
 
 ### System Components:
 * [ESP32 WROOM 32D development board](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/hw-reference/esp32/get-started-devkitc.html)
