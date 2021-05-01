@@ -1,8 +1,6 @@
 /*
     Heimdall -- "Heimdall sees all!" 
 
-    "ONE! One person!... TWO! Two people!... THREE! Three people! Ah! Ah! Ah!"
-                                                                 -- The Count.
     This program uses a TFMini-plus LIDAR to count people boarding /
     unboarding shuttle busses. Data is reported in JSON format via Bluetooth
     classic. Program parameters are read from an SD card module or hardcoded 
@@ -222,13 +220,7 @@ int baselineCounter = 0;
 //************************************************************************
 //************************************************************************
 void loop(){
-
-  delay(1000);
-  btUART.println(baselineCounter);
-  baselineCounter++;
-
-}
-/*  
+ 
   delay(lidarUpdateRate);
 
   // Read the LIDAR Sensor
@@ -285,4 +277,4 @@ void loop(){
     debugUART.println(personCount);
   }
 }
-*/
+
