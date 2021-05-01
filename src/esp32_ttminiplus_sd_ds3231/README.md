@@ -30,11 +30,11 @@ Once parameters are loaded, the device attempts to connect to the network with t
 
 At this point, the main loop executes and the system makes repeated distance measurments using the LIDAR sensor over UART. Default acquisition rate is 100Hz and the distances measured are accurate to a few centimeters over ranges from 0.1 - 12 meters (under optimal conditions).
 
-The software is compatible with several LIDAR sensors from the Benewake http://en.benewake.com/ "TF" family: 
-* TFMini-S http://en.benewake.com/product/detail/5c345e26e5b3a844c472329c.html
-* TFMini-Plus http://en.benewake.com/product/detail/5c345cd0e5b3a844c472329b.html
-* TF-Luna http://en.benewake.com/product/detail/5e1c1fd04d839408076b6255.html
-* TF-03 http://en.benewake.com/product/detail/5c345cc2e5b3a844c472329a.html
+The software is compatible with several LIDAR sensors from the [Benewake](http://en.benewake.com/) "TF" family: 
+* [TFMini-S](http://en.benewake.com/product/detail/5c345e26e5b3a844c472329c.html) 
+* [TFMini-Plus](http://en.benewake.com/product/detail/5c345cd0e5b3a844c472329b.html)
+* [TF-Luna](http://en.benewake.com/product/detail/5e1c1fd04d839408076b6255.html)
+* [TF-03](http://en.benewake.com/product/detail/5c345cc2e5b3a844c472329a.html)
 
 Passing vehicles generate a characteristic signature as they travel through the beam which is interpreted by the software. -- Several algorithms for detection are under evaluation including threshold-based and correlation-based approaches.
 
