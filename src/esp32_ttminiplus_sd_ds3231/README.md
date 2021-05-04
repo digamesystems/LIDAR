@@ -21,7 +21,7 @@ At startup, program parameters are read from a configuration file, CONFIG.TXT fo
 
     device name  -- User Defined
     distance threshold -- Less than this distance detected by the LIDAR sensor counts as vehicle 'presence' 
-    operating mode (currently only opmodeNetwork is supported)
+    operating mode (currently only opmodeThreshold and opmodeCorrelation are supported)
     SSID -- Network name
     password -- Network password
     serverURL -- Address for http POSTs of JSON messages
