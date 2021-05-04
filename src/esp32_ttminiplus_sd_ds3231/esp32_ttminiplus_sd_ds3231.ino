@@ -565,6 +565,7 @@ void loop()
     if (vehicleMessageNeeded){
       if (buffer.size()==samples){
         jsonPayload = buildJSONHeader("vehicle");
+        jsonPayload = jsonPayload + ",\"operatingMode\":\"" + stringOpMode +"\"";
         //Tack the data buffer on the JSON message
         jsonPayload = jsonPayload + ",\"rawSignal\":[";
         using index_t = decltype(buffer)::index_t;
