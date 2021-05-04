@@ -584,16 +584,16 @@ void loop()
 
     // Evaluate the LIDAR signal to determine if a vehicle passing event has occured.
     // Different evaluation modes are under consideration...
-    switch (stringOpMode){
-      case "opmodeCorrelation":
+    if (stringOpMode=="opmodeCorrelation"){      
         processLIDARSignalCorrel(); 
-        break;
-      case "opModeThreshold":
-        processLIDARSignal();} 
-        break;
-      default:
-        processLIDARSignal(); 
-    }
+    } else{ 
+      if (stringOpMode=="opmodeThreshold"){
+        processLIDARSignal();
+      } else { 
+        processLIDARSignal();
+      }
+    } 
+   
 
     // Send a message if needed. Failover to SD card logging with network recovery.
     if (jsonPostNeeded){
