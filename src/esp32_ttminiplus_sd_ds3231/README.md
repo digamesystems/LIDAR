@@ -43,11 +43,15 @@ On the detection of a vehicle, a JSON message is created for delivery to the ser
     "{"deviceName": "YourDeviceName",
       "deviceMAC":  "YourMACAddress",
       "timeStamp":" "YourRTCTime (UTC)",
-      "eventType":  "<boot|heartbeat|vehicle"}"
+      "eventType":  "<boot|heartbeat|vehicle>"
+      }"
       
 For "vehicle" events, an optional array of raw LIDAR data maybe included in the payload:
    
-    <snippet...>
+    <...pseudo code snippet...>
+    
+    jsonPayload = jsonPayload + "operatingMode": "<opmodeThreshold|opmodeCorrelation>,"
+    jsonPayload = jsonPayload + "rawData": + "["
     using index_t = decltype(buffer)::index_t;
     for (index_t i = 0; i < buffer.size(); i++) {
         jsonPayload = jsonPayload + buffer[i]; 
