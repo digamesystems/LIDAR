@@ -6,7 +6,7 @@
 const int samples = 100;
 
 //Falling Edge Model 100 pts
-float fallingEdgeModel[] = {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1};
+float fallingEdgeModel[] = {0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 float risingEdgeModel[] = {-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1};
 
 
@@ -437,8 +437,8 @@ bool carIsPresent = false;
 bool carWasPresent = false;
 int32_t carDiscoveredTime = 0;
 
-int16_t highThreshold = 155;
-int16_t lowThreshold = -155; 
+int16_t highThreshold = 30;
+int16_t lowThreshold = -30; 
 
 int16_t highEventValue = highThreshold;
 int16_t lowEventValue  = lowThreshold;
@@ -460,7 +460,7 @@ void loop(){
     
     // Read the LIDAR Sensor
     if( tfmP.getData(tfDist, tfFlux, tfTemp) ) { 
-      tfDist = tfDist + random(-10,10); // +/- cm random noise...
+      tfDist = tfDist + random(0,0); // +/- cm random noise...
      
       buffer.push(tfDist);
       
@@ -469,13 +469,14 @@ void loop(){
       }
       
       //correl1 = crossCorrelation(fallingEdgeModel, data, samples, samples*2) *2 ;
-      
-      correl1 = correlation(fallingEdgeModel, data, samples)* 400;
+      data[0]=1;
+
+      correl1 = (correlation(fallingEdgeModel, data, samples)* 100)-10;//-83.0;
       
       //Filter the correlated value
-      smoothed = smoothed * 0.9 + (float)correl1 * 0.1;
+      smoothed = smoothed * 0.8 + (float)correl1 * 0.2;
            
-      debugUART.print(tfDist+600);
+      debugUART.print(tfDist+300);
       debugUART.print(" ");
 
       debugUART.print(smoothed);
@@ -483,8 +484,10 @@ void loop(){
 
       if (smoothed < lowThreshold){
         lowEventValue = lowThreshold + 100;   
+        digitalWrite(32, HIGH);
       } else {
         lowEventValue = lowThreshold;  
+        digitalWrite(32, LOW);
       }
 
       if (smoothed>  highThreshold){
@@ -496,8 +499,13 @@ void loop(){
       debugUART.print(lowEventValue);
       debugUART.print(" ");
       debugUART.print(highEventValue);
-      debugUART.println();
+      debugUART.print(" ");
+
       
+      debugUART.print(100);
+      debugUART.print(" ");
+      debugUART.print(-100);
+      debugUART.println();
     }
 
 }
