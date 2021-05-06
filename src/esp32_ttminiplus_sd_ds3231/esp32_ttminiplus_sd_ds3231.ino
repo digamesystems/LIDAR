@@ -585,12 +585,12 @@ void loop()
     // Evaluate the LIDAR signal to determine if a vehicle passing event has occured.
     // Different evaluation modes are under consideration...
     if (stringOpMode=="opmodeCorrelation"){      
-        processLIDARSignalCorrel(); 
+        processLIDARSignalCorrel(); //Correlation Detection
     } else{ 
       if (stringOpMode=="opmodeThreshold"){
-        processLIDARSignal();
+        processLIDARSignal(); // Threshold Detection
       } else { 
-        processLIDARSignal();
+        processLIDARSignal(); // UKNOWN. Default to Threshold Detection
       }
     } 
    
