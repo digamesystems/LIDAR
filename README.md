@@ -15,7 +15,7 @@ The need for accurate statistics around the use of our recreation areas has been
 
 In trail utilization applications, these statistics are often gathered by infrared detectors tied to a microprocessor-controlled counter with memory that logs the data as a function of time. One popular system of this type is made by TRAFX Research Ltd. [[2](https://www.trafx.net/about)]. We propose to add a combination of WiFi, Bluetooth and LoRaWAN connectivity to the system to enable ‘touchless’ downloading of information from the device’s memory when a researcher is near. 
  
-Other applications include Vehicle counting to better understand Park Visitation statistics.
+Other applications include Vehicle Counting to better understand Park Visitation statistics.
 
 ![System Schematic](Picture1.png)
 
