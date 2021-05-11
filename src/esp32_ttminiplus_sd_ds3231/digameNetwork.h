@@ -35,11 +35,11 @@ bool connectToWiFi(String stringSSID, String stringPassword){
   long t1 = millis();
   bool timeOut = false;
 
-  while ((WiFi.status() != WL_CONNECTED) && (millis() - t1 < 2000) ) {
+  while ((WiFi.status() != WL_CONNECTED) && (millis() - t1 < 5000) ) {
     delay(500);
     debugUART.print(".");
   }
-  if (millis()-t1>=2000){
+  if (millis()-t1>=5000){
     debugUART.print(" TIMEOUT!");
     return false;  
   } else{

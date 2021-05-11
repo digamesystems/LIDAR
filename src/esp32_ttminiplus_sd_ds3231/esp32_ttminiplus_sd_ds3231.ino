@@ -16,6 +16,9 @@
 #include <SD.h>         // SD file handling
 #include <CircularBuffer.h> // Adafruit library. Pretty small!
 
+//#include "Adafruit_EPD.h" // EPaper display
+
+
 #include "digameTime.h"    // Digame Time functions.
 #include "digameNetwork.h" // Digame Network Functions
 
@@ -168,6 +171,8 @@ bool readDefaults(){
 //****************************************************************************************
 void setup()
 {
+    String compileDate = F(__DATE__);
+    String compileTime = F(__TIME__);
     // Ready the LED.
     pinMode(LED_DIAG, OUTPUT);
     
@@ -180,13 +185,14 @@ void setup()
     debugUART.println("ParkData Traffic Monitoring Platform");
     debugUART.println("Version 0.9");
     debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
+    debugUART.println();
+    debugUART.print("Compiled on ");
+    debugUART.print(compileDate);
+    debugUART.print(" at ");
+    debugUART.println(compileTime); 
     debugUART.println("*****************************************************");
     debugUART.println();
     
-    debugUART.println(F(__DATE__));
-    debugUART.println(F(__TIME__));
-    
-
     debugUART.println("HARDWARE INITIALIZATION");
     debugUART.println();
     
