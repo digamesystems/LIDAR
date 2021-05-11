@@ -34,18 +34,18 @@ float rtcTemp;          // RTC temperature (deg. C)
 
 // HW Status Variables -- sniffed in setup()
 bool sdCardPresent = false;
-bool rtcPresent = false;
-bool lidarPresent = false; 
+bool rtcPresent    = false;
+bool lidarPresent  = false; 
 bool wifiConnected = false;
 
 // Parameters found in CONFIG.TXT on the SD card. 
-String stringDeviceName = "Digame Systems";       
-String stringDistThreshold = "300"; // Lane width parameter for counting
-String stringOpMode= "opModeNetwork";        // Currently only opmodeNetwork is supported
-String stringSSID= "Bighead";          // Wireless network name. 
-String stringPassword = "billgates";      // Network PW
-String stringServerURL ="https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
-float distanceThreshold = 300.0; // Maximum distance at which an object counts as 'present'
+String stringDeviceName    = "Digame Systems";       
+String stringDistThreshold = "300";           // Lane width parameter for counting
+String stringOpMode        = "opModeNetwork"; // Currently only opmodeNetwork is supported
+String stringSSID          = "Bighead";       // Wireless network name. 
+String stringPassword      = "billgates";     // Network PW
+String stringServerURL     = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
+float distanceThreshold    = 300.0;           // Maximum distance at which an object counts as 'present'
 
 long msLastConnectionAttempt;  // Timer value of the last time we tried to connect to the wifi.
 
@@ -55,14 +55,14 @@ int heartbeatTime;    // Current hour,min,etc.
 int oldHeartbeatTime; // Value the last time we looked.
 
 // LIDAR signal analysis parameters
-int16_t tfDist = 0;    // Distance to object in centimeters
-int16_t tfFlux = 0;    // Strength or quality of return signal
-int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
-float   smoothed = 0.0;
-bool carPresent = false;    
-bool lastCarPresent = false; 
-int  carEvent = 0;
-int lidarUpdateRate = 10;
+int16_t tfDist        = 0;    // Distance to object in centimeters
+int16_t tfFlux        = 0;    // Strength or quality of return signal
+int16_t tfTemp        = 0;    // Internal temperature of Lidar sensor chip
+float smoothed        = 0.0;
+bool  carPresent      = false;    
+bool  lastCarPresent  = false; 
+int   carEvent        = 0;
+int   lidarUpdateRate = 10;
 
   float correl1 = 0.0;
 
@@ -90,8 +90,8 @@ void blinkLED(){
 
 
 //****************************************************************************************
+// See if the card is present and can be initialized.
 bool initSDCard(){
-  // see if the card is present and can be initialized:
   if (!SD.begin()) {
     return false;
   }  else {
