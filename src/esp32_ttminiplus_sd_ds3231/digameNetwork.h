@@ -2,10 +2,13 @@
 
 #ifndef __DIGAME_NETWORK_H__
 #define __DIGAME_NETWORK_H__
+
 #define debugUART Serial
+
 //****************************************************************************************
 // Return the device's MAC address
 String getMACAddress(){
+  
   byte mac[6];
 
   WiFi.macAddress(mac);
@@ -49,6 +52,7 @@ bool connectToWiFi(String stringSSID, String stringPassword){
 //****************************************************************************************
 // Attempt to make a WiFi connection.
 bool initWiFi(String stringSSID, String stringPassword){
+  
   int maxRetries = 3;
   int retries = 0;
 

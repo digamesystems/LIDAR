@@ -30,6 +30,7 @@ const char* ntpServer = "pool.ntp.org"; // Time server.
 const long  gmtOffset_sec = 0;          // No offsets -- We're using GMT
 const int   daylightOffset_sec = 0;
 
+
 //****************************************************************************************
 // Silly Utility Function to format time values
 // Format a byte as a left zero-padded, two-digit decimal string
@@ -68,25 +69,28 @@ String getLocalTime()
   return retStr;
 }
 
+//****************************************************************************************
 int getRTCSecond(){
     RTClib myRTC;
     DateTime now = myRTC.now();
     return now.second(); 
 }
 
+//****************************************************************************************
 int getRTCMinute(){
     RTClib myRTC;
     DateTime now = myRTC.now();
     return now.minute(); 
 }
 
-
+//****************************************************************************************
 int getRTCHour(){
     RTClib myRTC;
     DateTime now = myRTC.now();
     return now.hour(); 
 }
 
+//****************************************************************************************
 // Retrieve the time from the RTC and format 
 String getRTCTime(){
     RTClib myRTC;
@@ -106,15 +110,14 @@ String getRTCTime(){
     return message;   
 }
 
-
+//****************************************************************************************
 bool initRTC(){
   String tNow;
 
     tNow = getRTCTime();
-    return !(tNow == "2165-165-165 165:165:85");
-    
-  
+    return !(tNow == "2165-165-165 165:165:85"); // What the library returns when we don't have an SD card hooked up.
 }
+
 //****************************************************************************************
 // Attempt to synchronize the RTC with the value set from the NTP synch at boot. 
 // If the NTP was not set. Don't do anything and leave the current value in the RTC.
@@ -139,6 +142,8 @@ int setRTCTime(){
   return 0;
 }  
 
+//****************************************************************************************
+//Init and get the time from the NTP server
 bool synchTime(bool rtcPresent){
   debugUART.println("  Getting time from NTP Server... ");
   //Init and get the time from the NTP server

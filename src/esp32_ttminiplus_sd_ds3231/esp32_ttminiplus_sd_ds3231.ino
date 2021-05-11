@@ -182,6 +182,10 @@ void setup()
     debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
     debugUART.println("*****************************************************");
     debugUART.println();
+    
+    debugUART.println(F(__DATE__));
+    debugUART.println(F(__TIME__));
+    
 
     debugUART.println("HARDWARE INITIALIZATION");
     debugUART.println();
@@ -360,11 +364,13 @@ String buildJSONHeader(String eventType){
 //We have a JSON message to send to the server. Try to send it. If it fails,
 //Save it to the SD card for later delivery when we can reconnect.
 void processMessage(String jsonPayload){
+  
   if(WiFi.status()== WL_CONNECTED){
       // We have a WiFi connection. -- Upload the data to the the server. 
       postJSON(jsonPayload);
       
   } else {
+      // No WiFi -- Save locally.
       appendDatalog(jsonPayload);
   
       // Try connecting every five minutes 
@@ -434,10 +440,11 @@ float correlation(float x[], float y[], int numSamples){
 //************************************************************************
 // An attempt to improve on the very simple thresholding scheme in processLIDARSignal.
 // This routine uses correlation to look for the presence of a rising/falling edge
-// in the data. Rising edges are associated with 'vehicle left' events and result
-// in a change to 'vehicleMessageNeeded' flag.  
-void processLIDARSignalCorrel(){
+// in the data. Rising edges are associated with 'vehicle left' events. 
+bool processLIDARSignalCorrel(){ // Returns true if vehicle signature detected, false otherwise.
 
+  bool retValue = false;
+  
   //Falling Edge Model 100 pts
   float fallingEdgeModel[] = {0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -453,8 +460,7 @@ void processLIDARSignalCorrel(){
   
   // Read the LIDAR Sensor
   if( tfmP.getData(tfDist, tfFlux, tfTemp) ) { 
-    tfDist = tfDist; // +/- cm random noise...
-   
+    
     buffer.push(tfDist);
     
     for (byte i = 0; i < buffer.size(); i++) {
@@ -472,7 +478,7 @@ void processLIDARSignalCorrel(){
       lowEventValue = lowThreshold + 100;   
       digitalWrite(32, HIGH);
       if (buffer.size()==samples){
-        vehicleMessageNeeded = true;
+        retValue = true;
       }
     } else {
       lowEventValue = lowThreshold;  
@@ -500,13 +506,17 @@ void processLIDARSignalCorrel(){
     debugUART.println();
     */
     
-  } 
+  }
+  return retValue; 
 }
 
 //************************************************************************
 // A dirt-simple processing scheme based on a hard threshold read from the
 // SD card. Pretty susceptible to noisy conditions. TODO: Improve. 
-void processLIDARSignal(){
+bool processLIDARSignal(){
+  
+    bool retValue = false;
+    
     delay(lidarUpdateRate);
     
     // Read the LIDAR Sensor
@@ -526,13 +536,14 @@ void processLIDARSignal(){
 
      if ((lastCarPresent == true) && (carPresent == false)){ // The car has left the field of view.   
         carEvent = 500;
-        vehicleMessageNeeded = true;
+        retValue = true;
           
      } else {    
         carEvent = 0;   
      }
      
      lastCarPresent = carPresent;
+     return retValue;
   }  
   
 }
@@ -542,6 +553,22 @@ void processLIDARSignal(){
 //************************************************************************
 void loop()
 { 
+  //DATA ACQUISITION
+  
+    // Evaluate the LIDAR signal to determine if a vehicle passing event has occured.
+    // Different evaluation modes are under consideration...
+    if (stringOpMode=="opmodeCorrelation"){      
+        vehicleMessageNeeded = processLIDARSignalCorrel(); //Correlation Detection
+    } else{ 
+      if (stringOpMode=="opmodeThreshold"){
+        vehicleMessageNeeded = processLIDARSignal(); // Threshold Detection
+      } else { 
+        vehicleMessageNeeded = processLIDARSignal(); // UKNOWN. Default to Threshold Detection
+      }
+    } 
+
+  //MESSAGE HANDLING
+  
     // Runs once at startup.
     if (bootMessageNeeded){
       jsonPayload = buildJSONHeader("boot");
@@ -552,7 +579,7 @@ void loop()
 
     // Issue a heartbeat message every hour.
     heartbeatTime = getRTCMinute();
-    if ((oldHeartbeatTime != bootMinute)&&(heartbeatTime == bootMinute)){heartbeatMessageNeeded = true;}  
+    if ((oldHeartbeatTime != bootMinute) && (heartbeatTime == bootMinute)){heartbeatMessageNeeded = true;}  
     if (heartbeatMessageNeeded){
       jsonPayload = buildJSONHeader("heartbeat");
       jsonPayload = jsonPayload + "}";
@@ -578,23 +605,9 @@ void loop()
         jsonPayload = jsonPayload + "]}";
         jsonPostNeeded = true; 
       }
-      vehicleMessageNeeded = false;
-      
+      vehicleMessageNeeded = false; 
     }
-
-    // Evaluate the LIDAR signal to determine if a vehicle passing event has occured.
-    // Different evaluation modes are under consideration...
-    if (stringOpMode=="opmodeCorrelation"){      
-        processLIDARSignalCorrel(); //Correlation Detection
-    } else{ 
-      if (stringOpMode=="opmodeThreshold"){
-        processLIDARSignal(); // Threshold Detection
-      } else { 
-        processLIDARSignal(); // UKNOWN. Default to Threshold Detection
-      }
-    } 
-   
-
+     
     // Send a message if needed. Failover to SD card logging with network recovery.
     if (jsonPostNeeded){
       processMessage(jsonPayload); 
