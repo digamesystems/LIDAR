@@ -30,6 +30,10 @@ float data[samples];
 #define debugUART Serial
 #define tfMiniUART Serial2   
 
+
+#define USE_WIFI false
+#define SHOW_DATA_STREAM true // A debugging flag
+
 TFMPlus tfmP;           // Create a TFMini Plus object
 
 RTClib myRTC;           // Create a real time clock object
@@ -205,6 +209,7 @@ void setup()
     }
     showDefaults();
 
+#if USE_WIFI
     debugUART.print("  Testing for WiFi connectivity... ");
     wifiConnected = initWiFi(stringSSID, stringPassword);
     msLastConnectionAttempt=millis();
@@ -216,9 +221,10 @@ void setup()
       debugUART.println("      ERROR! Could NOT establish WiFi connection. (Credentials OK?)");    
       for(int i=0; i<5; i++){blinkLED(); delay(1000);} // Indicate connection failure. 
     }
-    
+
     debugUART.print("  Reading Device MAC Address... ");
     debugUART.println(getMACAddress());
+#endif
 
     tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
     delay(1000);               // Give port time to initalize
@@ -260,6 +266,7 @@ void setup()
     heartbeatTime = bootMinute;
     oldHeartbeatTime = heartbeatTime;
 
+
     debugUART.println();
     debugUART.println("RUNNING");  
     debugUART.println(); 
@@ -298,15 +305,25 @@ void postJSON(String jsonPayload){
   
   // If you need an HTTP request with a content type: application/json, use the following:
   http.addHeader("Content-Type", "application/json");
+
+#if SHOW_DATA_STREAM
+#else
   debugUART.println(jsonPayload);
+#endif
+
   blinkLED();
   
   long t1= millis();
   long t2 = t1;
   int httpResponseCode = http.POST(jsonPayload);
-  
+
+
+#if SHOW_DATA_STREAM
+#else
   debugUART.print("HTTP Response code: ");
   debugUART.println(httpResponseCode);
+#endif
+
   t2=millis();
   //debugUART.print("Time to POST JSON: ");
   //debugUART.print(t2-t1);
@@ -371,6 +388,7 @@ String buildJSONHeader(String eventType){
 //Save it to the SD card for later delivery when we can reconnect.
 void processMessage(String jsonPayload){
   
+#if USE_WIFI
   if(WiFi.status()== WL_CONNECTED){
       // We have a WiFi connection. -- Upload the data to the the server. 
       postJSON(jsonPayload);
@@ -395,6 +413,8 @@ void processMessage(String jsonPayload){
         }
      }
   }
+#endif
+
 }
 
 
@@ -529,7 +549,7 @@ bool processLIDARSignal(){
     if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
 
       //Filter the measured distance
-      smoothed = smoothed *0.5 + (float)tfDist * 0.5;
+      smoothed = smoothed *0.75 + (float)tfDist * 0.25;
       int intSmoothed = (int) smoothed*10;
 
       buffer.push(intSmoothed);
@@ -547,11 +567,22 @@ bool processLIDARSignal(){
      } else {    
         carEvent = 0;   
      }
+
+#if SHOW_DATA_STREAM
+     debugUART.print(tfDist);
+     debugUART.print(",");
+     debugUART.print(smoothed);
+     debugUART.print(",");
+     debugUART.print(distanceThreshold);
+     debugUART.print(",");
+     debugUART.println(carEvent);
+#endif
      
      lastCarPresent = carPresent;
-     return retValue;
-  }  
-  
+  }
+
+    
+  return retValue;  
 }
 
 //************************************************************************
@@ -618,6 +649,8 @@ void loop()
     if (jsonPostNeeded){
       processMessage(jsonPayload); 
       jsonPostNeeded = false; 
-      buffer.clear();  // TODO: think about a way to do the POST in a separate thread so we can continuously gather data...
+      if (stringOpMode=="opmodeCorrelation"){ 
+        buffer.clear();  // TODO: think about a way to do the POST in a separate thread so we can continuously gather data...
+      }
     }   
 }
