@@ -31,8 +31,9 @@ float data[samples];
 #define tfMiniUART Serial2   
 
 
-#define USE_WIFI false
+#define USE_WIFI true
 #define SHOW_DATA_STREAM true // A debugging flag
+#define APPEND_RAW_DATA false // Add a 100 pts of raw data to the JSON message
 
 TFMPlus tfmP;           // Create a TFMini Plus object
 
@@ -630,6 +631,7 @@ void loop()
       if (buffer.size()==samples){
         jsonPayload = buildJSONHeader("vehicle");
         jsonPayload = jsonPayload + ",\"operatingMode\":\"" + stringOpMode +"\"";
+#if APPEND_RAW_DATA
         //Tack the data buffer on the JSON message
         jsonPayload = jsonPayload + ",\"rawSignal\":[";
         using index_t = decltype(buffer)::index_t;
@@ -639,6 +641,7 @@ void loop()
             jsonPayload = jsonPayload + ",";
           }
         }
+#endif
         jsonPayload = jsonPayload + "]}";
         jsonPostNeeded = true; 
       }
