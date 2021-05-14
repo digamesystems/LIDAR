@@ -31,7 +31,7 @@ float data[samples];
 #define tfMiniUART Serial2   
 
 
-#define USE_WIFI true
+#define USE_WIFI false
 #define SHOW_DATA_STREAM true // A debugging flag
 #define APPEND_RAW_DATA false // Add a 100 pts of raw data to the JSON message
 
@@ -549,6 +549,10 @@ bool processLIDARSignal(){
     // Read the LIDAR Sensor
     if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
 
+      if(tfDist==0){
+        tfDist = 1200;  
+      }
+
       //Filter the measured distance
       smoothed = smoothed *0.75 + (float)tfDist * 0.25;
       int intSmoothed = (int) smoothed*10;
@@ -629,8 +633,10 @@ void loop()
     // Vehicle passing event messages include raw data from the sensor.
     if (vehicleMessageNeeded){
       if (buffer.size()==samples){
+        
         jsonPayload = buildJSONHeader("vehicle");
         jsonPayload = jsonPayload + ",\"operatingMode\":\"" + stringOpMode +"\"";
+        
 #if APPEND_RAW_DATA
         //Tack the data buffer on the JSON message
         jsonPayload = jsonPayload + ",\"rawSignal\":[";
