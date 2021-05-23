@@ -8,7 +8,7 @@ TFMPlus tfmP;           // Create a TFMini Plus object
 
 // Aliases for easier reading
 #define debugUART Serial
-#define tfMiniUART Serial2   
+#define tfMiniUART Serial2  
 
 //****************************************************************************************
 // Device initialization                                   
@@ -24,7 +24,7 @@ void setup()
     debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
     debugUART.println("*****************************************************");
 
-    tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
+    tfMiniUART.begin(115200);//,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
     delay(1000);               // Give port time to initalize
     tfmP.begin(&tfMiniUART);   // Initialize device library object and...
                                // pass device serial port to the object.
@@ -35,7 +35,10 @@ void setup()
     if( tfmP.sendCommand(SYSTEM_RESET, 0)){
         debugUART.println("Sensor Active.");
     }
-    else tfmP.printReply();
+    else{
+      debugUART.println("TROUBLE ACTIVATING LIDAR!");                    
+      tfmP.printReply();
+    }
 
     delay(1000);
 
