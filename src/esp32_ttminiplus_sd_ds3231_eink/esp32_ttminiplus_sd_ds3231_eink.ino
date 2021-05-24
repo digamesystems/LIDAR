@@ -7,11 +7,11 @@
  * Copyright 2021, Digame Systems. All rights reserved.
  */
 
-#define USE_EINK false
+#define USE_EINK true
 #define ADAFRUIT_EINK_SD true  // Some Adafruit Eink Displays have an integrated SD card
-#define USE_WIFI true
+#define USE_WIFI false
 #define SHOW_DATA_STREAM false // A debugging flag to show raw LIDAR values on the serial monitor
-#define APPEND_RAW_DATA true   // Add a 100 pts of raw LIDAR data to the JSON message
+#define APPEND_RAW_DATA false   // Add a 100 pts of raw LIDAR data to the JSON message
  
 #include <TFMPlus.h>           // Include TFMini Plus LIDAR Library v1.4.0
 
@@ -21,12 +21,12 @@
 #endif
 
 #include <Wire.h>              // 
-#include <SPI.h>               // SPI bus functions to talk to the SD Card
-#include <SD.h>                // SD file handling
 #include <CircularBuffer.h>    // Adafruit library. Pretty small!
 
-#include "digameTime.h"        // Digame Time Functions.
+#include "digameTime.h"        // Digame Time Functions
 #include "digameNetwork.h"     // Digame Network Functions
+#include "digameMath.h"        // Mean and correlation
+#include "digameConfig.h"      // Program parameters from config file on SD card
 
 #if USE_EINK
   #include "digameDisplay.h" // Digame eInk Display Functions.
@@ -35,12 +35,8 @@
 // Aliases for easier reading
 #define debugUART Serial
 #define tfMiniUART Serial2  
+#define LoRaUART Serial1
 
-#if ADAFRUIT_EINK_SD
-  #define SD_CS       14  // SD card chip select
-#else
-  #define SD_CS       4
-#endif
 
 const int samples = 100;
 CircularBuffer<int, samples> buffer; // We're going to hang onto the last 100 points to visualize what the sensor sees
@@ -56,15 +52,6 @@ bool sdCardPresent = false;
 bool rtcPresent    = false;
 bool lidarPresent  = false; 
 bool wifiConnected = false;
-
-// Parameters found in CONFIG.TXT on the SD card. Fails over to these values if not found.
-String stringDeviceName    = "Digame Systems";       
-String stringDistThreshold = "300";           // Lane width parameter for counting
-String stringOpMode        = "opModeNetwork"; // Currently only opmodeNetwork is supported
-String stringSSID          = "Bighead";       // Wireless network name. 
-String stringPassword      = "billgates";     // Network PW
-String stringServerURL     = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
-float distanceThreshold    = 300.0;           // Maximum distance at which an object counts as 'present'
 
 long msLastConnectionAttempt;  // Timer value of the last time we tried to connect to the wifi.
 
@@ -101,87 +88,10 @@ int bootMinute;
 //****************************************************************************************
 // Some of the most sophisticated code ever written.
 void blinkLED(){
-  digitalWrite(LED_DIAG, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(100);                     // wait for a bit
-  digitalWrite(LED_DIAG, LOW);    // turn the LED off by making the voltage LOW
+  digitalWrite(LED_DIAG, HIGH);   
+  delay(100);                     
+  digitalWrite(LED_DIAG, LOW);    
   delay(100);  
-}
-
-
-//****************************************************************************************
-// See if the card is present and can be initialized.
-bool initSDCard(){
-  if (!SD.begin(SD_CS)) {
-    return false;
-  }  else {
-    return true;    
-  }
-}
-
-
-//****************************************************************************************
-// Debug dump of current values for program defaults.
-void showDefaults(){
-  
-  debugUART.print("      Device Name: ");
-  debugUART.println(stringDeviceName);
-  
-  debugUART.print("      Distance Threshold: ");
-  debugUART.println(stringDistThreshold);
-  distanceThreshold = stringDistThreshold.toFloat();
-  
-  debugUART.print("      Operating Mode: ");
-  debugUART.println(stringOpMode);
-  
-  debugUART.print("      SSID: ");
-  debugUART.println(stringSSID);
-  
-  debugUART.print("      Password: ");
-  debugUART.println(stringPassword);
-  
-  debugUART.print("      Server URL: ");
-  debugUART.println(stringServerURL);
-
-}
-
-
-//****************************************************************************************
-// Grab program parameters from the SD Card.
-bool readDefaults(){
-
-  File dataFile = SD.open("/CONFIG.TXT");
-
-  // If the file is available, read from it:
-  if (dataFile) {
-      stringDeviceName = dataFile.readStringUntil('\r');
-      stringDeviceName.trim();
-      
-      stringDistThreshold = dataFile.readStringUntil('\r');
-      stringDistThreshold.trim();
-      distanceThreshold = stringDistThreshold.toFloat();
-
-      stringOpMode = dataFile.readStringUntil('\r');
-      stringOpMode.trim();
-      
-      stringSSID = dataFile.readStringUntil('\r');
-      //stringSSID = "AndroidAP3AE2";   // ***********************************REMOVE LATER!!!
-      stringSSID.trim();
-            
-      stringPassword = dataFile.readStringUntil('\r');
-      //stringPassword = "ohpp8971";    //*************************************REMOVE LATER!!!
-      stringPassword.trim();
-      
-      stringServerURL = dataFile.readStringUntil('\r');
-      stringServerURL.trim();
-      
-      dataFile.close();
-      return true;
-  }
-  // If the file isn't open, pop up an error:
-  else {
-    debugUART.println("      ERROR! Trouble opening CONFIG.TXT");
-    return false;
-  }
 }
 
 
@@ -200,7 +110,12 @@ void setup()
     pinMode(CTR_RESET,INPUT_PULLUP);
        
     debugUART.begin(115200);   // Intialize terminal serial port
+
+    LoRaUART.begin(115200, SERIAL_8N1, 25, 33);
+    
     delay(1000);               // Give port time to initalize
+
+    
 
     Wire.begin();
 
@@ -231,26 +146,26 @@ void setup()
     sdCardPresent = initSDCard();
     if ((sdCardPresent) && (readDefaults())){
       debugUART.println("Module found. (Parameters read from SD Card.)");
-      stat += "  SD   :  OK\n";
+      stat += "   SD   :  OK\n";
     }else{
       debugUART.println("ERROR! Module NOT found. (Parameters set to default values.)");    
-      stat += "  SD   :  ERROR!\n";
+      stat += "   SD   :  ERROR!\n";
     }
 
     showDefaults();
 
 #if USE_WIFI
     debugUART.print("  Testing for WiFi connectivity... ");
-    wifiConnected = initWiFi(stringSSID, stringPassword);
+    wifiConnected = initWiFi(params.networkName, params.password);
     msLastConnectionAttempt=millis();  // Save the time of the latest connection attempt. Used to schedule retries if lost.
     debugUART.println();
     if (wifiConnected){
       debugUART.println("      Connection established.");
-      stat +="  WiFi :  OK\n";
+      stat +="   WiFi :  OK\n";
       for(int i=0; i<5; i++){blinkLED();} // Indicate connection success. 
     }else{
       debugUART.println("      ERROR! Could NOT establish WiFi connection. (Credentials OK?)");  
-      stat +="  WiFi :  ERROR!\n";  
+      stat +="   WiFi :  ERROR!\n";  
       for(int i=0; i<5; i++){blinkLED(); delay(1000);} // Indicate connection failure. 
     }
 
@@ -276,24 +191,24 @@ void setup()
     debugUART.printf( "  Testing for LIDAR Sensor... ");
     if( tfmP.sendCommand(SYSTEM_RESET, 0)){
         debugUART.println("LIDAR Sensor initialized.");
-        stat +="  LIDAR:  OK\n";
+        stat +="   LIDAR:  OK\n";
     }
     else {
         debugUART.println("ERROR! LIDAR Sensor not found or sensor error.");
-        stat +="  LIDAR:  ERROR!\n";
+        stat +="   LIDAR:  ERROR!\n";
         tfmP.printReply();
     }
 
     debugUART.print("  Testing for Real-Time-Clock module... ");
-    rtcPresent = initRTC();
+    rtcPresent = true; //initRTC();
     if (rtcPresent){
       debugUART.println("RTC found. (Program will use time from RTC.)");
-      stat +="  RTC  :  OK\n";
+      stat +="   RTC  :  OK\n";
       debugUART.print("      RTC Time: ");
       debugUART.println(getRTCTime()); 
     }else{
       debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
-      stat +="   RTC  :  ERROR!\n"; 
+      stat +="    RTC  :  ERROR!\n"; 
     }
 
     if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
@@ -304,7 +219,7 @@ void setup()
     heartbeatTime = bootMinute;
     oldHeartbeatTime = heartbeatTime;
 
-    stat += "  LoRa :  OK\n";
+    stat += "   LoRa :  OK\n";
 #if USE_EINK
     displayStatusScreen(stat);
 #endif
@@ -363,7 +278,7 @@ void postJSON(String jsonPayload){
   HTTPClient http;
   
   // Your Domain name with URL path or IP address with path
-  http.begin(stringServerURL.c_str());
+  http.begin(params.serverURL.c_str());
   
   // If you need an HTTP request with a content type: application/json, use the following:
   http.addHeader("Content-Type", "application/json");
@@ -380,7 +295,6 @@ void postJSON(String jsonPayload){
   http.end();
   
 #endif // USE_WIFI
-
 
   return;
 }
@@ -419,13 +333,13 @@ void postDatalog(){
 String buildJSONHeader(String eventType){
   String jsonHeader;
   if (rtcPresent){
-    jsonHeader = "{\"deviceName\":\"" + stringDeviceName + 
+    jsonHeader = "{\"deviceName\":\"" + params.deviceName + 
                    "\",\"deviceMAC\":\"" + getMACAddress() + 
                    "\",\"timeStamp\":\"" + getRTCTime() + 
                    "\",\"eventType\":\"" + eventType + 
                    "\"";
   } else {
-    jsonHeader = "{\"deviceName\":\"" + stringDeviceName + 
+    jsonHeader = "{\"deviceName\":\"" + params.deviceName + 
                    "\",\"deviceMAC\":\"" + getMACAddress() + 
                    "\",\"timeStamp\":\"" + getLocalTime() + 
                    "\",\"eventType\":\"" + eventType + 
@@ -452,10 +366,10 @@ void processMessage(String jsonPayload){
       // Try connecting every five minutes 
       if ((millis() - msLastConnectionAttempt) > (5*60*1000)){ 
         //Try to connect up to two times...
-        connectToWiFi(stringSSID, stringPassword);    // Once
+        connectToWiFi(params.networkName, params.password);    // Once
         
         if (WiFi.status() != WL_CONNECTED){
-          connectToWiFi(stringSSID, stringPassword);  // Twice
+          connectToWiFi(params.networkName, params.password);  // Twice
         }
 
         msLastConnectionAttempt=millis();
@@ -470,50 +384,11 @@ void processMessage(String jsonPayload){
 }
 
 
-//****************************************************************************************
-// Math functions
-//****************************************************************************************
 
-float mean(float a[], int numSamples){
-    float result;
-    
-    result = 0;   
-    for (int i=0; i<numSamples; i++) {
-      result += a[i];
-    }
-    result /= numSamples;
-    return result;  
-}
+//************************************************************************
+// LIDAR Siganal Processing Functions
+//************************************************************************
 
-// Calculate the correlation coefficient between two arrays
-float correlation(float x[], float y[], int numSamples){ 
-    float sx, sy, sxy, denom; 
-    float mx, my; // means
-    float r; // correlation coefficient
-
-    /* Calculate the means */
-    mx = mean(x, numSamples);
-    my = mean(y, numSamples);
-    
-    /* Calculate the denominator */
-    sx = 0;
-    sy = 0;
-    
-    for (int i=0; i<numSamples; i++) {
-      sx += (x[i] - mx) * (x[i] - mx);
-      sy += (y[i] - my) * (y[i] - my);
-    }
-    
-    denom = sqrt(sx*sy);
-
-   /* Calculate the correlation coefficient */
-    sxy = 0;
-    for (int i=0; i<numSamples; i++) {
-          sxy += (x[i] - mx) * (y[i] - my); 
-    }
-    r = sxy / denom;
-    return r;
-}
 
 //************************************************************************
 // An attempt to improve on the very simple thresholding scheme in processLIDARSignal.
@@ -606,7 +481,7 @@ bool processLIDARSignal(){
 
       buffer.push(intSmoothed);
       
-      if (smoothed < distanceThreshold) {
+      if (smoothed < params.distanceThreshold) {
         carPresent = true; 
       } else {
         carPresent = false; 
@@ -625,7 +500,7 @@ bool processLIDARSignal(){
      debugUART.print(",");
      debugUART.print(smoothed);
      debugUART.print(",");
-     debugUART.print(distanceThreshold);
+     debugUART.print(params.distanceThreshold);
      debugUART.print(",");
      debugUART.println(carEvent);
 #endif
@@ -646,12 +521,13 @@ void messageManager(void *parameter){
   for(;;){  
     if (msgBuffer.size()>0){
 
-#if SHOW_DATA_STREAM
-#else
-      Serial.print("MessageManager: msgBuffer.size(): ");
-      Serial.println(msgBuffer.size());
-      Serial.println("MessageManager: Sending message: ");
-#endif      
+      #if SHOW_DATA_STREAM
+      #else
+        Serial.print("MessageManager: msgBuffer.size(): ");
+        Serial.println(msgBuffer.size());
+        Serial.println("MessageManager: Sending message: ");
+      #endif  
+          
       xSemaphoreTake(mutex_v, portMAX_DELAY); 
         //Serial.println("  MessageManager: Shifting msgBuffer..."); 
         activeMessage=msgBuffer.shift();
@@ -680,10 +556,10 @@ void loop()
   
     // Evaluate the LIDAR signal to determine if a vehicle passing event has occured.
     // Different evaluation modes are under consideration...
-    if (stringOpMode=="opmodeCorrelation"){      
+    if (params.detAlgorithm=="Correlation"){      
         vehicleMessageNeeded = processLIDARSignalCorrel(); //Correlation Detection
     } else{ 
-      if (stringOpMode=="opmodeThreshold"){
+      if (params.detAlgorithm=="Threshold"){
         vehicleMessageNeeded = processLIDARSignal(); // Threshold Detection
       } else { 
         vehicleMessageNeeded = processLIDARSignal(); // UKNOWN. Default to Threshold Detection
@@ -744,7 +620,8 @@ void loop()
         #endif
 
         jsonPayload = buildJSONHeader("vehicle");
-        jsonPayload = jsonPayload + ",\"operatingMode\":\"" + stringOpMode +"\"";
+        jsonPayload = jsonPayload + ",\"linkMode\":\"" + params.linkMode +"\"";
+        jsonPayload = jsonPayload + ",\"detAlgorithm\":\"" + params.detAlgorithm +"\"";
         
         #if APPEND_RAW_DATA
         // Vehicle passing event messages may include raw data from the sensor.
@@ -757,9 +634,10 @@ void loop()
             jsonPayload = jsonPayload + ",";
           }
         }
+        jsonPayload = jsonPayload + "]";
         #endif
         
-        jsonPayload = jsonPayload + "]}";
+        jsonPayload = jsonPayload + "}";
         jsonPostNeeded = true; 
       }
       vehicleMessageNeeded = false; 
@@ -779,7 +657,7 @@ void loop()
       //processMessage(jsonPayload); 
       jsonPostNeeded = false; 
       
-      if (stringOpMode=="opmodeCorrelation"){ 
+      if (params.detAlgorithm=="correlation"){ 
         buffer.clear();  // TODO: think about a way to do the POST in a separate thread so we can continuously gather data...
       }
       

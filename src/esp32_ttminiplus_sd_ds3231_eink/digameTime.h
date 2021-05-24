@@ -25,7 +25,7 @@ byte Second;
 bool h12; //Hour counter
 bool PM;
 
-// Hardcoded time parameters. -- TODO: get some failover time servers...
+// Hardcoded time parameters. -- TODO: get some fallover time servers...
 const char* ntpServer = "pool.ntp.org"; // Time server.
 const long  gmtOffset_sec = 0;          // No offsets -- We're using GMT
 const int   daylightOffset_sec = 0;
@@ -151,13 +151,13 @@ bool synchTime(bool rtcPresent){
   
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   stringLocalTime = getLocalTime();
-  debugUART.print("      NTP Time: ");
+  debugUART.print("    NTP Time: ");
   debugUART.println(stringLocalTime);
   if (stringLocalTime != "Failed to obtain NTP time"){  
     if (rtcPresent){
       debugUART.println("  Synchronizing RTC w/ NTP Time...");
       setRTCTime(); // Set the RTC to the NTP value we just got.
-      debugUART.print("      RTC Time: ");
+      debugUART.print("    RTC Time: ");
       debugUART.println(getRTCTime()); 
     }
   }  
