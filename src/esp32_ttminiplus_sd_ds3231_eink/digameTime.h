@@ -93,8 +93,12 @@ int getRTCHour(){
 //****************************************************************************************
 // Retrieve the time from the RTC and format 
 String getRTCTime(){
-    RTClib myRTC;
+  
+    //RTClib myRTC;
+    DS3231 clock;
     String message = "";
+
+/*
     DateTime now = myRTC.now();
     message += now.year();
     message += "-";
@@ -107,6 +111,22 @@ String getRTCTime(){
     message += two_digits(now.minute());
     message += ':';
     message += two_digits(now.second());
+*/
+    message += clock.getYear();
+    message += "-";
+    bool cent;
+    message += two_digits(clock.getMonth(cent));
+    message += "-";
+    message += two_digits(clock.getDate());
+    message +=" ";
+    bool hr;
+    bool amPM;
+    message += two_digits(clock.getHour(hr,amPM));
+    message += ':';
+    message += two_digits(clock.getMinute());
+    message += ':';
+    message += two_digits(clock.getSecond());  
+    
     return message;   
 }
 

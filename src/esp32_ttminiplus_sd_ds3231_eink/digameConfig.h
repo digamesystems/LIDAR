@@ -92,11 +92,11 @@ bool readDefaults(){
       params.detAlgorithm.trim();
       
       params.networkName = dataFile.readStringUntil('\r');
-      //stringSSID = "AndroidAP3AE2";   // ***********************************REMOVE LATER!!!
+      params.networkName = "AndroidAP3AE2";   // ***********************************REMOVE LATER!!!
       params.networkName.trim();
             
       params.password = dataFile.readStringUntil('\r');
-      //stringPassword = "ohpp8971";    //*************************************REMOVE LATER!!!
+      params.password= "ohpp8971";    //*************************************REMOVE LATER!!!
       params.password.trim();
       
       params.serverURL = dataFile.readStringUntil('\r');

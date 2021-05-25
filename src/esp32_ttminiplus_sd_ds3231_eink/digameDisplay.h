@@ -39,10 +39,24 @@ void showValue(double v);
 //******************************************************************************************
 void initDisplay()
 {
-  display.setRotation(1);
+  display.setRotation(0);
+  display.setTextSize(2);
+  //display.setFont(&FreeMonoBold9pt7b);
   display.setTextColor(GxEPD_BLACK);
+  int16_t tbx, tby; uint16_t tbw, tbh;
+  display.getTextBounds("Initializing...", 0, 0, &tbx, &tby, &tbw, &tbh);
+  // center bounding box by transposition of origin:
+  uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  uint16_t y = ((display.height() - tbh) / 2) - tby;
   display.setFullWindow();
   display.firstPage();
+  do
+  {
+    display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x, y);
+    display.print("Initializing...");
+  }
+  while (display.nextPage());
   return;
 }
 
@@ -150,9 +164,9 @@ void displayCountScreen(double v)
 //******************************************************************************************
 void showValue(double v)
 {
-  int digits = 0;
+  int digits = 0; 
   
-  display.setRotation(1);
+  //display.setRotation(0);
   //display.setFont(&FreeMonoBold18pt7b);
   display.setTextSize(5);
   display.setTextColor(GxEPD_BLACK);

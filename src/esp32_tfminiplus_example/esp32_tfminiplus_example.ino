@@ -41,13 +41,13 @@ void setup()
     }
 
     delay(1000);
-
+/*
     debugUART.printf( "Adjusting Frame Rate... ");
     if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){
         debugUART.println("Frame Rate Adjusted.");
     }
     else tfmP.printReply();
-
+*/
  
     
     debugUART.println("Running!");  
@@ -61,7 +61,7 @@ int16_t tfFlux = 0;    // Strength or quality of return signal
 int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
 float   smoothed = 0.0;
 
-int lidarUpdateRate = 8; // 100Hz -> 10 ms
+int lidarUpdateRate = 5; // 100Hz -> 10 ms
 int slowUpdateRate = 100;
 int fastUpdateRate = 10;
 
@@ -69,7 +69,7 @@ int fastUpdateRate = 10;
 //************************************************************************
 void loop(){
 
-    tfmP.sendCommand(TRIGGER_DETECTION, 0);
+    //tfmP.sendCommand(TRIGGER_DETECTION, 0);
     //delay(lidarUpdateRate);
     
     // Read the LIDAR Sensor
