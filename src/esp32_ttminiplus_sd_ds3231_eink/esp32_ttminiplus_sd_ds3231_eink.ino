@@ -1,5 +1,6 @@
 /*
- * ParkData Traffic Monitoring Platform
+ * HEIMDALL TCS 
+ * 
  * Version 0.9
  * 
  * A traffic counting system that uses LIDAR to track pedestrians and vehicles.
@@ -10,33 +11,35 @@
 // Mix-n-match hardware configuration
 #define USE_WIFI true           // WiFi back haul
 #define USE_LORA true           // Reyax896 LoRa Module back haul
-#define USE_BLUETOOTH false     // Bluetooth back haul
+#define USE_BLUETOOTH false     // Bluetooth back haul (Not implemented, yet.)
 #define USE_EINK true           // Adafruit eInk Display
 #define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
-#define SHOW_DATA_STREAM true  // A debugging flag to show raw LIDAR values on the serial monitor
+#define SHOW_DATA_STREAM false  // A debugging flag to show raw LIDAR values on the serial monitor
 #define APPEND_RAW_DATA false   // Add a 100 pts of raw LIDAR data to the JSON message
  
 #include <TFMPlus.h>            // Include TFMini Plus LIDAR Library v1.4.0
 
-
-#include <WiFi.h>            // WiFi stack
+#include <WiFi.h>               // WiFi stack
 #if USE_WIFI
-  #include <HTTPClient.h>      // To post to the ParkData Server
-#else 
-  //btStop();
+  #include <HTTPClient.h>       // To post to the ParkData Server
 #endif
 
-//#include <Wire.h>              // 
-#include <CircularBuffer.h>    // Adafruit library. Pretty small!
+#include <CircularBuffer.h>     // Adafruit library. Pretty small!
 
-#include "digameTime.h"        // Digame Time Functions
-#include "digameNetwork.h"     // Digame Network Functions
-#include "digameMath.h"        // Mean and correlation
-#include "digameConfig.h"      // Program parameters from config file on SD card
+#include "digameTime.h"         // Digame Time Functions
+#include "digameNetwork.h"      // Digame Network Functions
+#include "digameMath.h"         // Mean and correlation
+#include "digameConfig.h"       // Program parameters from config file on SD card
 
 #if USE_EINK
-  #include "digameDisplay.h" // Digame eInk Display Functions.
+  #include "digameDisplay.h"    // Digame eInk Display Functions.
 #endif
+
+#include "driver/adc.h"
+#include <esp_bt.h>
+#define STA_SSID "Bighead"
+#define STA_PASS "billgates"
+
 
 // Aliases for easier reading
 #define debugUART  Serial
@@ -51,11 +54,10 @@ const int samples = 100;
 CircularBuffer<int, samples> buffer; // We're going to hang onto the last 100 points to visualize what the sensor sees
 float data[samples];
 
-SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffer (see below).
-CircularBuffer<String, samples> jsonMsgBuffer; // A buffer containing JSON messages to be sent to the server...
-
+SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).
+CircularBuffer<String, samples> jsonMsgBuffer; // A buffer containing JSON messages to be sent to the server.
 #if USE_LORA
-CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages to be sent to the server...
+CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages to be sent to the LoRa basestation.
 #endif
 
 TFMPlus tfmP;           // Create a TFMini Plus object
@@ -82,7 +84,7 @@ float smoothed        = 0.0;
 bool  carPresent      = false;    
 bool  lastCarPresent  = false; 
 int   carEvent        = 0;
-int   lidarUpdateRate = 10;
+int   lidarUpdateRate = 100;
 float correl1 = 0.0;
 
 // Messaging flags
@@ -97,6 +99,61 @@ String loraPayload; //A stripped down version for LoRa
 
 // The minute (0-59) within the hour we woke up at boot. 
 int bootMinute;
+
+void disableWiFi(){
+    adc_power_off();
+    WiFi.disconnect(true);  // Disconnect from the network
+    WiFi.mode(WIFI_OFF);    // Switch WiFi off
+    //debugUART.println("");
+    //debugUART.println("WiFi disconnected!");
+}
+void disableBluetooth(){
+    // Quite unusefully, no relevable power consumption
+    btStop();
+    //debugUART.println("");
+    //debugUART.println("Bluetooth stop!");
+}
+ 
+void setModemSleep() {
+    disableWiFi();
+    disableBluetooth();
+    setCpuFrequencyMhz(40);
+    
+    // Use this if 40Mhz is not supported
+    // setCpuFrequencyMhz(80);
+}
+void enableWiFi(){
+    adc_power_on();
+    delay(200);
+ 
+    WiFi.disconnect(false);  // Reconnect the network
+    WiFi.mode(WIFI_STA);    // Switch WiFi off
+ 
+    delay(200);
+ 
+    //debugUART.println("START WIFI");
+    WiFi.begin(STA_SSID, STA_PASS);
+ 
+    while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        //debugUART.print(".");
+    }
+ 
+    //debugUART.println("");
+    //debugUART.println("WiFi connected");
+    //debugUART.println("IP address: ");
+    //debugUART.println(WiFi.localIP());
+    
+}
+ 
+void wakeModemSleep() {
+    setCpuFrequencyMhz(240);
+    enableWiFi(); 
+    
+    // Wake up LoRa module.
+    //LoRaUART.println("AT");   
+    //debugUART.println("MODEM SLEEP DISABLED.");
+}
 
 
 //****************************************************************************************
@@ -203,10 +260,10 @@ void setup()
     // Send some commands to the TFMini-Plus
     // - - Perform a system reset - - 
     
-    debugUART.printf( "Activating LIDAR Sensor... ");
+    debugUART.printf( "  Activating LIDAR Sensor... ");
 
     
-    debugUART.printf( "  Testing for LIDAR Sensor... ");
+    //debugUART.printf( "  Testing for LIDAR Sensor... ");
     if( tfmP.sendCommand(SYSTEM_RESET, 0)){
         debugUART.println("LIDAR Sensor initialized.");
         stat +="   LIDAR: OK\n";
@@ -218,6 +275,7 @@ void setup()
     }
 
     delay(1000);
+
 
     debugUART.printf( "Adjusting Frame Rate... ");
     if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){
@@ -273,6 +331,7 @@ void setup()
     showValue(0);
 #endif
 
+  setModemSleep();
 }
 
 
@@ -380,15 +439,21 @@ String buildJSONHeader(String eventType){
 //****************************************************************************************
 // LoRa messages to the server all have a similar format. 
 #if USE_LORA
-String buildLoRaHeader(String eventType){
+String buildLoRaHeader(String eventType, double count){
   String loraHeader;
+  String strCount;
+
+  strCount= String(count,0);
+  strCount.trim();
   if (rtcPresent){
     loraHeader = "{\"ts\":\"" + getRTCTime() + 
-                   "\",\"et\":\"" + eventType + 
+                   "\",\"et\":\"" + eventType +
+                   "\",\"c\":\"" + strCount +  
                    "\"";
   } else {
     loraHeader = "{\"ts\":\"" + getLocalTime() + 
                    "\",\"et\":\"" + eventType + 
+                   "\",\"c\":\"" + strCount + 
                    "\"";  
   }                    
   return loraHeader;
@@ -402,11 +467,12 @@ String buildLoRaHeader(String eventType){
 void processMessage(String jsonPayload){
 
 #if USE_WIFI
+  wakeModemSleep();
   if(WiFi.status()== WL_CONNECTED){
       // We have a WiFi connection. -- Upload the data to the the server. 
       postJSON(jsonPayload);
       
-  } else {
+  } /*else {
       // No WiFi -- Save locally.
       appendDatalog(jsonPayload);
   
@@ -425,7 +491,8 @@ void processMessage(String jsonPayload){
           postDatalog();  // POSTS and clears out the log.
         }
      }
-  }
+   }*/
+  setModemSleep();  
 #endif
 
 }
@@ -530,7 +597,7 @@ bool processLIDARSignal(){
       }
       
       //Filter the measured distance
-      smoothed = smoothed *0.75 + (float)tfDist * 0.25;
+      smoothed = smoothed *0.65 + (float)tfDist * 0.35;
       int intSmoothed = (int) smoothed*10;
 
       buffer.push(intSmoothed);
@@ -595,8 +662,17 @@ void messageManager(void *parameter){
        Serial.println(activeMessage);
       #endif
 
-      LoRaUART.print("AT+SEND=1,");
-      LoRaUART.println(String(loraPayload.length()) + "," + loraPayload);      
+      //Wake up the LoRa module
+      LoRaUART.println("AT");
+      delay(200);
+      
+      LoRaUART.print("AT+SEND=2,");
+      LoRaUART.println(String(loraPayload.length()) + "," + activeMessage); 
+      delay(3000);
+      
+      //Put LoRa module to sleep
+      LoRaUART.println("AT+MODE=1");
+           
       Serial.println("Sent!");
     } else{
       //Serial.println("MessageManager: Nothing to do...");      
@@ -629,7 +705,7 @@ void messageManager(void *parameter){
     } else{
       //Serial.println("MessageManager: Nothing to do...");  
     }
-    vTaskDelay(2000 / portTICK_PERIOD_MS);   
+    vTaskDelay(100 / portTICK_PERIOD_MS);   
   }   
 }
 
@@ -678,7 +754,7 @@ void loop()
       jsonPayload = jsonPayload + "}";
 
       #if USE_LORA
-      loraPayload = buildLoRaHeader("b");
+      loraPayload = buildLoRaHeader("b",count);
       loraPayload = loraPayload + "}";
       #endif
       
@@ -694,7 +770,7 @@ void loop()
       jsonPayload = jsonPayload + "}";
 
       #if USE_LORA
-      loraPayload = buildLoRaHeader("hb");
+      loraPayload = buildLoRaHeader("hb",count);
       loraPayload = loraPayload + "}";
       #endif
   
@@ -705,7 +781,7 @@ void loop()
     
     if (vehicleMessageNeeded){
       
-      if (buffer.size()==samples){
+      if (buffer.size()==samples){ //Fill up the buffer before processing so we don't get false events at startup.
         
         count++;
         
@@ -716,7 +792,6 @@ void loop()
         #endif 
              
         #if USE_EINK
-          //displayCount(count);
           showValue(count);
         #endif
 
@@ -737,11 +812,18 @@ void loop()
         }
         jsonPayload = jsonPayload + "]";
         #endif
-
-        loraPayload = buildLoRaHeader("v");
-        loraPayload = loraPayload + "}";
-   
+        
         jsonPayload = jsonPayload + "}";
+
+        #if USE_LORA
+        loraPayload = buildLoRaHeader("v",count);
+        // Detection algorithm
+        String da = String(params.detAlgorithm[0]); //[T]hreshold or [C]orrelation
+        da.toLowerCase();
+        loraPayload = loraPayload + ",\"da\":\"" + da +"\"";
+        loraPayload = loraPayload + "}";
+        #endif
+        
         jsonPostNeeded = true; 
       }
       vehicleMessageNeeded = false; 
