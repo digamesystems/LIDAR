@@ -647,8 +647,10 @@ void loop()
             jsonPayload = jsonPayload + ",";
           }
         }
-        jsonPayload = jsonPayload + "]}";
+        jsonPayload = jsonPayload + "]";
 #endif
+        jsonPayload = jsonPayload + "}";
+
         jsonPostNeeded = true; 
       }
       vehicleMessageNeeded = false; 
