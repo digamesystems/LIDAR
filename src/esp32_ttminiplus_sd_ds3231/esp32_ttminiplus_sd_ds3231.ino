@@ -647,8 +647,8 @@ void loop()
             jsonPayload = jsonPayload + ",";
           }
         }
-#endif
         jsonPayload = jsonPayload + "]}";
+#endif
         jsonPostNeeded = true; 
       }
       vehicleMessageNeeded = false; 
