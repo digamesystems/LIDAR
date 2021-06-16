@@ -1,7 +1,5 @@
 /*
- * HEIMDALL TCS 
- * 
- * Version 0.9
+ * HEIMDALL VCS - Vehicle Counting Systems 
  * 
  * A traffic counting system that uses LIDAR to track pedestrians and vehicles.
  * 
@@ -9,7 +7,7 @@
  */
 
 // Mix-n-match hardware configuration
-#define USE_WIFI true           // WiFi back haul
+#define USE_WIFI false          // WiFi back haul
 #define USE_LORA true           // Reyax896 LoRa Module back haul
 #define USE_BLUETOOTH false     // Bluetooth back haul (Not implemented, yet.)
 #define USE_EINK true           // Adafruit eInk Display
@@ -37,6 +35,7 @@
 
 #include "driver/adc.h"
 #include <esp_bt.h>
+
 #define STA_SSID "Bighead"
 #define STA_PASS "billgates"
 
@@ -108,7 +107,7 @@ void disableWiFi(){
     //debugUART.println("WiFi disconnected!");
 }
 void disableBluetooth(){
-    // Quite unusefully, no relevable power consumption
+    // Rather disappointing on power improvement.
     btStop();
     //debugUART.println("");
     //debugUART.println("Bluetooth stop!");
@@ -118,10 +117,8 @@ void setModemSleep() {
     disableWiFi();
     disableBluetooth();
     setCpuFrequencyMhz(40);
-    
-    // Use this if 40Mhz is not supported
-    // setCpuFrequencyMhz(80);
 }
+
 void enableWiFi(){
     adc_power_on();
     delay(200);
@@ -132,7 +129,7 @@ void enableWiFi(){
     delay(200);
  
     //debugUART.println("START WIFI");
-    WiFi.begin(STA_SSID, STA_PASS);
+    WiFi.begin(params.networkName.c_str(), params.password.c_str());
  
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);

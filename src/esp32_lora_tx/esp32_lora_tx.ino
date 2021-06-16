@@ -1,12 +1,8 @@
-/* Send a LoRa messages to an address. 
+/* Send repeated LoRa messages to an address. 
 */
-
-
 
 #define loraUART Serial1
 #define debugUART Serial
-
-
 
 int TX_LED = 13;
 

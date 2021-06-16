@@ -117,9 +117,9 @@ void displaySplashScreen(){
 void displayInitializingScreen(){ 
   display.setTextColor(GxEPD_BLACK);     
   display.setTextSize(3);
-  centerPrint("CONFIGURE", 10);
+  centerPrint("SELF-TEST",10);
   display.setTextSize(2);
-  centerPrint("Configuring", 60);
+  centerPrint("Checking", 60);
   centerPrint("System", 80);
   centerPrint("Components...", 100);
   displayCopyright();

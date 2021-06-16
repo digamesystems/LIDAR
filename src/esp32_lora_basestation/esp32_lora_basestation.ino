@@ -7,7 +7,7 @@
  
 #define USE_WIFI true
 
-#include <digameNetwork.h>
+#include "digameNetwork.h"
 #include <HTTPClient.h>      // To post to the ParkData Server
 #include "driver/adc.h"
 #include <esp_bt.h>
@@ -17,15 +17,11 @@
 #define loraUART Serial1
 #define debugUART Serial
 
-#define STA_SSID "Bighead"
-#define STA_PASS "billgates"
-
 int    RX_LED = 13;
 
-
 //TODO: Read these from memory or SD card.
-String strSSID        = "Bighead";
-String strPassword    = "billgates";
+String strSSID        = "AndroidAP3AE2";
+String strPassword    = "ohpp8971";
 String strServerURL   = "https://trailwaze.info/zion/lidar_sensor_import.php";
 
 
@@ -39,7 +35,6 @@ String loraMsg;
 void setModemSleep();
 void wakeModemSleep();
  
-
 
 //************************************************************************
 void initHardware(){
@@ -69,7 +64,7 @@ void splash(){
 }
 
 
-//************************************************************************
+/************************************************************************
 void initWiFi(){
   debugUART.print("  Testing for WiFi connectivity... ");
   
@@ -89,7 +84,7 @@ void initWiFi(){
   debugUART.println(getMACAddress());
   debugUART.println(); 
 }
-
+*/
 
 //************************************************************************
 // Save a single JSON message to the server.
@@ -232,7 +227,7 @@ void disableWiFi(){
     debugUART.println("WiFi disconnected!");
 }
 void disableBluetooth(){
-    // Quite unusefully, no relevable power consumption
+    // Quite unuseful, no real savings in power consumption
     btStop();
     debugUART.println("");
     debugUART.println("Bluetooth stop!");
@@ -261,10 +256,10 @@ void enableWiFi(){
     delay(200);
  
     debugUART.println("START WIFI");
-    WiFi.begin(STA_SSID, STA_PASS);
+    WiFi.begin(strSSID.c_str(), strPassword.c_str());
  
     while (WiFi.status() != WL_CONNECTED) {
-        delay(500);
+        delay(1000);
         debugUART.print(".");
     }
  
@@ -332,7 +327,7 @@ void loop() {
       processLoRaMessage(loraMsg);
       debugUART.print("LoRa Message Received: ");   
     } 
-    debugUART.println(loraMsg);     
+         
   }
   
   // Someone is sending us data on the debugUART. 
@@ -344,6 +339,7 @@ void loop() {
     if (cmdMsg.indexOf("CONFIG")>=0){ 
       debugUART.println("Entering LoRa configuration mode:");
       loraConfigMode=true;
+      cmdMsg = "AT"; //Get the module's attention.
     }
     if (cmdMsg.indexOf("EXIT")>=0) {
       debugUART.println("Leaving LoRa configuration mode:");
