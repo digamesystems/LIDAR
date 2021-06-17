@@ -11,8 +11,8 @@
 #include <HTTPClient.h>      // To post to the ParkData Server
 #include "driver/adc.h"
 #include <esp_bt.h>
-
 #include <ArduinoJson.h>
+#include <CircularBuffer.h>     // Adafruit library. Pretty small!
 
 #define loraUART Serial1
 #define debugUART Serial
@@ -31,6 +31,11 @@ bool   wifiConnected = false;
 bool   loraConfigMode = false;
 String cmdMsg;
 String loraMsg;
+
+SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).
+
+const int samples = 20;
+CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages sent to the LoRa basestation.
 
 void setLowPowerMode();
 void setNormalMode();
@@ -65,33 +70,15 @@ void splash(){
 }
 
 
-/************************************************************************
-void initWiFi(){
-  debugUART.print("  Testing for WiFi connectivity... ");
-  
-  //wifiConnected = initWiFi("AndroidAP3AE2", "ohpp8971"); //My phone hotspot
-  wifiConnected = initWiFi(strSSID, strPassword);
-  
-  msLastConnectionAttempt=millis();  // Save the time of the latest connection attempt. Used to schedule retries if lost.
-  
-  debugUART.println();
-  if (wifiConnected){
-    debugUART.println("      Connection established.");
-  }else{
-    debugUART.println("      ERROR! Could NOT establish WiFi connection. (Credentials OK?)");  
-  }
-  
-  debugUART.print("  Reading Device MAC Address... ");
-  debugUART.println(getMACAddress());
-  debugUART.println(); 
-}
-*/
-
 //************************************************************************
 // Save a single JSON message to the server.
 void postJSON(String jsonPayload, String strServerURL){
 
-#if USE_WIFI
+  if (WiFi.status() != WL_CONNECTED){
+    debugUART.println("WiFi Connection Lost.");
+    enableWiFi();      
+  }
+
   HTTPClient http;
   
   // Your Domain name with URL path or IP address with path
@@ -100,31 +87,21 @@ void postJSON(String jsonPayload, String strServerURL){
   // If you need an HTTP request with a content type: application/json, use the following:
   http.addHeader("Content-Type", "application/json");
 
+ 
   int httpResponseCode = http.POST(jsonPayload);
-  
-  #if SHOW_DATA_STREAM
-  #else
-    debugUART.print("HTTP response code: ");
-    debugUART.println(httpResponseCode);
-  #endif
+
+  debugUART.print("HTTP response code: ");
+  debugUART.println(httpResponseCode);
 
   // Free resources
   http.end();
   
-#endif // USE_WIFI
-
   return;
 }
 
 
 //************************************************************************
 void processLoRaMessage(String msg){
-
-
-  if (WiFi.status() != WL_CONNECTED){
-    debugUART.println("WiFi Connection Lost.");
-    enableWiFi();      
-  }
 
   StaticJsonDocument<512> doc;
 
@@ -198,6 +175,7 @@ void processLoRaMessage(String msg){
 
   String jsonPayload;
 
+  // TODO: keep a list of Vehicle Counters we know and get this from a boot message.
   String strDeviceName = "Digame LoRa Base Station";
   String strDeviceMAC  = "00:01:02:03:04:05";
 
@@ -212,7 +190,7 @@ void processLoRaMessage(String msg){
                  "\",\"snr\":\""           + strSNR +              
                  "\"}";
 
-  debugUART.println(jsonPayload);
+  //debugUART.println(jsonPayload);
   postJSON(jsonPayload, strServerURL);
 
 }
@@ -225,6 +203,8 @@ void blinkLED(){
   digitalWrite(RX_LED, LOW);  
 }
 
+
+//************************************************************************
 void enableWiFi(){
     adc_power_on();
     delay(200);
@@ -249,6 +229,8 @@ void enableWiFi(){
     
 }
 
+
+//************************************************************************
 void disableWiFi(){
     adc_power_off();
     WiFi.disconnect(true);  // Disconnect from the network
@@ -257,13 +239,17 @@ void disableWiFi(){
     debugUART.println("WiFi disconnected!");
 }
 
+
+//************************************************************************
 void disableBluetooth(){
     // Quite unuseful, no real savings in power consumption
     btStop();
     debugUART.println("");
     debugUART.println("Bluetooth stop!");
 }
- 
+
+
+//************************************************************************
 void setLowPowerMode() {
     debugUART.println("Adjusting Power Mode:");
     disableWiFi();
@@ -278,7 +264,7 @@ void setLowPowerMode() {
     // setCpuFrequencyMhz(80);
 }
  
- 
+//************************************************************************ 
 void setNormalMode() {
     setCpuFrequencyMhz(240);
     enableWiFi(); 
@@ -290,6 +276,41 @@ void setNormalMode() {
 }
 
 
+/********************************************************************************/
+// Experimenting with using a circular buffer and multi-tasking to enqueue 
+// messages to the server...
+void messageManager(void *parameter){
+  String activeMessage;
+
+  for(;;){  
+
+    //Serial.println("messageManager TICK");
+    
+    //********************************************
+    // Check for Messages on the Queue and Process
+    //********************************************
+    if (loraMsgBuffer.size()>0){
+
+      Serial.print("MessageManager: loraMsgBuffer.size(): ");
+      Serial.println(loraMsgBuffer.size());
+      Serial.println("MessageManager: Processing LoRa message: ");
+
+      xSemaphoreTake(mutex_v, portMAX_DELAY); 
+        activeMessage=loraMsgBuffer.shift();
+      xSemaphoreGive(mutex_v);
+      
+      Serial.println(activeMessage);
+
+      processLoRaMessage(activeMessage);
+
+    } else{
+      //Serial.println("MessageManager: Nothing to do...");      
+    }
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);   
+  }   
+}
+
 //************************************************************************
 // Setup
 //************************************************************************
@@ -298,14 +319,20 @@ void setup() {
   splash();
   debugUART.println("INITIALIZING...\n");
   setNormalMode();
+
+  mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
+  xTaskCreate(
+    messageManager,    // Function that should be called
+    "Message Manager",   // Name of the task (for debugging)
+    7000,            // Stack size (bytes)
+    NULL,            // Parameter to pass
+    1,               // Task priority
+    NULL             // Task handle
+  );
   debugUART.println();
   debugUART.println("RUNNING...\n");
 }
 
-
-unsigned long t1 = millis();
-unsigned long t2 = t1;
-bool started = false;
 
 //************************************************************************
 // Main Loop
@@ -313,8 +340,8 @@ bool started = false;
 void loop() {
 
   // Handle what the LoRa module has to say. 
-  // If it's a message from another module, run it through the processing 
-  // routine. 
+  // If it's a message from another module, add it to the queue
+  // so the manager function can handle it.
   //
   // Otherwise, just echo to the debugUART.
   
@@ -324,14 +351,20 @@ void loop() {
     
     //Messages received by the Module start with '+RCV'
     if (loraMsg.indexOf("+RCV")>=0){
-      debugUART.print("LoRa Message Received: ");  
+      debugUART.println();
+      debugUART.print("LoRa Message Received. ");  
       debugUART.println(loraMsg);
 
+      xSemaphoreTake(mutex_v, portMAX_DELAY);      
+        loraMsgBuffer.push(loraMsg);
+        debugUART.print("loraMsgBuffer.size: ");
+        debugUART.println(loraMsgBuffer.size());
+        debugUART.println();
+      xSemaphoreGive(mutex_v);
+      
       // Send an acknowlegement to the sender.
-      // TODO: No hardcoding of address!      
-      loraUART.println("AT+SEND=1,3,ACK");
-      blinkLED();    
-      processLoRaMessage(loraMsg);
+      // TODO: No hardcoding of address and use a checksum.      
+      //loraUART.println("AT+SEND=1,3,ACK");
       
     } else {
       debugUART.println(loraMsg);      
