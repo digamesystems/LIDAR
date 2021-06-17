@@ -32,8 +32,9 @@ bool   loraConfigMode = false;
 String cmdMsg;
 String loraMsg;
 
-void setModemSleep();
-void wakeModemSleep();
+void setLowPowerMode();
+void setNormalMode();
+void enableWiFi();
  
 
 //************************************************************************
@@ -118,6 +119,12 @@ void postJSON(String jsonPayload, String strServerURL){
 
 //************************************************************************
 void processLoRaMessage(String msg){
+
+
+  if (WiFi.status() != WL_CONNECTED){
+    debugUART.println("WiFi Connection Lost.");
+    enableWiFi();      
+  }
 
   StaticJsonDocument<512> doc;
 
@@ -218,44 +225,16 @@ void blinkLED(){
   digitalWrite(RX_LED, LOW);  
 }
 
-
-void disableWiFi(){
-    adc_power_off();
-    WiFi.disconnect(true);  // Disconnect from the network
-    WiFi.mode(WIFI_OFF);    // Switch WiFi off
-    debugUART.println("");
-    debugUART.println("WiFi disconnected!");
-}
-void disableBluetooth(){
-    // Quite unuseful, no real savings in power consumption
-    btStop();
-    debugUART.println("");
-    debugUART.println("Bluetooth stop!");
-}
- 
-void setModemSleep() {
-    disableWiFi();
-    disableBluetooth();
-    setCpuFrequencyMhz(40);
-    
-    //Set LoRa module into sleep mode.
-    loraUART.println("AT+MODE=1");
-    debugUART.println("MODEM SLEEP ENABLED");
-    
-    // Use this if 40Mhz is not supported
-    // setCpuFrequencyMhz(80);
-}
- 
 void enableWiFi(){
     adc_power_on();
     delay(200);
  
     WiFi.disconnect(false);  // Reconnect the network
-    WiFi.mode(WIFI_STA);    // Switch WiFi off
+    WiFi.mode(WIFI_STA);     // Switch WiFi off
  
     delay(200);
  
-    debugUART.println("START WIFI");
+    debugUART.print("Starting WiFi: ");
     WiFi.begin(strSSID.c_str(), strPassword.c_str());
  
     while (WiFi.status() != WL_CONNECTED) {
@@ -264,19 +243,50 @@ void enableWiFi(){
     }
  
     debugUART.println("");
-    debugUART.println("WiFi connected");
-    debugUART.println("IP address: ");
+    debugUART.println("  WiFi connected.");
+    debugUART.print("  IP address: ");
     debugUART.println(WiFi.localIP());
     
 }
+
+void disableWiFi(){
+    adc_power_off();
+    WiFi.disconnect(true);  // Disconnect from the network
+    WiFi.mode(WIFI_OFF);    // Switch WiFi off
+    debugUART.println("");
+    debugUART.println("WiFi disconnected!");
+}
+
+void disableBluetooth(){
+    // Quite unuseful, no real savings in power consumption
+    btStop();
+    debugUART.println("");
+    debugUART.println("Bluetooth stop!");
+}
  
-void wakeModemSleep() {
+void setLowPowerMode() {
+    debugUART.println("Adjusting Power Mode:");
+    disableWiFi();
+    disableBluetooth();
+    setCpuFrequencyMhz(40);
+    
+    //Set LoRa module into sleep mode.
+    loraUART.println("AT+MODE=1");
+    debugUART.println("  Low Power Mode Enabled.");
+    
+    // Use this if 40Mhz is not supported
+    // setCpuFrequencyMhz(80);
+}
+ 
+ 
+void setNormalMode() {
     setCpuFrequencyMhz(240);
     enableWiFi(); 
-    
+    debugUART.println();
+    debugUART.println("Adjusting Power Mode:");
     // Wake up LoRa module.
     loraUART.println("AT");   
-    debugUART.println("MODEM SLEEP DISABLED.");
+    debugUART.println("  Normal Mode Enabled.");
 }
 
 
@@ -287,14 +297,10 @@ void setup() {
   initHardware();  
   splash();
   debugUART.println("INITIALIZING...\n");
-  //initWiFi();  
-  wakeModemSleep();
-    
+  setNormalMode();
+  debugUART.println();
   debugUART.println("RUNNING...\n");
-  //setModemSleep();
-
 }
-
 
 
 unsigned long t1 = millis();
@@ -315,18 +321,21 @@ void loop() {
   if (loraUART.available()) {
     
     loraMsg = loraUART.readStringUntil('\n');
-    debugUART.println(loraMsg);
     
+    //Messages received by the Module start with '+RCV'
     if (loraMsg.indexOf("+RCV")>=0){
-      // Send an acknowlegement to the sender.
-      // TODO: No hardcoding of sender address!      
-      loraUART.println("AT+SEND=1,3,ACK");
+      debugUART.print("LoRa Message Received: ");  
+      debugUART.println(loraMsg);
 
-      blinkLED();
-      
+      // Send an acknowlegement to the sender.
+      // TODO: No hardcoding of address!      
+      loraUART.println("AT+SEND=1,3,ACK");
+      blinkLED();    
       processLoRaMessage(loraMsg);
-      debugUART.print("LoRa Message Received: ");   
-    } 
+      
+    } else {
+      debugUART.println(loraMsg);      
+    }
          
   }
   
@@ -346,16 +355,16 @@ void loop() {
       loraConfigMode=false;
     }  
     
-    
+    // If in config mode, route serial monitor message to the module for config, etc. 
     if (loraConfigMode) {
       loraUART.print(cmdMsg + "\r\n");
     } else {
       // use the debugUART message for other purposes, e.g., menu system, etc.   
       if (cmdMsg.indexOf("SLEEP")>=0) {
-        setModemSleep();
+        setLowPowerMode();
       }
       if (cmdMsg.indexOf("WAKE")>=0) {
-        wakeModemSleep();
+        setNormalMode();
       }
     } 
     

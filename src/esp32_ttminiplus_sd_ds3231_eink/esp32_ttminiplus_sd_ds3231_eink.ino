@@ -18,6 +18,7 @@
 #include <TFMPlus.h>            // Include TFMini Plus LIDAR Library v1.4.0
 
 #include <WiFi.h>               // WiFi stack
+
 #if USE_WIFI
   #include <HTTPClient.h>       // To post to the ParkData Server
 #endif
@@ -25,9 +26,9 @@
 #include <CircularBuffer.h>     // Adafruit library. Pretty small!
 
 #include "digameTime.h"         // Digame Time Functions
-#include "digameNetwork.h"      // Digame Network Functions
 #include "digameMath.h"         // Mean and correlation
 #include "digameConfig.h"       // Program parameters from config file on SD card
+#include "digameNetwork.h"    // Digame Network Functions
 
 #if USE_EINK
   #include "digameDisplay.h"    // Digame eInk Display Functions.
@@ -36,16 +37,12 @@
 #include "driver/adc.h"
 #include <esp_bt.h>
 
-#define STA_SSID "Bighead"
-#define STA_PASS "billgates"
-
-
 // Aliases for easier reading
 #define debugUART  Serial
 #define tfMiniUART Serial2  
 
 #if USE_LORA
-#define LoRaUART   Serial1
+  #define LoRaUART   Serial1
 #endif
 
 
@@ -54,9 +51,11 @@ CircularBuffer<int, samples> buffer; // We're going to hang onto the last 100 po
 float data[samples];
 
 SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).
+
 CircularBuffer<String, samples> jsonMsgBuffer; // A buffer containing JSON messages to be sent to the server.
+
 #if USE_LORA
-CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages to be sent to the LoRa basestation.
+  CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages to be sent to the LoRa basestation.
 #endif
 
 TFMPlus tfmP;           // Create a TFMini Plus object
@@ -99,25 +98,6 @@ String loraPayload; //A stripped down version for LoRa
 // The minute (0-59) within the hour we woke up at boot. 
 int bootMinute;
 
-void disableWiFi(){
-    adc_power_off();
-    WiFi.disconnect(true);  // Disconnect from the network
-    WiFi.mode(WIFI_OFF);    // Switch WiFi off
-    //debugUART.println("");
-    //debugUART.println("WiFi disconnected!");
-}
-void disableBluetooth(){
-    // Rather disappointing on power improvement.
-    btStop();
-    //debugUART.println("");
-    //debugUART.println("Bluetooth stop!");
-}
- 
-void setModemSleep() {
-    disableWiFi();
-    disableBluetooth();
-    setCpuFrequencyMhz(40);
-}
 
 void enableWiFi(){
     adc_power_on();
@@ -142,14 +122,39 @@ void enableWiFi(){
     //debugUART.println(WiFi.localIP());
     
 }
+
+void disableWiFi(){
+    adc_power_off();
+    WiFi.disconnect(true);  // Disconnect from the network
+    WiFi.mode(WIFI_OFF);    // Switch WiFi off
+    //debugUART.println("");
+    //debugUART.println("WiFi disconnected!");
+}
+
+void disableBluetooth(){
+    // Rather disappointing on power improvement.
+    btStop();
+    //debugUART.println("");
+    //debugUART.println("Bluetooth stop!");
+}
  
-void wakeModemSleep() {
+void setLowPowerMode() {
+    debugUART.println("Setting Power Mode:");
+    disableWiFi();
+    disableBluetooth();
+    setCpuFrequencyMhz(40);
+    debugUART.println("  Low Power Mode Enabled.");
+}
+
+ 
+void setNormalPowerMode() {
     setCpuFrequencyMhz(240);
     enableWiFi(); 
-    
+
+    debugUART.println("Setting Power Mode:");
     // Wake up LoRa module.
-    //LoRaUART.println("AT");   
-    //debugUART.println("MODEM SLEEP DISABLED.");
+    LoRaUART.println("AT");   
+    debugUART.println("  Normal Power Mode Enabled.");
 }
 
 
@@ -179,14 +184,12 @@ void setup()
        
     debugUART.begin(115200);   // Intialize terminal serial port
 
-    #if USE_LORA
-      LoRaUART.begin(115200, SERIAL_8N1, 25, 33);
-    #endif
-    
+#if USE_LORA
+    LoRaUART.begin(115200, SERIAL_8N1, 25, 33);
+#endif
     
     delay(1000);               // Give port time to initalize
 
-    
 
     Wire.begin();
 
@@ -212,6 +215,8 @@ void setup()
     debugUART.println();
     debugUART.println("HARDWARE INITIALIZATION");
     debugUART.println();
+
+    setLowPowerMode();
 
     debugUART.print("  Testing for SD Card Module... ");
     sdCardPresent = initSDCard();
@@ -258,27 +263,25 @@ void setup()
     // - - Perform a system reset - - 
     
     debugUART.printf( "  Activating LIDAR Sensor... ");
-
     
     //debugUART.printf( "  Testing for LIDAR Sensor... ");
     if( tfmP.sendCommand(SYSTEM_RESET, 0)){
         debugUART.println("LIDAR Sensor initialized.");
         stat +="   LIDAR: OK\n";
+
+        delay(500);
+        
+        debugUART.printf( "  Adjusting Frame Rate... ");
+        if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){
+          debugUART.println("  Frame Rate Adjusted.");
+        }
+        else tfmP.printReply(); 
     }
     else {
         debugUART.println("ERROR! LIDAR Sensor not found or sensor error.");
         stat +="   LIDAR: ERROR!\n";
         tfmP.printReply();
     }
-
-    delay(1000);
-
-
-    debugUART.printf( "Adjusting Frame Rate... ");
-    if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){
-        debugUART.println("Frame Rate Adjusted.");
-    }
-    else tfmP.printReply();  
 
     debugUART.print("  Testing for Real-Time-Clock module... ");
     rtcPresent = initRTC();
@@ -328,7 +331,7 @@ void setup()
     showValue(0);
 #endif
 
-  setModemSleep();
+  //setNormalPowerMode();
 }
 
 
@@ -639,69 +642,73 @@ void messageManager(void *parameter){
   for(;;){  
 
     #if USE_LORA
-    //****************************
-    //LoRa message
-    //****************************
-    if (loraMsgBuffer.size()>0){
-      #if SHOW_DATA_STREAM
-      #else
-        Serial.print("MessageManager: loraMsgBuffer.size(): ");
-        Serial.println(loraMsgBuffer.size());
-        Serial.println("MessageManager: Sending LoRa message: ");
-      #endif  
-          
-      xSemaphoreTake(mutex_v, portMAX_DELAY); 
-        activeMessage=loraMsgBuffer.shift();
-      xSemaphoreGive(mutex_v);
-      
-      #if SHOW_DATA_STREAM
-      #else
-       Serial.println(activeMessage);
-      #endif
-
-      //Wake up the LoRa module
-      LoRaUART.println("AT");
-      delay(200);
-      
-      LoRaUART.print("AT+SEND=2,");
-      LoRaUART.println(String(loraPayload.length()) + "," + activeMessage); 
-      delay(3000);
-      
-      //Put LoRa module to sleep
-      LoRaUART.println("AT+MODE=1");
-           
-      Serial.println("Sent!");
-    } else{
-      //Serial.println("MessageManager: Nothing to do...");      
-    }
+      //****************************
+      //LoRa message
+      //****************************
+      if (loraMsgBuffer.size()>0){
+        #if SHOW_DATA_STREAM
+        #else
+          Serial.print("MessageManager: loraMsgBuffer.size(): ");
+          Serial.println(loraMsgBuffer.size());
+          Serial.println("MessageManager: Sending LoRa message: ");
+        #endif  
+            
+        xSemaphoreTake(mutex_v, portMAX_DELAY); 
+          activeMessage=loraMsgBuffer.shift();
+        xSemaphoreGive(mutex_v);
+        
+        #if SHOW_DATA_STREAM
+        #else
+         Serial.println(activeMessage);
+        #endif
+  
+        //Wake up the LoRa module
+        LoRaUART.println("AT");
+        vTaskDelay(200 / portTICK_PERIOD_MS);
+        
+        LoRaUART.print("AT+SEND=2,");
+        LoRaUART.println(String(loraPayload.length()) + "," + activeMessage); 
+        //delay(3000);
+        
+        //Put LoRa module to sleep
+        LoRaUART.println("AT+MODE=1");
+             
+        Serial.println("Sent!");
+      } else{
+        //Serial.println("MessageManager: Nothing to do...");      
+      }
     #endif
-      
- 
-    //****************************
-    //JSON message
-    //****************************
-    if (jsonMsgBuffer.size()>0){
 
-      #if SHOW_DATA_STREAM
-      #else
-        Serial.print("MessageManager: jsonMsgBuffer.size(): ");
-        Serial.println(jsonMsgBuffer.size());
-        Serial.println("MessageManager: Sending message: ");
-      #endif  
-          
-      xSemaphoreTake(mutex_v, portMAX_DELAY); 
-        activeMessage=jsonMsgBuffer.shift();
-      xSemaphoreGive(mutex_v);
-      
-     #if SHOW_DATA_STREAM
-     #else
-       Serial.println(activeMessage);
-     #endif
-      
-      processMessage(activeMessage);        
-    } else{
-      //Serial.println("MessageManager: Nothing to do...");  
-    }
+
+    #if USE_WIFI
+      //****************************
+      //JSON message
+      //****************************
+      if (jsonMsgBuffer.size()>0){
+  
+        #if SHOW_DATA_STREAM
+        #else
+          Serial.print("MessageManager: jsonMsgBuffer.size(): ");
+          Serial.println(jsonMsgBuffer.size());
+          Serial.println("MessageManager: Sending message: ");
+        #endif  
+            
+        xSemaphoreTake(mutex_v, portMAX_DELAY); 
+          activeMessage=jsonMsgBuffer.shift();
+        xSemaphoreGive(mutex_v);
+        
+       #if SHOW_DATA_STREAM
+       #else
+         Serial.println(activeMessage);
+       #endif
+        
+        processMessage(activeMessage);        
+      } else{
+        //Serial.println("MessageManager: Nothing to do...");  
+      }
+    #endif 
+
+    
     vTaskDelay(100 / portTICK_PERIOD_MS);   
   }   
 }
@@ -747,12 +754,14 @@ void loop()
   
     // Runs once at startup.
     if (bootMessageNeeded){
-      jsonPayload = buildJSONHeader("boot");
-      jsonPayload = jsonPayload + "}";
-
+      #if USE_WIFI
+        jsonPayload = buildJSONHeader("boot");
+        jsonPayload = jsonPayload + "}";
+      #endif
+      
       #if USE_LORA
-      loraPayload = buildLoRaHeader("b",count);
-      loraPayload = loraPayload + "}";
+        loraPayload = buildLoRaHeader("b",count);
+        loraPayload = loraPayload + "}";
       #endif
       
       jsonPostNeeded = true;
@@ -762,13 +771,17 @@ void loop()
     // Issue a heartbeat message every hour.
     heartbeatTime = getRTCMinute();
     if ((oldHeartbeatTime != bootMinute) && (heartbeatTime == bootMinute)){heartbeatMessageNeeded = true;}  
+    
     if (heartbeatMessageNeeded){
-      jsonPayload = buildJSONHeader("heartbeat");
-      jsonPayload = jsonPayload + "}";
-
+      
+      #if USE_WIFI
+        jsonPayload = buildJSONHeader("heartbeat");
+        jsonPayload = jsonPayload + "}";
+      #endif 
+      
       #if USE_LORA
-      loraPayload = buildLoRaHeader("hb",count);
-      loraPayload = loraPayload + "}";
+        loraPayload = buildLoRaHeader("hb",count);
+        loraPayload = loraPayload + "}";
       #endif
   
       jsonPostNeeded = true;
@@ -792,33 +805,35 @@ void loop()
           showValue(count);
         #endif
 
-        jsonPayload = buildJSONHeader("vehicle");
-        jsonPayload = jsonPayload + ",\"linkMode\":\"" + params.linkMode +"\"";
-        jsonPayload = jsonPayload + ",\"detAlgorithm\":\"" + params.detAlgorithm +"\"";
-        
-        #if APPEND_RAW_DATA
-        // Vehicle passing event messages may include raw data from the sensor.
-        // If so, tack the data buffer on the JSON message.
-        jsonPayload = jsonPayload + ",\"rawSignal\":[";
-        using index_t = decltype(buffer)::index_t;
-        for (index_t i = 0; i < buffer.size(); i++) {
-          jsonPayload = jsonPayload + buffer[i]; 
-          if (i<buffer.size()-1){ 
-            jsonPayload = jsonPayload + ",";
+        #if USE_WIFI
+          jsonPayload = buildJSONHeader("vehicle");
+          jsonPayload = jsonPayload + ",\"linkMode\":\"" + params.linkMode +"\"";
+          jsonPayload = jsonPayload + ",\"detAlgorithm\":\"" + params.detAlgorithm +"\"";
+          
+          #if APPEND_RAW_DATA
+          // Vehicle passing event messages may include raw data from the sensor.
+          // If so, tack the data buffer on the JSON message.
+          jsonPayload = jsonPayload + ",\"rawSignal\":[";
+          using index_t = decltype(buffer)::index_t;
+          for (index_t i = 0; i < buffer.size(); i++) {
+            jsonPayload = jsonPayload + buffer[i]; 
+            if (i<buffer.size()-1){ 
+              jsonPayload = jsonPayload + ",";
+            }
           }
-        }
-        jsonPayload = jsonPayload + "]";
+          jsonPayload = jsonPayload + "]";
+          #endif
+          
+          jsonPayload = jsonPayload + "}";
         #endif
         
-        jsonPayload = jsonPayload + "}";
-
         #if USE_LORA
-        loraPayload = buildLoRaHeader("v",count);
-        // Detection algorithm
-        String da = String(params.detAlgorithm[0]); //[T]hreshold or [C]orrelation
-        da.toLowerCase();
-        loraPayload = loraPayload + ",\"da\":\"" + da +"\"";
-        loraPayload = loraPayload + "}";
+          loraPayload = buildLoRaHeader("v",count);
+          // Detection algorithm
+          String da = String(params.detAlgorithm[0]); //[T]hreshold or [C]orrelation
+          da.toLowerCase();
+          loraPayload = loraPayload + ",\"da\":\"" + da +"\"";
+          loraPayload = loraPayload + "}";
         #endif
         
         jsonPostNeeded = true; 
@@ -829,10 +844,13 @@ void loop()
     // Push the JSON Payload into the message buffer. The messageManager task will handle it. 
     if (jsonPostNeeded){
       
-      xSemaphoreTake(mutex_v, portMAX_DELAY);         
-        jsonMsgBuffer.push(jsonPayload); 
+      xSemaphoreTake(mutex_v, portMAX_DELAY);  
+        #if USE_WIFI       
+          jsonMsgBuffer.push(jsonPayload); 
+        #endif
+        
         #if USE_LORA
-        loraMsgBuffer.push(loraPayload);
+          loraMsgBuffer.push(loraPayload);
         #endif
       xSemaphoreGive(mutex_v);
       
