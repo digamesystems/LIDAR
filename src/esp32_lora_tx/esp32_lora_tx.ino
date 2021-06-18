@@ -77,16 +77,14 @@ bool sendReceiveLoRa(String msg){
 
 
 long count = 0; 
+bool txActive = true; 
 
 void loop() {
 
   // read from port 1, send to port 0:
 
 /*
-  if (loraUART.available()) {
-    String inString = loraUART.readStringUntil('\n');
-    debugUART.println(inString);
-  }
+
 
   // read from port 0, send to port 1:
   if (debugUART.available()) {
@@ -95,13 +93,35 @@ void loop() {
   }
 */
 
+  if (loraUART.available()) {
+    String inString = loraUART.readStringUntil('\n');
+    debugUART.println(inString);
+  }
 
-  String strCount(count);
-  debugUART.println(strCount);
-  while (!sendReceiveLoRa(strCount)){}
-  //loraUART.println("AT+SEND=2,"+String(strCount.length())+","+strCount);
-  delay(2000);
-  count++;
+  if (debugUART.available()) {
+    String inString = debugUART.readStringUntil('\n');
+    inString.trim();
+    
+    if (!txActive){
+        loraUART.println(inString);  
+    }
+    if (inString.indexOf("PAUSE")>=0) {
+      debugUART.println("Pausing TX.");
+      txActive = false;
+    }
+    if (inString.indexOf("GO")>=0) {
+      debugUART.println("Resuming TX.");
+      txActive = true;
+    } 
+  }
+
+  if (txActive){
+    String strCount(count);
+    debugUART.println(strCount);
+    while (!sendReceiveLoRa(strCount)){}
+    delay(2000);
+    count++;
+  }
 
 
 }

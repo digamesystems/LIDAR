@@ -54,6 +54,7 @@ void loop() {
 
   if (debugUART.available()) {
     inString = debugUART.readStringUntil('\n');
+    inString.trim();
     loraUART.println(inString);
   }
 
