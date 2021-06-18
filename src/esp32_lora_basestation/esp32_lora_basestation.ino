@@ -176,7 +176,7 @@ void processLoRaMessage(String msg){
   String jsonPayload;
 
   // TODO: keep a list of Vehicle Counters we know and get this from a boot message.
-  String strDeviceName = "Digame LoRa Base Station";
+  String strDeviceName = "Tucson Base Station";
   String strDeviceMAC  = "00:01:02:03:04:05";
 
   jsonPayload = "{\"deviceName\":\""       + strDeviceName + 

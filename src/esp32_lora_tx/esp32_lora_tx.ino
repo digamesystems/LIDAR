@@ -13,7 +13,12 @@ void setup() {
   loraUART.begin(115200, SERIAL_8N1, 25,33);
   debugUART.begin(115200);
   delay(1000);
-
+  
+  debugUART.println();
+  debugUART.println("**********************");
+  debugUART.println("TX (TRANSMIT) MODULE: ");
+  debugUART.println("**********************");
+  
   //debugUART.println("Setting Network ID");
   //loraUART.println("AT+NETWORKID=7");
   //delay(100);
@@ -37,7 +42,10 @@ bool sendReceiveLoRa(String msg){
   bool replyPending = true;
   
   //Send the message... 
-  loraUART.println("AT+SEND=2,"+String(msg.length())+","+msg);
+  String reyaxMsg = "AT+SEND=1,"+String(msg.length())+","+msg;
+  debugUART.print("Sending LoRa Message: ");
+  debugUART.println(reyaxMsg);
+  loraUART.println(reyaxMsg);
   
   //wait for ACK or timeout
   while ((replyPending == true) && ((t2-t1)<timeout)){
@@ -47,7 +55,7 @@ bool sendReceiveLoRa(String msg){
       if (replyPending) {
         if (inString.indexOf("ACK")>=0){
           replyPending = false;
-          debugUART.println(inString);
+          debugUART.println("ACK Received: " + inString);
           
           digitalWrite(TX_LED, HIGH);   
           delay(100);
@@ -73,6 +81,7 @@ long count = 0;
 void loop() {
 
   // read from port 1, send to port 0:
+
 /*
   if (loraUART.available()) {
     String inString = loraUART.readStringUntil('\n');
@@ -84,15 +93,15 @@ void loop() {
     int inByte = debugUART.read();
     loraUART.write(inByte);
   }
-
 */
+
 
   String strCount(count);
   debugUART.println(strCount);
   while (!sendReceiveLoRa(strCount)){}
   //loraUART.println("AT+SEND=2,"+String(strCount.length())+","+strCount);
-  delay(900);
+  delay(2000);
   count++;
 
-  
+
 }

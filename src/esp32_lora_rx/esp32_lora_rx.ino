@@ -14,6 +14,11 @@ void setup() {
   debugUART.begin(115200);
   delay(1000);
   
+  debugUART.println();
+  debugUART.println("**********************");
+  debugUART.println("RX (RECEIVER) MODULE: ");
+  debugUART.println("**********************");
+  
   //debugUART.println("Setting Network ID");
   //loraUART.println("AT+NETWORKID=7");
   //delay(100);
@@ -25,26 +30,31 @@ void setup() {
   //delay(100);
 }
 
-
+String inString;
 void loop() {
   
   if (loraUART.available()) {
-    String inString = loraUART.readStringUntil('\n');
+    inString = loraUART.readStringUntil('\n');
     if (inString.indexOf("+RCV")>=0){
       
-      debugUART.print("I heard: ");   
-      loraUART.println("AT+SEND=1,3,ACK");
+      debugUART.print("Received LoRa Message: ");
+      debugUART.println(inString);
+
+      debugUART.print("Sending ACK: ");
+      loraUART.println("AT+SEND=2,3,ACK");
+      
       digitalWrite(RX_LED, HIGH);   
       delay(100);
       digitalWrite(RX_LED, LOW);  
       
-    } 
-    debugUART.println(inString);      
+    } else {
+      debugUART.println(inString);
+    }      
   }
 
   if (debugUART.available()) {
-    int inByte = Serial.read();
-    loraUART.write(inByte);
+    inString = debugUART.readStringUntil('\n');
+    loraUART.println(inString);
   }
 
 }
