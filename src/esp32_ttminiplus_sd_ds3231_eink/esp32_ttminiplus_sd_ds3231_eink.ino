@@ -82,7 +82,7 @@ float smoothed        = 0.0;
 bool  carPresent      = false;    
 bool  lastCarPresent  = false; 
 int   carEvent        = 0;
-int   lidarUpdateRate = 100;
+int   lidarUpdateRate = 10;
 float correl1 = 0.0;
 
 // Messaging flags
@@ -204,7 +204,7 @@ void setup()
 
     debugUART.println("*****************************************************");
     debugUART.println("ParkData Traffic Monitoring Platform");
-    debugUART.println("Version 0.9");
+    debugUART.println("Version 0.9.2");
     debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
     debugUART.println();
     debugUART.print("Compiled on ");
@@ -271,11 +271,11 @@ void setup()
 
         delay(500);
         
-        debugUART.printf( "  Adjusting Frame Rate... ");
-        if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){
-          debugUART.println("  Frame Rate Adjusted.");
-        }
-        else tfmP.printReply(); 
+        //debugUART.printf( "  Adjusting Frame Rate... ");
+        //if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){ //FRAME_0 is triggered mode.
+        //   debugUART.println("  Frame Rate Adjusted.");
+        // }
+        // else tfmP.printReply(); 
     }
     else {
         debugUART.println("ERROR! LIDAR Sensor not found or sensor error.");
@@ -582,7 +582,7 @@ bool processLIDARSignal(){
   
     bool retValue = false;
 
-    tfmP.sendCommand(TRIGGER_DETECTION, 0);
+    //tfmP.sendCommand(TRIGGER_DETECTION, 0); //Uncomment in triggered mode.
     delay(lidarUpdateRate);
 
     // Read the LIDAR Sensor
@@ -634,6 +634,51 @@ bool processLIDARSignal(){
 }
 
 
+
+// Sends a message to another LoRa module and listens for an ACK reply.
+bool sendReceiveLoRa(String msg){
+  long timeout = 10000;
+  long t2,t1;
+
+  t1 = millis();
+  t2 = t1;
+
+  bool replyPending = true;
+  
+  //Send the message... Base Stations Default to an address of 1.
+  String reyaxMsg = "AT+SEND=1,"+String(msg.length())+","+msg;
+  debugUART.print("Sending LoRa Message: ");
+  debugUART.println(reyaxMsg);
+  LoRaUART.println(reyaxMsg);
+  
+  //wait for ACK or timeout
+  while ((replyPending == true) && ((t2-t1)<timeout)){
+    t2=millis();
+    if (LoRaUART.available()) {
+      String inString = LoRaUART.readStringUntil('\n');
+      if (replyPending) {
+        if (inString.indexOf("ACK")>=0){
+          replyPending = false;
+          debugUART.println("ACK Received: " + inString);
+          return true;
+          
+        }
+      } 
+    } 
+  }
+  
+  if((t2-t1)>= timeout){
+    debugUART.println("Timeout!");
+    return false;
+  }
+
+  vTaskDelay(1000 / portTICK_PERIOD_MS); 
+  
+}
+
+
+
+
 /********************************************************************************/
 // Experimenting with using a circular buffer to enqueue messages to the server...
 void messageManager(void *parameter){
@@ -663,15 +708,23 @@ void messageManager(void *parameter){
         #endif
   
         //Wake up the LoRa module
-        LoRaUART.println("AT");
-        vTaskDelay(200 / portTICK_PERIOD_MS);
+        //LoRaUART.println("AT");
+        //vTaskDelay(500 / portTICK_PERIOD_MS);
+
+        //Send the data to the base station
+
         
-        LoRaUART.print("AT+SEND=2,");
-        LoRaUART.println(String(loraPayload.length()) + "," + activeMessage); 
+        while (!sendReceiveLoRa(activeMessage)){};
+        
+        //LoRaUART.print("AT+SEND=1,");
+        //LoRaUART.println(String(loraPayload.length()) + "," + activeMessage); 
         //delay(3000);
+
+        
         
         //Put LoRa module to sleep
-        LoRaUART.println("AT+MODE=1");
+        //LoRaUART.println("AT+MODE=1");
+        //vTaskDelay(500 / portTICK_PERIOD_MS);
              
         Serial.println("Sent!");
       } else{
@@ -708,7 +761,6 @@ void messageManager(void *parameter){
       }
     #endif 
 
-    
     vTaskDelay(100 / portTICK_PERIOD_MS);   
   }   
 }

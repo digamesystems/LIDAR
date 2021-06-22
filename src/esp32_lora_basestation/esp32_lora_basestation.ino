@@ -58,7 +58,7 @@ void splash(){
 
   debugUART.println("*****************************************************");
   debugUART.println("LoRa Base Station");
-  debugUART.println("Version 0.9");
+  debugUART.println("Version 0.91");
   debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
   debugUART.println();
   debugUART.print("Compiled on ");
@@ -307,7 +307,7 @@ void messageManager(void *parameter){
       //Serial.println("MessageManager: Nothing to do...");      
     }
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);   
+    vTaskDelay(100 / portTICK_PERIOD_MS);   
   }   
 }
 
@@ -318,9 +318,10 @@ void setup() {
   initHardware();  
   splash();
   debugUART.println("INITIALIZING...\n");
-  setNormalMode();
+  setNormalMode(); //Run at full power and max speed by default
 
   mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
+  
   xTaskCreate(
     messageManager,    // Function that should be called
     "Message Manager",   // Name of the task (for debugging)
@@ -329,6 +330,7 @@ void setup() {
     1,               // Task priority
     NULL             // Task handle
   );
+  
   debugUART.println();
   debugUART.println("RUNNING...\n");
 }
@@ -355,17 +357,30 @@ void loop() {
       debugUART.print("LoRa Message Received. ");  
       debugUART.println(loraMsg);
 
+      // Send an acknowlegement to the sender.
+      //Grab the address of the sender
+      // Messages are of the form: "+RCV=2,2,16,-64,36" -- where the first number after the "=" is the address.
+      
+      // Start and end of the JSON payload in the msg.
+       int idxstart = loraMsg.indexOf('=')+1;
+       int idxstop = loraMsg.indexOf(',');
+    
+      // grab the address
+      String senderAddress = loraMsg.substring(idxstart,idxstop); 
+    
+      // Now we can answer anyone who talks to us.
+      debugUART.print("Sending ACK: ");
+      loraUART.println("AT+SEND=" + senderAddress + ",3,ACK"); 
+
       xSemaphoreTake(mutex_v, portMAX_DELAY);      
         loraMsgBuffer.push(loraMsg);
         debugUART.print("loraMsgBuffer.size: ");
         debugUART.println(loraMsgBuffer.size());
         debugUART.println();
       xSemaphoreGive(mutex_v);
-      
-      // Send an acknowlegement to the sender.
-      // TODO: No hardcoding of address and use a checksum.      
-      //loraUART.println("AT+SEND=1,3,ACK");
-      
+  
+
+
     } else {
       debugUART.println(loraMsg);      
     }
