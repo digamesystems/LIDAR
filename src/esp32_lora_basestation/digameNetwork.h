@@ -1,8 +1,8 @@
-#include <WiFi.h>       // WiFi stack
 
 #ifndef __DIGAME_NETWORK_H__
 #define __DIGAME_NETWORK_H__
 
+//#include <WiFi.h>       // WiFi stack
 #define debugUART Serial
 
 //****************************************************************************************

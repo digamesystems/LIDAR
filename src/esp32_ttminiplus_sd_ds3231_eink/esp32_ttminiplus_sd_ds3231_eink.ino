@@ -7,8 +7,8 @@
  */
 
 // Mix-n-match hardware configuration
-#define USE_WIFI false          // WiFi back haul
-#define USE_LORA true           // Reyax896 LoRa Module back haul
+#define USE_WIFI true          // WiFi back haul
+#define USE_LORA false           // Reyax896 LoRa Module back haul
 #define USE_BLUETOOTH false     // Bluetooth back haul (Not implemented, yet.)
 #define USE_EINK true           // Adafruit eInk Display
 #define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
@@ -41,9 +41,9 @@
 #define debugUART  Serial
 #define tfMiniUART Serial2  
 
-#if USE_LORA
+//#if USE_LORA
   #define LoRaUART   Serial1
-#endif
+//#endif
 
 
 const int samples = 100;
@@ -216,7 +216,7 @@ void setup()
     debugUART.println("HARDWARE INITIALIZATION");
     debugUART.println();
 
-    setLowPowerMode();
+    //setLowPowerMode();
 
     debugUART.print("  Testing for SD Card Module... ");
     sdCardPresent = initSDCard();
@@ -252,6 +252,27 @@ void setup()
      WiFi.mode(WIFI_OFF); 
 #endif
 
+
+    debugUART.print("  Testing for Real-Time-Clock module... ");
+    rtcPresent = initRTC();
+    if (rtcPresent){
+      debugUART.println("RTC found. (Program will use time from RTC.)");
+      stat +="   RTC  : OK\n";
+      debugUART.print("      RTC Time: ");
+      debugUART.println(getRTCTime()); 
+    }else{
+      debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
+      stat +="    RTC  : ERROR!\n"; 
+    }
+
+    if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
+      synchTime(rtcPresent);
+    }
+
+    bootMinute = getRTCMinute();
+    heartbeatTime = bootMinute;
+    oldHeartbeatTime = heartbeatTime;
+
     btStop();
 
     tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
@@ -283,25 +304,6 @@ void setup()
         tfmP.printReply();
     }
 
-    debugUART.print("  Testing for Real-Time-Clock module... ");
-    rtcPresent = initRTC();
-    if (rtcPresent){
-      debugUART.println("RTC found. (Program will use time from RTC.)");
-      stat +="   RTC  : OK\n";
-      debugUART.print("      RTC Time: ");
-      debugUART.println(getRTCTime()); 
-    }else{
-      debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
-      stat +="    RTC  : ERROR!\n"; 
-    }
-
-    if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
-      synchTime(rtcPresent);
-    }
-
-    bootMinute = getRTCMinute();
-    heartbeatTime = bootMinute;
-    oldHeartbeatTime = heartbeatTime;
 
     #if USE_LORA
       stat += "   LoRa : OK\n";
@@ -467,7 +469,7 @@ String buildLoRaHeader(String eventType, double count){
 void processMessage(String jsonPayload){
 
 #if USE_WIFI
-  wakeModemSleep();
+  //wakeModemSleep();
   if(WiFi.status()== WL_CONNECTED){
       // We have a WiFi connection. -- Upload the data to the the server. 
       postJSON(jsonPayload);
@@ -492,7 +494,7 @@ void processMessage(String jsonPayload){
         }
      }
    }*/
-  setModemSleep();  
+  //setModemSleep();  
 #endif
 
 }

@@ -5,28 +5,44 @@
  *  Copyright 2021, Digame systems. All rights reserved. 
  */
  
-#define USE_WIFI true
+// Mix-n-match hardware configuration
+#define USE_WIFI true           // WiFi back haul
+#define USE_LORA true           // Reyax896 LoRa Module back haul
+#define USE_EINK true           // Adafruit eInk Display
+#define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
+ 
+#include <WiFi.h>               // WiFi stack
 
-#include "digameNetwork.h"
-#include <HTTPClient.h>      // To post to the ParkData Server
-#include "driver/adc.h"
-#include <esp_bt.h>
-#include <ArduinoJson.h>
+#if USE_WIFI
+  #include <HTTPClient.h>       // To post to the ParkData Server
+#endif
+
 #include <CircularBuffer.h>     // Adafruit library. Pretty small!
+
+#include "digameTime.h"         // Digame Time Functions
+#include "digameJSONConfig.h"   // Program parameters from config file on SD card
+#include "digameNetwork.h"      // Digame Network Functions
+
+#if USE_EINK
+  #include "digameDisplay.h"    // Digame eInk Display Functions.
+#endif
+
+//#include "driver/adc.h"
+//#include <esp_bt.h>
+#include <ArduinoJson.h>
 
 #define loraUART Serial1
 #define debugUART Serial
 
-int    RX_LED = 13;
-
-//TODO: Read these from memory or SD card.
-String strSSID        = "AndroidAP3AE2";
-String strPassword    = "ohpp8971";
-String strServerURL   = "https://trailwaze.info/zion/lidar_sensor_import.php";
+int RX_LED = 13;
+int LED_DIAG = 12;  // Indicator LED
+int CTR_RESET = 32; // Counter Reset Input
 
 
 long   msLastConnectionAttempt=0;
 bool   wifiConnected = false;
+bool rtcPresent    = false;
+
 
 bool   loraConfigMode = false;
 String cmdMsg;
@@ -43,11 +59,13 @@ void enableWiFi();
  
 
 //************************************************************************
-void initHardware(){
+void initPorts(){
   pinMode(RX_LED, OUTPUT);
+  pinMode(CTR_RESET,INPUT_PULLUP);
   loraUART.begin(115200, SERIAL_8N1, 25,33);
   debugUART.begin(115200); 
   delay(1000);
+  Wire.begin();
 }
 
 
@@ -57,8 +75,8 @@ void splash(){
   String compileTime = F(__TIME__);
 
   debugUART.println("*****************************************************");
-  debugUART.println("LoRa Base Station");
-  debugUART.println("Version 0.91");
+  debugUART.println("HEIMDALL VCS - LoRa Base Station");
+  debugUART.println("Version 0.9.3");
   debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
   debugUART.println();
   debugUART.print("Compiled on ");
@@ -67,6 +85,13 @@ void splash(){
   debugUART.println(compileTime); 
   debugUART.println("*****************************************************");
   debugUART.println();
+
+  display.init(0);
+  // first update should be full refresh
+  initDisplay();
+  displaySplashScreen();
+  //delay(1000);
+  //displayInitializingScreen();
 }
 
 
@@ -191,7 +216,7 @@ void processLoRaMessage(String msg){
                  "\"}";
 
   //debugUART.println(jsonPayload);
-  postJSON(jsonPayload, strServerURL);
+  postJSON(jsonPayload, config.serverURL);
 
 }
 
@@ -206,16 +231,16 @@ void blinkLED(){
 
 //************************************************************************
 void enableWiFi(){
-    adc_power_on();
+    //adc_power_on();
     delay(200);
  
     WiFi.disconnect(false);  // Reconnect the network
-    WiFi.mode(WIFI_STA);     // Switch WiFi off
+    WiFi.mode(WIFI_OFF);     // Switch WiFi off
  
     delay(200);
  
-    debugUART.print("Starting WiFi: ");
-    WiFi.begin(strSSID.c_str(), strPassword.c_str());
+    debugUART.print("Starting WiFi");
+    WiFi.begin(config.ssid.c_str(), config.password.c_str());
  
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
@@ -226,13 +251,15 @@ void enableWiFi(){
     debugUART.println("  WiFi connected.");
     debugUART.print("  IP address: ");
     debugUART.println(WiFi.localIP());
+    wifiConnected = true;
+    
     
 }
 
 
 //************************************************************************
 void disableWiFi(){
-    adc_power_off();
+    //adc_power_off();
     WiFi.disconnect(true);  // Disconnect from the network
     WiFi.mode(WIFI_OFF);    // Switch WiFi off
     debugUART.println("");
@@ -245,7 +272,7 @@ void disableBluetooth(){
     // Quite unuseful, no real savings in power consumption
     btStop();
     debugUART.println("");
-    debugUART.println("Bluetooth stop!");
+    debugUART.println("Bluetooth stoppedz!");
 }
 
 
@@ -266,13 +293,12 @@ void setLowPowerMode() {
  
 //************************************************************************ 
 void setNormalMode() {
-    setCpuFrequencyMhz(240);
+    //setCpuFrequencyMhz(240);
     enableWiFi(); 
-    debugUART.println();
-    debugUART.println("Adjusting Power Mode:");
+    //debugUART.println("Adjusting Power Mode:");
     // Wake up LoRa module.
     loraUART.println("AT");   
-    debugUART.println("  Normal Mode Enabled.");
+    //debugUART.println("  Normal Mode Enabled.");
 }
 
 
@@ -315,10 +341,46 @@ void messageManager(void *parameter){
 // Setup
 //************************************************************************
 void setup() {
-  initHardware();  
+  initPorts(); //Set up serial ports and GPIO
+  
   splash();
-  debugUART.println("INITIALIZING...\n");
-  setNormalMode(); //Run at full power and max speed by default
+    
+  debugUART.println("INITIALIZING\n");
+
+  initSDCard();
+  debugUART.println("Reading Parameters from SD Card...");
+  loadConfiguration(filename,config);
+  debugUART.println("  Device Name: " + config.deviceName);
+  debugUART.println("  SSID: " + config.ssid);
+  debugUART.println("  ServerURL: " + config.serverURL);
+  
+  //printFile(filename);  
+  
+  setNormalMode(); //Run at full power and max speed with WiFi enabled by default
+  debugUART.println("  MAC Address: " + getMACAddress());  
+
+  debugUART.println("Setting LoRa Device Address...");
+  loraUART.println("AT+ADDRESS=1"); //MY ADDRESS -- Base Stations Default to 1.
+  delay(1000);
+  debugUART.println("  Address = 1");
+
+
+  debugUART.println("Testing for Real-Time-Clock module... ");
+  rtcPresent = initRTC();
+  if (rtcPresent){
+    debugUART.println("  RTC found. (Program will use time from RTC.)");
+    //stat +="   RTC  : OK\n";
+    debugUART.print("    RTC Time: ");
+    debugUART.println(getRTCTime()); 
+  }else{
+    debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
+    //stat +="    RTC  : ERROR!\n"; 
+  }
+  
+  if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
+    synchTime(rtcPresent);
+  }
+    
 
   mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
   
@@ -330,9 +392,10 @@ void setup() {
     1,               // Task priority
     NULL             // Task handle
   );
-  
+
+ 
   debugUART.println();
-  debugUART.println("RUNNING...\n");
+  debugUART.println("RUNNING\n");
 }
 
 

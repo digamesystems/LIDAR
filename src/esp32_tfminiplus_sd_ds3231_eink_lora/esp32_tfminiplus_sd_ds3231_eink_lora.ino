@@ -28,7 +28,7 @@
 #include "digameTime.h"         // Digame Time Functions
 #include "digameMath.h"         // Mean and correlation
 #include "digameConfig.h"       // Program parameters from config file on SD card
-#include "digameNetwork.h"    // Digame Network Functions
+#include "digameNetwork.h"      // Digame Network Functions
 
 #if USE_EINK
   #include "digameDisplay.h"    // Digame eInk Display Functions.
