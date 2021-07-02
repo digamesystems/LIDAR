@@ -26,7 +26,7 @@ struct Config
   // Parameters found in PARAMETERS.TXT on the SD card. 
   // Fails over to these values if not found.
   
-  String deviceName          = "Digame Systems LoRa Base Station"; // 
+  String deviceName          = "Digame HQ San Jose"; // 
   
   // Network:       
   String ssid                = "Bighead";        // Wireless network name. 
@@ -169,8 +169,11 @@ void loop(){
             client.println("<style>");
             client.println(" html { font-family: Helvetica; display: inline-block; margin: 0px auto;}");// text-align: center;}");
             client.println(" form { margin:10px auto; width: 300px; background-color: #eeeeee; border: solid; padding: 5px 15px;}");
-            client.println(" h1 { background-color: #e84122; border: none; color: white; padding: 16px 40px;");
+            // #e84122
+            client.println(" h1 { background-color: #ac0014; border: none; color: white; padding: 16px 40px;");
+            
             client.println("    text-decoration: none; text-align: center; margin: 2px;}");
+            client.println(" h3 { margin: auto; text-align: center;}");
             client.println(" label {width: 250px; text-align: left;clear: both;float:left; margin-right:15px;}");
             client.println(" input {width: 250px;}");
             client.println(" .center {  display: block;  margin-left: auto;  margin-right: auto;  width: 175px;}");
@@ -178,11 +181,12 @@ void loop(){
             client.println("</head>");
             
             // Web Page Heading
-            client.println("<body><h1>HEIMDALL VCS</h1>");
+            client.println("<body><h1>HEIMDALL VCS</h1><br>");
+            client.println("<h3><em>A Next-Generation Traffic Counting System</em></h3>");
             client.println("<hr>");
 
-            client.println("<H2>Base Station Configuration</H2>");
-            client.println("<p>Welcome. You can use these forms to update system parameters.</p>");
+            client.println("<H2>"+ config.deviceName +"</H2>");
+            client.println("<p>Welcome. You can use these forms to update system parameters for this LoRa-WiFi base station.</p>");
 
             client.println("<form action=\"/generalparms\">\n");
             client.println("<H3>General</H3>");
@@ -232,6 +236,7 @@ void loop(){
             client.println("<input type=\"text\" id=\"preamble\" name=\"preamble\" value=\""+ config.loraPreamble +"\"</input><br><br>");
             client.println("<input type=\"submit\" value=\"Submit\"></form>");
 
+            //client.println("<img src=https://images.squarespace-cdn.com/content/v1/554a673ae4b0d7d5128155bb/1625186042479-70RSPEWTSG8747ZYA8M1/parkdata+logo-01.png?format=150w class = \"center\">");
             client.println("<img src=http://static1.squarespace.com/static/554a673ae4b0d7d5128155bb/t/5ef63fdf6b62f234d82610a2/1595258253753/?format=150w alt=\"Digame Logo\" class=\"center\">");
             client.println("<p style=\"text-align:center; font-style:italic\">Copyright 2021, Digame Systems. All rights reserved.</p>");
 
