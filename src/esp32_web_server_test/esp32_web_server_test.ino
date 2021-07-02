@@ -173,7 +173,7 @@ void loop(){
             client.println("    text-decoration: none; text-align: center; margin: 2px;}");
             client.println(" label {width: 250px; text-align: left;clear: both;float:left; margin-right:15px;}");
             client.println(" input {width: 250px;}");
-            client.println(" .center {  display: block;  margin-left: auto;  margin-right: auto;  width: 12%;}");
+            client.println(" .center {  display: block;  margin-left: auto;  margin-right: auto;  width: 175px;}");
             client.println("</style>");
             client.println("</head>");
             
