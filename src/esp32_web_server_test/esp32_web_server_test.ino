@@ -173,6 +173,7 @@ void loop(){
             client.println("    text-decoration: none; text-align: center; margin: 2px;}");
             client.println(" label {width: 250px; text-align: left;clear: both;float:left; margin-right:15px;}");
             client.println(" input {width: 250px;}");
+            client.println(" .center {  display: block;  margin-left: auto;  margin-right: auto;  width: 12%;}");
             client.println("</style>");
             client.println("</head>");
             
@@ -231,6 +232,7 @@ void loop(){
             client.println("<input type=\"text\" id=\"preamble\" name=\"preamble\" value=\""+ config.loraPreamble +"\"</input><br><br>");
             client.println("<input type=\"submit\" value=\"Submit\"></form>");
 
+            client.println("<img src=http://static1.squarespace.com/static/554a673ae4b0d7d5128155bb/t/5ef63fdf6b62f234d82610a2/1595258253753/?format=150w alt=\"Digame Logo\" class=\"center\">");
             client.println("<p style=\"text-align:center; font-style:italic\">Copyright 2021, Digame Systems. All rights reserved.</p>");
 
             client.println("</body></html>");
