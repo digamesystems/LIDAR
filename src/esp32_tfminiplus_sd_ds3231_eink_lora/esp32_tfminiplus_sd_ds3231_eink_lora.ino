@@ -68,8 +68,8 @@ bool wifiConnected = false;
 
 long msLastConnectionAttempt;  // Timer value of the last time we tried to connect to the wifi.
 
-int LED_DIAG = 12;  // Indicator LED
-int CTR_RESET = 32; // Counter Reset Input
+int LED_DIAG  = 12;   // Indicator LED
+int CTR_RESET = 32;   // Counter Reset Input
 
 int heartbeatTime;    // Issue Heartbeat message once an hour. Holds the current Minute.
 int oldHeartbeatTime; // Value the last time we looked.
@@ -86,10 +86,10 @@ int   lidarUpdateRate = 10;
 float correl1 = 0.0;
 
 // Messaging flags
-bool jsonPostNeeded = false;
-bool bootMessageNeeded = true;
+bool jsonPostNeeded         = false;
+bool bootMessageNeeded      = true;
 bool heartbeatMessageNeeded = false;
-bool vehicleMessageNeeded = false;
+bool vehicleMessageNeeded   = false;
 
 // The message being sent
 String jsonPayload; //A fat JSON payload for the server. 
@@ -99,6 +99,7 @@ String loraPayload; //A stripped down version for LoRa
 int bootMinute;
 
 
+//****************************************************************************************
 void enableWiFi(){
     adc_power_on();
     delay(200);
@@ -123,6 +124,8 @@ void enableWiFi(){
     
 }
 
+
+//****************************************************************************************
 void disableWiFi(){
     adc_power_off();
     WiFi.disconnect(true);  // Disconnect from the network
@@ -131,6 +134,8 @@ void disableWiFi(){
     //debugUART.println("WiFi disconnected!");
 }
 
+
+//****************************************************************************************
 void disableBluetooth(){
     // Rather disappointing on power improvement.
     btStop();
@@ -138,6 +143,8 @@ void disableBluetooth(){
     //debugUART.println("Bluetooth stop!");
 }
  
+
+//****************************************************************************************
 void setLowPowerMode() {
     debugUART.print("  Setting Power Mode... ");
     disableWiFi();
@@ -147,6 +154,7 @@ void setLowPowerMode() {
 }
 
  
+//****************************************************************************************
 void setNormalPowerMode() {
     setCpuFrequencyMhz(240);
     enableWiFi(); 
@@ -189,7 +197,6 @@ void setup()
 #endif
     
     delay(1000);               // Give port time to initalize
-
 
     Wire.begin();
 
@@ -453,11 +460,13 @@ String buildLoRaHeader(String eventType, double count){
     loraHeader = "{\"ts\":\"" + getRTCTime() + 
                    "\",\"et\":\"" + eventType +
                    "\",\"c\":\"" + strCount +  
+                   "\",\"t\":\"" + String(getRTCTemperature(),1)+
                    "\"";
   } else {
     loraHeader = "{\"ts\":\"" + getLocalTime() + 
                    "\",\"et\":\"" + eventType + 
                    "\",\"c\":\"" + strCount + 
+                   "\",\"t\":\"" + String(getRTCTemperature(),1)+
                    "\"";  
   }                    
   return loraHeader;
@@ -639,6 +648,7 @@ bool processLIDARSignal(){
 
 
 
+//****************************************************************************************
 // Sends a message to another LoRa module and listens for an ACK reply.
 bool sendReceiveLoRa(String msg){
   long timeout = 10000;
@@ -773,7 +783,7 @@ void messageManager(void *parameter){
 // Main Loop
 //************************************************************************
 
-double count = 0;
+long count = 0;
 
 void loop()
 { 
@@ -858,6 +868,10 @@ void loop()
         #endif 
              
         #if USE_EINK
+          if (count%10==0) {
+            initDisplay();
+            displayCountScreen(count);
+          }
           showValue(count);
         #endif
 

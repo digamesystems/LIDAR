@@ -39,24 +39,12 @@ void showValue(double v);
 //******************************************************************************************
 void initDisplay()
 {
+  display.init(0);
   display.setRotation(3);
   display.setTextSize(2);
   //display.setFont(&FreeMonoBold9pt7b);
   display.setTextColor(GxEPD_BLACK);
-  int16_t tbx, tby; uint16_t tbw, tbh;
-  display.getTextBounds("Initializing...", 0, 0, &tbx, &tby, &tbw, &tbh);
-  // center bounding box by transposition of origin:
-  uint16_t x = ((display.width() - tbw) / 2) - tbx;
-  uint16_t y = ((display.height() - tbh) / 2) - tby;
-  display.setFullWindow();
-  display.firstPage();
-  do
-  {
-    display.fillScreen(GxEPD_WHITE);
-    display.setCursor(x, y);
-    display.print("Initializing...");
-  }
-  while (display.nextPage());
+  display.fillScreen(GxEPD_WHITE);
   return;
 }
 
@@ -88,67 +76,58 @@ void centerPrint(String s, uint16_t y){
   display.print(s);
 }
 
+//******************************************************************************************
+void displayTitles(String title1, String title2){
+  display.fillScreen(GxEPD_WHITE);
+  //display.display();   
+  //display.setTextColor(GxEPD_BLACK);      
+  display.setTextSize(3);
+  centerPrint(title1,10);
+  display.setTextSize(2);
+  centerPrint(title2, 40);    
+}
+
+//******************************************************************************************
 void displayCopyright(){
   display.setTextSize(1);
   centerPrint("HEIMDALL VCS", 170);
   centerPrint("Copyright 2021, Digame Systems.", 180);
-  centerPrint("All rights reserved.", 190);    
+  centerPrint("All rights reserved.", 190);
+  display.display();    
 }
 
 //******************************************************************************************
 void displaySplashScreen(){
-  display.fillScreen(GxEPD_WHITE);   
-  display.setTextColor(GxEPD_BLACK);      
-  display.setTextSize(3);
-  centerPrint("HEIMDALL", 10);  
-  display.setTextSize(2);
-  centerPrint("Vehicle", 60);
-  centerPrint("Counting System", 80);
-  centerPrint("(BASE STATION)",100);
-  centerPrint("Version", 120);
-  centerPrint("0.9.2", 140);
-  display.setTextSize(1);
+  displayTitles("HEIMDALL","(Base Station)");
+  centerPrint("Vehicle", 70);
+  centerPrint("Counting System", 90);
+  centerPrint("Version", 110);
+  centerPrint("0.9.2", 130);
   displayCopyright(); 
-  display.display(); 
-  display.fillScreen(GxEPD_WHITE); 
 }
-
 
 //******************************************************************************************
-void displayInitializingScreen(){ 
-  display.setTextColor(GxEPD_BLACK);     
-  display.setTextSize(3);
-  centerPrint("SELF-TEST",10);
-  display.setTextSize(2);
-  centerPrint("Checking", 60);
-  centerPrint("System", 80);
-  centerPrint("Components...", 100);
-  displayCopyright();
-  display.display(); 
-  display.fillScreen(GxEPD_WHITE); 
+void displayIPScreen(String s){
+  displayTitles("NETWORK",""); 
+  centerPrint("IP Address",75);
+  centerPrint(s, 100);
+  displayCopyright(); 
 }
-
 
 //******************************************************************************************
 void displayStatusScreen(String s){
-  display.setTextColor(GxEPD_BLACK);      
-  display.setTextSize(3);
-  centerPrint("STATUS", 10);  
-  display.setTextSize(2);
-  display.setCursor(0, 60);
+  displayTitles("MESSAGES",""); 
+  display.setCursor(0, 65);
   display.print(s);
-  display.setTextSize(1);
-  displayCopyright();
-  display.display(); 
-  display.fillScreen(GxEPD_WHITE);  
+  displayCopyright();  
 }
+
 
 
 //******************************************************************************************
 void displayCountScreen(double v)
 {
   int digits = 0;
-  
   display.fillScreen(GxEPD_WHITE); 
   display.setTextColor(GxEPD_BLACK);  
   PrintString valueString;

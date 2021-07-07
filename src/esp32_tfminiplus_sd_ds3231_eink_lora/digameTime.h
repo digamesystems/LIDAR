@@ -91,6 +91,12 @@ int getRTCHour(){
 }
 
 //****************************************************************************************
+float getRTCTemperature(){
+    DS3231 clock;
+    return clock.getTemperature(); 
+}
+
+//****************************************************************************************
 // Retrieve the time from the RTC and format 
 String getRTCTime(){
   

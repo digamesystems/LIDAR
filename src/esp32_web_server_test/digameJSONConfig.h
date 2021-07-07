@@ -36,35 +36,17 @@ struct Config
   
   // LoRa:
   String loraAddress         = "1";
-  String loraNetworkID       = "7";
+  String loraNetworkID       = "16";
   String loraBand            = "915000000";
   String loraSF              = "12";
   String loraBW              = "7";
   String loraCR              = "1";
   String loraPreamble        = "4";
-
-  // Sensors: 
-  String sens1Addr = "6";
-  String sens1Name = "Sensor 1";
-  String sens1MAC  = "aa:bb:cc:dd:ee:01";
-  
-  String sens2Addr = "7";
-  String sens2Name = "Sensor 2";
-  String sens2MAC  = "aa:bb:cc:dd:ee:02";
-
-  String sens3Addr = "8";
-  String sens3Name = "Sensor 3";
-  String sens3MAC  = "aa:bb:cc:dd:ee:03";
-
-  String sens4Addr = "9";
-  String sens4Name = "Sensor 4";
-  String sens4MAC  = "aa:bb:cc:dd:ee:04";
-  
   
 };
 
 
-const char *filename = "/params.txt";  // <- SD library uses 8.3 filenames
+const char *filename = "/parameters.txt";  // <- SD library uses 8.3 filenames
 
 //****************************************************************************************
 // See if the card is present and can be initialized.
@@ -85,7 +67,7 @@ void loadConfiguration(const char *filename, Config &config) {
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
   // Use https://arduinojson.org/v6/assistant to compute the capacity.
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<768> doc;
 
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(doc, file);
@@ -104,21 +86,6 @@ void loadConfiguration(const char *filename, Config &config) {
   config.loraBW        = (const char*)doc["lora"]["bandwidth"];
   config.loraCR        = (const char*)doc["lora"]["codingRate"];
   config.loraPreamble  = (const char*)doc["lora"]["preamble"];  
-  config.sens1Name     = (const char*)doc["sensor"]["1"]["name"];
-  config.sens1Addr     = (const char*)doc["sensor"]["1"]["addr"];
-  config.sens1MAC      = (const char*)doc["sensor"]["1"]["mac"];
-  
-  config.sens2Name     = (const char*)doc["sensor"]["2"]["name"];
-  config.sens2Addr     = (const char*)doc["sensor"]["2"]["addr"];
-  config.sens2MAC      = (const char*)doc["sensor"]["2"]["mac"];
-
-  config.sens3Name     = (const char*)doc["sensor"]["3"]["name"];
-  config.sens3Addr     = (const char*)doc["sensor"]["3"]["addr"];
-  config.sens3MAC      = (const char*)doc["sensor"]["3"]["mac"];
-
-  config.sens4Name     = (const char*)doc["sensor"]["4"]["name"];
-  config.sens4Addr     = (const char*)doc["sensor"]["4"]["addr"];
-  config.sens4MAC      = (const char*)doc["sensor"]["4"]["mac"];
 
   // Close the file (Curiously, File's destructor doesn't close the file)
   file.close();
@@ -139,7 +106,7 @@ void saveConfiguration(const char *filename, const Config &config) {
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
   // Use https://arduinojson.org/assistant to compute the capacity.
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<768> doc;
 
   // Copy values from the Config struct to the JsonDocument
   doc["name"]                    = config.deviceName;
@@ -153,19 +120,7 @@ void saveConfiguration(const char *filename, const Config &config) {
   doc["lora"]["bandwidth"]       = config.loraBW;
   doc["lora"]["codingRate"]      = config.loraCR;
   doc["lora"]["preamble"]        = config.loraPreamble; 
-  doc["sensor"]["1"]["name"]      = config.sens1Name;
-  doc["sensor"]["1"]["addr"]      = config.sens1Addr;
-  doc["sensor"]["1"]["mac"]       = config.sens1MAC; 
-  doc["sensor"]["2"]["name"]      = config.sens2Name;
-  doc["sensor"]["2"]["addr"]      = config.sens2Addr;
-  doc["sensor"]["2"]["mac"]       = config.sens2MAC;
-  doc["sensor"]["3"]["name"]      = config.sens3Name;
-  doc["sensor"]["3"]["addr"]      = config.sens3Addr;
-  doc["sensor"]["3"]["mac"]       = config.sens3MAC;
-  doc["sensor"]["4"]["name"]      = config.sens4Name;
-  doc["sensor"]["4"]["addr"]      = config.sens4Addr;
-  doc["sensor"]["4"]["mac"]       = config.sens4MAC;
-  
+
   // Serialize JSON to file
   if (serializeJson(doc, file) == 0) {
     Serial.println(F("Failed to write to file"));

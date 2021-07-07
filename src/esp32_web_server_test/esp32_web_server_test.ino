@@ -7,45 +7,13 @@
 
 // Load Wi-Fi library
 #include <WiFi.h>
+#include "digameJSONConfig.h"
 
 // Set web server port number to 80
 WiFiServer server(80);
 
-// Variable to store the HTTP request
-String header;
-// Current time
-unsigned long currentTime = millis();
-// Previous time
-unsigned long previousTime = 0; 
-// Define timeout time in milliseconds (example: 2000ms = 2s)
-const long timeoutTime = 2000;
 
-// We'll be using a struct to hold program parameters...
-struct Config 
-{
-  // Parameters found in PARAMETERS.TXT on the SD card. 
-  // Fails over to these values if not found.
-  
-  String deviceName          = "Digame HQ San Jose"; // 
-  
-  // Network:       
-  String ssid                = "Bighead";        // Wireless network name. 
-  String password            = "billgates";      // Network PW
-  String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
-  
-  // LoRa:
-  String loraAddress         = "1";
-  String loraNetworkID       = "7";
-  String loraBand            = "915000000";
-  String loraSF              = "12";
-  String loraCR              = "1";
-  String loraBW              = "7";
-  String loraPreamble        = "4";
-  
-};
-
-Config config;
-
+Config config; // A struct defined in digameJSONConfig.h
 
 //****************************************************************************************
 // Return the device's MAC address
@@ -96,6 +64,21 @@ String getParam(String header, String paramName){
 void setup() {
   Serial.begin(115200);
 
+  if (initSDCard()){
+    Serial.println("SD Card Found.");
+    loadConfiguration(filename,config);
+
+    //config.ssid = "Bighead";
+    //config.password = "billgates";
+    
+    //config.ssid = "AndroidAP3AE2";
+    //config.password = "ohpp8971";
+    //saveConfiguration(filename,config);
+    
+  }else{
+    Serial.println("No SD Card Found! -- Using config default values...");    
+  }
+
   // Connect to Wi-Fi network with SSID and password
   Serial.print("Connecting to ");
   Serial.println(config.ssid);
@@ -113,9 +96,15 @@ void setup() {
 }
 
 //****************************************************************************************
-//****************************************************************************************
-void loop(){
-  WiFiClient client = server.available();   // Listen for incoming clients
+void processClient(WiFiClient client){
+  // Variable to store the HTTP request
+  String header;
+  // Current time
+  unsigned long currentTime = millis();
+  // Previous time
+  unsigned long previousTime = 0; 
+  // Define timeout time in milliseconds (example: 2000ms = 2s)
+  const long timeoutTime = 2000;
 
   if (client) {                             // If a new client connects,
     currentTime = millis();
@@ -143,12 +132,14 @@ void loop(){
             if (header.indexOf("GET /general") >=0) {
               Serial.println("You are tweaking general parameters.");  
               config.deviceName = getParam(header, "devname");
+              saveConfiguration(filename,config);
               
             } else if (header.indexOf("GET /network") >=0) {
               Serial.println("You are tweaking network parameters.");  
               config.ssid = getParam(header,"ssid");
               config.password  = getParam(header,"password");
               config.serverURL = getParam(header,"serverurl");
+              saveConfiguration(filename,config);
               
             } else if (header.indexOf("GET /lora") >=0) {
               Serial.println("You are tweaking a LoRa parameter."); 
@@ -159,6 +150,7 @@ void loop(){
               config.loraBW        = getParam(header,"bandwidth");
               config.loraCR        = getParam(header,"codingrate");
               config.loraPreamble = getParam(header,"preamble");
+              saveConfiguration(filename,config);
             }
                       
             // Display the HTML web page
@@ -182,10 +174,11 @@ void loop(){
             
             // Web Page Heading
             client.println("<body><h1>HEIMDALL VCS</h1><br>");
-            client.println("<h3><em>A Next-Generation Traffic Counting System</em></h3>");
+            client.println("<h3><em>A Next-Generation Traffic Counting Platform</em></h3>");
+            client.println("<h3><em>from D&#237game Systems</em></h3>");
             client.println("<hr>");
 
-            client.println("<H2>"+ config.deviceName +"</H2>");
+            client.println("<H2>BASE STATION: <em>"+ config.deviceName +"</em></H2>");
             client.println("<p>Welcome. You can use these forms to update system parameters for this LoRa-WiFi base station.</p>");
 
             client.println("<form action=\"/generalparms\">\n");
@@ -238,7 +231,7 @@ void loop(){
 
             //client.println("<img src=https://images.squarespace-cdn.com/content/v1/554a673ae4b0d7d5128155bb/1625186042479-70RSPEWTSG8747ZYA8M1/parkdata+logo-01.png?format=150w class = \"center\">");
             client.println("<img src=http://static1.squarespace.com/static/554a673ae4b0d7d5128155bb/t/5ef63fdf6b62f234d82610a2/1595258253753/?format=150w alt=\"Digame Logo\" class=\"center\">");
-            client.println("<p style=\"text-align:center; font-style:italic\">Copyright 2021, Digame Systems. All rights reserved.</p>");
+            client.println("<p style=\"text-align:center; font-style:italic\">Copyright 2021, D&#237game Systems. All rights reserved.</p>");
 
             client.println("</body></html>");
             
@@ -260,5 +253,14 @@ void loop(){
     client.stop();
     Serial.println("Client disconnected.");
     Serial.println("");
-  }
+  }  
+
+}
+
+
+//****************************************************************************************
+//****************************************************************************************
+void loop(){
+  WiFiClient client = server.available();   // Listen for incoming clients
+  processClient(client);
 }

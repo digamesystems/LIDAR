@@ -126,7 +126,8 @@ String getRTCTime(){
     message += two_digits(clock.getMinute());
     message += ':';
     message += two_digits(clock.getSecond());  
-    
+
+    //Serial.println(clock.getTemperature());
     return message;   
 }
 
