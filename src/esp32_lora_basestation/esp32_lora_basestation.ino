@@ -27,8 +27,6 @@
   #include "digameDisplay.h"    // Digame eInk Display Functions.
 #endif
 
-//#include "driver/adc.h"
-//#include <esp_bt.h>
 #include <ArduinoJson.h>
 
 #define loraUART Serial1
@@ -53,10 +51,15 @@ bool   loraConfigMode = false;
 String cmdMsg;
 String loraMsg;
 
+const char *ssid = "Digame-AP";
+const char *password ="digame";
+
 SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).
 
 const int samples = 20;
 CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages sent to the LoRa basestation.
+
+bool accessPointMode = false;
 
 String sendReceive(String s);
 void setLowPowerMode();
@@ -688,67 +691,87 @@ void processClient(WiFiClient client){
 //************************************************************************
 void setup() {
   initPorts(); //Set up serial ports and GPIO
-  
   splash();
     
   debugUART.println("INITIALIZING\n");
 
   if (digitalRead(CTR_RESET)== LOW) {
-    debugUART.println("Launching in Configuration Mode!!!!");  
+    debugUART.println("*******************************");
+    debugUART.println("Launching in Access Point Mode!");  
+    debugUART.println("*******************************");
+    
+    accessPointMode = true;
   }
 
   debugUART.println("Reading Parameters from SD Card...");
   initSDCard();
 
-  //config.ssid = "Bighead";
-  //config.password = "billgates";
   //saveConfiguration(filename,config);
-  
   loadConfiguration(filename,config);
 
-  //config.ssid = "Bighead";
-  //config.password = "billgates";
-  debugUART.println("  Device Name: " + config.deviceName);
-  debugUART.println("  SSID: " + config.ssid);
-  debugUART.println("  ServerURL: " + config.serverURL);
-  
-  //printFile(filename);  
-  
-  setNormalMode(); //Run at full power and max speed with WiFi enabled by default
-  debugUART.println("  MAC Address: " + getMACAddress());  
-
-  configureLoRa(config);
-
-  debugUART.println("Testing for Real-Time-Clock module... ");
-  rtcPresent = initRTC();
-  if (rtcPresent){
-    debugUART.println("  RTC found. (Program will use time from RTC.)");
-    //stat +="   RTC  : OK\n";
-    debugUART.print("    RTC Time: ");
-    debugUART.println(getRTCTime()); 
+  if (accessPointMode){
+      Serial.print("Setting AP (Access Point)…");
+      // Remove the password parameter, if you want the AP (Access Point) to be open
+      
+      WiFi.softAP(ssid);//, password);
+    
+      IPAddress IP = WiFi.softAPIP();
+      Serial.print("AP IP address: ");
+      Serial.println(IP);
+      
+      server.begin();
+      displayAPScreen(WiFi.softAPIP().toString()); 
+         
+      
+    
+    
   }else{
-    debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
-    //stat +="    RTC  : ERROR!\n"; 
+
+    //config.ssid = "Bighead";
+    //config.password = "billgates";
+    debugUART.println("  Device Name: " + config.deviceName);
+    debugUART.println("  SSID: " + config.ssid);
+    debugUART.println("  ServerURL: " + config.serverURL);
+    
+    //printFile(filename);  
+    
+    setNormalMode(); //Run at full power and max speed with WiFi enabled by default
+    debugUART.println("  MAC Address: " + getMACAddress());  
+  
+    configureLoRa(config);
+  
+    debugUART.println("Testing for Real-Time-Clock module... ");
+    rtcPresent = initRTC();
+    if (rtcPresent){
+      debugUART.println("  RTC found. (Program will use time from RTC.)");
+      //stat +="   RTC  : OK\n";
+      debugUART.print("    RTC Time: ");
+      debugUART.println(getRTCTime()); 
+    }else{
+      debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
+      //stat +="    RTC  : ERROR!\n"; 
+    }
+    
+    if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
+      synchTime(rtcPresent);
+      //displayIPScreen(WiFi.localIP().toString());
+    }
+        
+    mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
+    
+    xTaskCreate(
+      messageManager,    // Function that should be called
+      "Message Manager",   // Name of the task (for debugging)
+      7000,            // Stack size (bytes)
+      NULL,            // Parameter to pass
+      1,               // Task priority
+      NULL             // Task handle
+    );
+    
   }
   
-  if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
-    synchTime(rtcPresent);
-    //displayIPScreen(WiFi.localIP().toString());
-  }
-
   server.begin();
     
-  mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
-  
-  xTaskCreate(
-    messageManager,    // Function that should be called
-    "Message Manager",   // Name of the task (for debugging)
-    7000,            // Stack size (bytes)
-    NULL,            // Parameter to pass
-    1,               // Task priority
-    NULL             // Task handle
-  );
-
   debugUART.println();
   debugUART.println("RUNNING\n");
 }
@@ -762,97 +785,101 @@ void loop() {
   WiFiClient client = server.available();   // Listen for incoming clients
 
   if (client){ processClient(client); }
+
+
+  if (!accessPointMode){
  
-  // Check for RESET button being pressed
-  if (digitalRead(CTR_RESET)== LOW) {
-    //debugUART.println("Loop: RESET button pressed.");
-    displayMode++;
-    if (displayMode>3) displayMode = 1;
-    
-    switch (displayMode) {
-      case 1:
-        displaySplashScreen();
-        break;
-      case 2:
-        displayIPScreen(WiFi.localIP().toString()); 
-        break;
-      case 3:
-        displayStatusScreen("");
-        break;     
-    }
-  }
-
-  // Handle what the LoRa module has to say. 
-  // If it's a message from another module, add it to the queue
-  // so the manager function can handle it.
-  // Otherwise, just echo to the debugUART.
-  
-  if (loraUART.available()) {
-    
-    loraMsg = loraUART.readStringUntil('\n');
-       
-    //Messages received by the Module start with '+RCV'
-    if (loraMsg.indexOf("+RCV")>=0){
-      debugUART.println();
-      debugUART.print("LoRa Message Received. ");  
-      debugUART.println(loraMsg);
+    // Check for RESET button being pressed
+    if (digitalRead(CTR_RESET)== LOW) {
+      //debugUART.println("Loop: RESET button pressed.");
+      displayMode++;
+      if (displayMode>3) displayMode = 1;
       
-      // Send an acknowlegement to the sender.
-      // Grab the address of the sender
-      // Messages are of the form: "+RCV=2,2,16,-64,36" -- where the first number after the "=" is the address.
-      
-      // Start and end of the JSON payload in the msg.
-       int idxstart = loraMsg.indexOf('=')+1;
-       int idxstop = loraMsg.indexOf(',');
-    
-      // grab the address
-      String senderAddress = loraMsg.substring(idxstart,idxstop); 
-    
-      // Now we can answer anyone who talks to us.
-      debugUART.print("Sending ACK: ");
-      loraUART.println("AT+SEND=" + senderAddress + ",3,ACK"); 
-
-      xSemaphoreTake(mutex_v, portMAX_DELAY);      
-        loraMsgBuffer.push(loraMsg);
-        debugUART.print("loraMsgBuffer.size: ");
-        debugUART.println(loraMsgBuffer.size());
-        debugUART.println();
-      xSemaphoreGive(mutex_v);
-  
-    } else {
-      debugUART.println(loraMsg);      
+      switch (displayMode) {
+        case 1:
+          displaySplashScreen();
+          break;
+        case 2:
+          displayIPScreen(WiFi.localIP().toString()); 
+          break;
+        case 3:
+          displayStatusScreen("");
+          break;     
+      }
     }
+  
+    // Handle what the LoRa module has to say. 
+    // If it's a message from another module, add it to the queue
+    // so the manager function can handle it.
+    // Otherwise, just echo to the debugUART.
+    
+    if (loraUART.available()) {
+      
+      loraMsg = loraUART.readStringUntil('\n');
          
-  }
+      //Messages received by the Module start with '+RCV'
+      if (loraMsg.indexOf("+RCV")>=0){
+        debugUART.println();
+        debugUART.print("LoRa Message Received. ");  
+        debugUART.println(loraMsg);
+        
+        // Send an acknowlegement to the sender.
+        // Grab the address of the sender
+        // Messages are of the form: "+RCV=2,2,16,-64,36" -- where the first number after the "=" is the address.
+        
+        // Start and end of the JSON payload in the msg.
+         int idxstart = loraMsg.indexOf('=')+1;
+         int idxstop = loraMsg.indexOf(',');
+      
+        // grab the address
+        String senderAddress = loraMsg.substring(idxstart,idxstop); 
+      
+        // Now we can answer anyone who talks to us.
+        debugUART.print("Sending ACK: ");
+        loraUART.println("AT+SEND=" + senderAddress + ",3,ACK"); 
   
-  // Someone is sending us data on the debugUART. 
-  // Only route this to the LoRa module if we are in loraConfigMode.
-  
-  if (debugUART.available()) {
-    cmdMsg = debugUART.readStringUntil('\n');    
-    cmdMsg.trim();
-    if (cmdMsg.indexOf("CONFIG")>=0){ 
-      debugUART.println("Entering LoRa configuration mode:");
-      loraConfigMode=true;
-      cmdMsg = "AT"; //Get the module's attention.
+        xSemaphoreTake(mutex_v, portMAX_DELAY);      
+          loraMsgBuffer.push(loraMsg);
+          debugUART.print("loraMsgBuffer.size: ");
+          debugUART.println(loraMsgBuffer.size());
+          debugUART.println();
+        xSemaphoreGive(mutex_v);
+    
+      } else {
+        debugUART.println(loraMsg);      
+      }
+           
     }
-    if (cmdMsg.indexOf("EXIT")>=0) {
-      debugUART.println("Leaving LoRa configuration mode:");
-      loraConfigMode=false;
-    }  
     
-    // If in config mode, route serial monitor message to the module for config, etc. 
-    if (loraConfigMode) {
-      loraUART.print(cmdMsg + "\r\n");
-    } else {
-      // use the debugUART message for other purposes, e.g., menu system, etc.   
-      if (cmdMsg.indexOf("SLEEP")>=0) {
-        setLowPowerMode();
+    // Someone is sending us data on the debugUART. 
+    // Only route this to the LoRa module if we are in loraConfigMode.
+    
+    if (debugUART.available()) {
+      cmdMsg = debugUART.readStringUntil('\n');    
+      cmdMsg.trim();
+      if (cmdMsg.indexOf("CONFIG")>=0){ 
+        debugUART.println("Entering LoRa configuration mode:");
+        loraConfigMode=true;
+        cmdMsg = "AT"; //Get the module's attention.
       }
-      if (cmdMsg.indexOf("WAKE")>=0) {
-        setNormalMode();
-      }
+      if (cmdMsg.indexOf("EXIT")>=0) {
+        debugUART.println("Leaving LoRa configuration mode:");
+        loraConfigMode=false;
+      }  
+      
+      // If in config mode, route serial monitor message to the module for config, etc. 
+      if (loraConfigMode) {
+        loraUART.print(cmdMsg + "\r\n");
+      } else {
+        // use the debugUART message for other purposes, e.g., menu system, etc.   
+        if (cmdMsg.indexOf("SLEEP")>=0) {
+          setLowPowerMode();
+        }
+        if (cmdMsg.indexOf("WAKE")>=0) {
+          setNormalMode();
+        }
+      } 
+      
     } 
-    
-  } 
+  }
 }

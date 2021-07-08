@@ -27,21 +27,21 @@ struct Config
   // Parameters found in PARAMETERS.TXT on the SD card. 
   // Fails over to these values if not found.
   
-  String deviceName          = "LoRa-WiFi Base Station"; // 
+  String deviceName          = "Digame SJ HQ"; // 
   
   // Network:       
-  String ssid                = "YOUR SSID"; //"Bighead";        // Wireless network name. 
-  String password            = "YOUR PASSWORD";      //"billgates";      // Network PW
+  String ssid                = "AndroidAP3AE2"; //"Bighead";        // Wireless network name. 
+  String password            = "ohpp8971";      //"billgates";      // Network PW
   String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
   
   // LoRa:
   String loraAddress         = "1";
   String loraNetworkID       = "7";
   String loraBand            = "915000000";
-  String loraSF              = "7";
+  String loraSF              = "12";
   String loraBW              = "7";
   String loraCR              = "1";
-  String loraPreamble        = "7";
+  String loraPreamble        = "4";
 
   // Sensors: 
   String sens1Addr = "6";

@@ -97,12 +97,12 @@ void displayCopyright(){
 }
 
 //******************************************************************************************
-void displaySplashScreen(){
-  displayTitles("HEIMDALL","(Base Station)");
+void displaySplashScreen(String swVersion){
+  displayTitles("HEIMDALL","(LIDAR Sensor)");
   centerPrint("Vehicle", 70);
   centerPrint("Counting System", 90);
   centerPrint("Version", 110);
-  centerPrint("0.9.2", 130);
+  centerPrint(swVersion, 130);
   displayCopyright(); 
 }
 
@@ -126,8 +126,8 @@ void displayAPScreen(String s){
 
 //******************************************************************************************
 void displayStatusScreen(String s){
-  displayTitles("MESSAGES",""); 
-  display.setCursor(0, 65);
+  displayTitles("SELF-TEST",""); 
+  display.setCursor(0, 50);
   display.print(s);
   displayCopyright();  
 }
@@ -137,15 +137,8 @@ void displayStatusScreen(String s){
 //******************************************************************************************
 void displayCountScreen(double v)
 {
-  int digits = 0;
-  display.fillScreen(GxEPD_WHITE); 
-  display.setTextColor(GxEPD_BLACK);  
-  PrintString valueString;
-  valueString.print(v, digits);
-  display.setTextSize(3);
-  centerPrint("COUNTS", 10);
-  displayCopyright();  
-  display.display();   
+  displayTitles("COUNTS","");
+  displayCopyright();     
 }
 
 

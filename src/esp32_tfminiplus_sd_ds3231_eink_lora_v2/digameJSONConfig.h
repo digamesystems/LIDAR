@@ -27,15 +27,15 @@ struct Config
   // Parameters found in PARAMETERS.TXT on the SD card. 
   // Fails over to these values if not found.
   
-  String deviceName          = "LoRa-WiFi Base Station"; // 
+  String deviceName          = "Digame Parking Lot"; // 
   
   // Network:       
-  String ssid                = "YOUR SSID"; //"Bighead";        // Wireless network name. 
-  String password            = "YOUR PASSWORD";      //"billgates";      // Network PW
+  String ssid                = "Bighead"; //"AndroidAP3AE2"; //"Bighead";        // Wireless network name. 
+  String password            = "billgates"; //"ohpp8971";      //"billgates";      // Network PW
   String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
   
   // LoRa:
-  String loraAddress         = "1";
+  String loraAddress         = "6";
   String loraNetworkID       = "7";
   String loraBand            = "915000000";
   String loraSF              = "7";
@@ -43,23 +43,11 @@ struct Config
   String loraCR              = "1";
   String loraPreamble        = "7";
 
-  // Sensors: 
-  String sens1Addr = "6";
-  String sens1Name = "Sensor 1";
-  String sens1MAC  = "aa:bb:cc:dd:ee:01";
-  
-  String sens2Addr = "7";
-  String sens2Name = "Sensor 2";
-  String sens2MAC  = "aa:bb:cc:dd:ee:02";
-
-  String sens3Addr = "8";
-  String sens3Name = "Sensor 3";
-  String sens3MAC  = "aa:bb:cc:dd:ee:03";
-
-  String sens4Addr = "9";
-  String sens4Name = "Sensor 4";
-  String sens4MAC  = "aa:bb:cc:dd:ee:04";
-  
+  // LIDAR Parameters:
+  String lidarDetectionAlgorithm = "Threshold";
+  String lidarUpdateInterval     = "10";
+  String lidarSmoothingFactor    = "0.85";
+  String lidarDistanceThreshold  = "100";
   
 };
 
@@ -103,23 +91,12 @@ void loadConfiguration(const char *filename, Config &config) {
   config.loraSF        = (const char*)doc["lora"]["spreadingFactor"];
   config.loraBW        = (const char*)doc["lora"]["bandwidth"];
   config.loraCR        = (const char*)doc["lora"]["codingRate"];
-  config.loraPreamble  = (const char*)doc["lora"]["preamble"];  
-  config.sens1Name     = (const char*)doc["sensor"]["1"]["name"];
-  config.sens1Addr     = (const char*)doc["sensor"]["1"]["addr"];
-  config.sens1MAC      = (const char*)doc["sensor"]["1"]["mac"];
-  
-  config.sens2Name     = (const char*)doc["sensor"]["2"]["name"];
-  config.sens2Addr     = (const char*)doc["sensor"]["2"]["addr"];
-  config.sens2MAC      = (const char*)doc["sensor"]["2"]["mac"];
-
-  config.sens3Name     = (const char*)doc["sensor"]["3"]["name"];
-  config.sens3Addr     = (const char*)doc["sensor"]["3"]["addr"];
-  config.sens3MAC      = (const char*)doc["sensor"]["3"]["mac"];
-
-  config.sens4Name     = (const char*)doc["sensor"]["4"]["name"];
-  config.sens4Addr     = (const char*)doc["sensor"]["4"]["addr"];
-  config.sens4MAC      = (const char*)doc["sensor"]["4"]["mac"];
-
+  config.loraPreamble  = (const char*)doc["lora"]["preamble"]; 
+  config.lidarDetectionAlgorithm  = (const char*)doc["lidar"]["detectionAlgorithm"];
+  config.lidarUpdateInterval      = (const char*)doc["lidar"]["updateInterval"];
+  config.lidarSmoothingFactor     = (const char*)doc["lidar"]["smoothingFactor"];
+  config.lidarDistanceThreshold   = (const char*)doc["lidar"]["distanceThreshold"]  ;
+   
   // Close the file (Curiously, File's destructor doesn't close the file)
   file.close();
 }
@@ -153,18 +130,10 @@ void saveConfiguration(const char *filename, const Config &config) {
   doc["lora"]["bandwidth"]       = config.loraBW;
   doc["lora"]["codingRate"]      = config.loraCR;
   doc["lora"]["preamble"]        = config.loraPreamble; 
-  doc["sensor"]["1"]["name"]      = config.sens1Name;
-  doc["sensor"]["1"]["addr"]      = config.sens1Addr;
-  doc["sensor"]["1"]["mac"]       = config.sens1MAC; 
-  doc["sensor"]["2"]["name"]      = config.sens2Name;
-  doc["sensor"]["2"]["addr"]      = config.sens2Addr;
-  doc["sensor"]["2"]["mac"]       = config.sens2MAC;
-  doc["sensor"]["3"]["name"]      = config.sens3Name;
-  doc["sensor"]["3"]["addr"]      = config.sens3Addr;
-  doc["sensor"]["3"]["mac"]       = config.sens3MAC;
-  doc["sensor"]["4"]["name"]      = config.sens4Name;
-  doc["sensor"]["4"]["addr"]      = config.sens4Addr;
-  doc["sensor"]["4"]["mac"]       = config.sens4MAC;
+  doc["lidar"]["detectionAlgorithm"] = config.lidarDetectionAlgorithm;
+  doc["lidar"]["updateInterval"]     = config.lidarUpdateInterval;
+  doc["lidar"]["smoothingFactor"]    = config.lidarSmoothingFactor;
+  doc["lidar"]["distanceThreshold"]  = config.lidarDistanceThreshold;
   
   // Serialize JSON to file
   if (serializeJson(doc, file) == 0) {
@@ -194,32 +163,6 @@ void printFile(const char *filename) {
   file.close();
 }
 
-/*
-void setup() {
-  // Initialize serial port
-  Serial.begin(9600);
-  while (!Serial) continue;
-
-  // Initialize SD library
-  const int chipSelect = 4;
-  while (!SD.begin(chipSelect)) {
-    Serial.println(F("Failed to initialize SD library"));
-    delay(1000);
-  }
-
-  // Should load default config if run for the first time
-  Serial.println(F("Loading configuration..."));
-  loadConfiguration(filename, config);
-
-  // Create configuration file
-  Serial.println(F("Saving configuration..."));
-  saveConfiguration(filename, config);
-
-  // Dump config file
-  Serial.println(F("Print config file..."));
-  printFile(filename);
-}
-*/
 
 // Performance issue?
 // ------------------
