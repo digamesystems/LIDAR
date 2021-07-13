@@ -102,7 +102,7 @@ String getRTCTime(){
   
     //RTClib myRTC;
     DS3231 clock;
-    String message = "";
+    String message = "20";
 
 /*
     DateTime now = myRTC.now();

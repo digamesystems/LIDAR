@@ -7,7 +7,7 @@
 
 // Mix-n-match hardware configuration
 #define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
-#define SHOW_DATA_STREAM false  // A debugging flag to show raw LIDAR values on the serial monitor
+#define SHOW_DATA_STREAM true  // A debugging flag to show raw LIDAR values on the serial monitor
  
 #include <TFMPlus.h>            // Include TFMini Plus LIDAR Library v1.4.0
 #include <WiFi.h>               // WiFi stack
@@ -146,12 +146,12 @@ bool processLIDARSignal(){
     static bool  carPresent      = false;    
     static bool  lastCarPresent  = false; 
     int   carEvent        = 0;
-    int   lidarUpdateRate = 10;
+    int   lidarUpdateRate = 20;
     float correl1 = 0.0;
   
     bool retValue = false;
 
-    //tfmP.sendCommand(TRIGGER_DETECTION, 0); //Uncomment in triggered mode.
+    tfmP.sendCommand(TRIGGER_DETECTION, 0); //Uncomment in triggered mode.
     delay(lidarUpdateRate);
 
     // Read the LIDAR Sensor
@@ -287,8 +287,9 @@ void messageManager(void *parameter){
       #endif
 
       //Send the data to the base station
+      //sendReceive("AT+MODE=0");
       while (!sendReceiveLoRa(activeMessage)){};
-
+      //sendReceive("AT+MODE=1");
       #if SHOW_DATA_STREAM
       #else
         Serial.println("Sent!");
@@ -340,6 +341,8 @@ void configureLoRa(Config config){
   debugUART.println("    Setting Modulation Parameters to: " + config.loraSF+","+config.loraBW+","+config.loraCR+","+config.loraPreamble);
   sendReceive("AT+PARAMETER="+config.loraSF+","+config.loraBW+","+config.loraCR+","+config.loraPreamble);
   sendReceive("AT+PARAMETER?");
+
+  //sendReceive("AT+MODE=1");
   
   hwStatus+= "   LoRa : OK\n\n";
 }
@@ -391,7 +394,7 @@ void initFileSystem(){
     debugUART.print("  Testing for SD Card Module... ");
     sdCardPresent = initSDCard();
     if (sdCardPresent){
-      //saveConfiguration(filename, config);
+      saveConfiguration(filename, config);
       loadConfiguration(filename, config);
       
       debugUART.println("Module found. (Parameters read from SD Card.)");
@@ -420,16 +423,16 @@ void initLIDAR(){
 
         delay(500);
         
-        //debugUART.printf( "  Adjusting Frame Rate... ");
-        //if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){ //FRAME_0 is triggered mode.
-        //   debugUART.println("  Frame Rate Adjusted.");
-        // }
-        // else tfmP.printReply(); 
+        debugUART.printf( "  Adjusting Frame Rate... ");
+        if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){ //FRAME_0 is triggered mode.
+           debugUART.println("  Frame Rate Adjusted.");
+        }
+        else tfmP.printReply(); 
     }
     else {
         debugUART.println("ERROR! LIDAR Sensor not found or sensor error.");
         hwStatus+="   LIDAR: ERROR!\n\n";
-        tfmP.printReply();
+        //tfmP.printReply();
     }
   
 }
@@ -534,7 +537,7 @@ void processClient(WiFiClient client){
 
             } else if (header.indexOf("GET /lidar") >=0) {
               Serial.println("You are tweaking LIDAR parameters."); 
-              config.lidarDistanceThreshold   = getParam(header,"distthrehold");
+              config.lidarDistanceThreshold   = getParam(header,"distthreshold");
               config.lidarSmoothingFactor = getParam(header,"smoothfactor");
               saveConfiguration(filename,config);
             }
@@ -685,7 +688,6 @@ void setup()
     } else {
       delay(1000);
       setLowPowerMode();     // Lower clock rate and turn off WiFi    
-      //initUI();              // Splash screens 
       initFileSystem();      // Setup SD card and load default values.
       configureLoRa(config); // Configure radio params  
       initLIDAR();           // Turn on LIDAR sensor
@@ -696,12 +698,12 @@ void setup()
   
       mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
       xTaskCreate(
-        messageManager,    // Function that should be called
+        messageManager,      // Function that should be called
         "Message Manager",   // Name of the task (for debugging)
-        5000,            // Stack size (bytes)
-        NULL,            // Parameter to pass
-        1,               // Task priority
-        NULL             // Task handle
+        5000,                // Stack size (bytes)
+        NULL,                // Parameter to pass
+        1,                   // Task priority
+        NULL                 // Task handle
       );
 
       displayCountScreen(0);
@@ -710,8 +712,6 @@ void setup()
     debugUART.println();
     debugUART.println("RUNNING!");  
     debugUART.println(); 
-    
-
   
 }
 

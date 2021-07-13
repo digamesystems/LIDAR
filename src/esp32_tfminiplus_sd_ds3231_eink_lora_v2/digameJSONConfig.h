@@ -46,8 +46,8 @@ struct Config
   // LIDAR Parameters:
   String lidarDetectionAlgorithm = "Threshold";
   String lidarUpdateInterval     = "10";
-  String lidarSmoothingFactor    = "0.85";
-  String lidarDistanceThreshold  = "100";
+  String lidarSmoothingFactor    = "0.6";
+  String lidarDistanceThreshold  = "300";
   
 };
 
@@ -73,7 +73,7 @@ void loadConfiguration(const char *filename, Config &config) {
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
   // Use https://arduinojson.org/v6/assistant to compute the capacity.
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<2048> doc;
 
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(doc, file);
@@ -116,7 +116,7 @@ void saveConfiguration(const char *filename, const Config &config) {
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
   // Use https://arduinojson.org/assistant to compute the capacity.
-  StaticJsonDocument<1024> doc;
+  StaticJsonDocument<2048> doc;
 
   // Copy values from the Config struct to the JsonDocument
   doc["name"]                    = config.deviceName;

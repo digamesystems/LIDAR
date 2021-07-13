@@ -30,8 +30,8 @@ struct Config
   String deviceName          = "LoRa-WiFi Base Station"; // 
   
   // Network:       
-  String ssid                = "YOUR SSID"; //"Bighead";        // Wireless network name. 
-  String password            = "YOUR PASSWORD";      //"billgates";      // Network PW
+  String ssid                = "4th_StreetPizzaCo"; //"Bighead";        // Wireless network name. 
+  String password            = "";      //"billgates";      // Network PW
   String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
   
   // LoRa:
