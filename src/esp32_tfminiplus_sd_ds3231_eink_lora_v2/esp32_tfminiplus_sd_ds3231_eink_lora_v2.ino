@@ -394,7 +394,7 @@ void initFileSystem(){
     debugUART.print("  Testing for SD Card Module... ");
     sdCardPresent = initSDCard();
     if (sdCardPresent){
-      saveConfiguration(filename, config);
+      //saveConfiguration(filename, config);
       loadConfiguration(filename, config);
       
       debugUART.println("Module found. (Parameters read from SD Card.)");

@@ -706,7 +706,7 @@ void setup() {
   debugUART.println("Reading Parameters from SD Card...");
   initSDCard();
 
-  saveConfiguration(filename,config);
+  //saveConfiguration(filename,config);
   loadConfiguration(filename,config);
 
   if (accessPointMode){
