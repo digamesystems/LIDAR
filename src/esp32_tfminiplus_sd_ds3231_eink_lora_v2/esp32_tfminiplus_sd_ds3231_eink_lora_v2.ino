@@ -7,7 +7,7 @@
 
 // Mix-n-match hardware configuration
 #define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
-#define SHOW_DATA_STREAM true  // A debugging flag to show raw LIDAR values on the serial monitor
+#define SHOW_DATA_STREAM false  // A debugging flag to show raw LIDAR values on the serial monitor
  
 #include <TFMPlus.h>            // Include TFMini Plus LIDAR Library v1.4.0
 #include <WiFi.h>               // WiFi stack

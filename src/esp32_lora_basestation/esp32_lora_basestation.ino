@@ -198,6 +198,7 @@ void processLoRaMessage(String msg){
 
   // Timestamp
   String strTime = doc["ts"];
+  strTime = "20" + strTime;
    
   // Count
   String strCount = doc["c"];
