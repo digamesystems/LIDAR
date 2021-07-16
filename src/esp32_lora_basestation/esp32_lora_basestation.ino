@@ -198,7 +198,6 @@ void processLoRaMessage(String msg){
 
   // Timestamp
   String strTime = doc["ts"];
-  strTime = "20" + strTime;
    
   // Count
   String strCount = doc["c"];
@@ -241,6 +240,8 @@ void processLoRaMessage(String msg){
     strDeviceName = config.sens4Name;
     strDeviceMAC = config.sens4MAC;
   }
+
+  String strRetries = doc["r"];
   
   if (displayMode ==3) { // Update the eInk display with the latest information
     String strDisplay="";
@@ -257,14 +258,15 @@ void processLoRaMessage(String msg){
 
   jsonPayload = "{\"deviceName\":\""       + strDeviceName + 
                  "\",\"deviceMAC\":\""     + strDeviceMAC  + 
-                 "\",\"timeStamp\":\""     + strTime + 
+                 "\",\"timeStamp\":\""     + "20" + strTime + 
                  "\",\"linkMode\":\""      + "LoRa" +
                  "\",\"eventType\":\""     + strEventType + 
                  "\",\"detAlgorithm\":\""  + strDetAlg +
                  "\",\"count\":\""         + strCount + 
                  "\",\"rssi\":\""          + strRSSI + 
                  "\",\"snr\":\""           + strSNR +    
-                 "\",\"temp\":\""          + strTemperature +                
+                 "\",\"temp\":\""          + strTemperature +  
+                 "\",\"retries\":\""       + strRetries +               
                  "\"}";
 
   debugUART.println(jsonPayload);

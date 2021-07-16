@@ -7,7 +7,7 @@
 
 // Mix-n-match hardware configuration
 #define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
-#define SHOW_DATA_STREAM false  // A debugging flag to show raw LIDAR values on the serial monitor
+#define SHOW_DATA_STREAM true  // A debugging flag to show raw LIDAR values on the serial monitor
  
 #include <TFMPlus.h>            // Include TFMini Plus LIDAR Library v1.4.0
 #include <WiFi.h>               // WiFi stack
@@ -17,7 +17,7 @@
 //#include "digameMath.h"         // Mean and correlation
 #include "digameJSONConfig.h"   // Program parameters from config file on SD card
 #include "digameNetwork.h"      // Digame Network Functions
-#include "digameDisplay.h"    // Digame eInk Display Functions.
+#include "digameDisplay.h"      // Digame eInk Display Functions.
 
 
 #include "driver/adc.h"
@@ -44,7 +44,7 @@ float data[samples];
 
 SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).
 
-TFMPlus tfmP;           // Create a TFMini Plus object
+TFMPlus tfmP; // Create a TFMini Plus object
 
 // HW Status Variables -- sniffed in setup()
 bool sdCardPresent = false;
@@ -68,6 +68,8 @@ bool vehicleMessageNeeded   = false;
 
 // The message being sent
 String loraPayload; //A stripped down version for LoRa
+String strRetryCount = "0"; //The number of times the active message to the base station has failed to receive an ACK.
+double retryCount = 0.0;
 
 // The minute (0-59) within the hour we woke up at boot. 
 int bootMinute;
@@ -111,17 +113,20 @@ String buildLoRaHeader(String eventType, double count){
 
   strCount= String(count,0);
   strCount.trim();
+  
   if (rtcPresent){
     loraHeader = "{\"ts\":\"" + getRTCTime() + 
                    "\",\"et\":\"" + eventType +
                    "\",\"c\":\"" + strCount +  
                    "\",\"t\":\"" + String(getRTCTemperature(),1)+
+                   "\",\"r\":\"" + "0" +
                    "\"";
   } else {
     loraHeader = "{\"ts\":\"" + getLocalTime() + 
                    "\",\"et\":\"" + eventType + 
                    "\",\"c\":\"" + strCount + 
                    "\",\"t\":\"" + String(getRTCTemperature(),1)+
+                   "\",\"r\":\"" + "0" +
                    "\"";  
   }                    
   return loraHeader;
@@ -146,7 +151,7 @@ bool processLIDARSignal(){
     static bool  carPresent      = false;    
     static bool  lastCarPresent  = false; 
     int   carEvent        = 0;
-    int   lidarUpdateRate = 20;
+    int   lidarUpdateRate = 15;
     float correl1 = 0.0;
   
     bool retValue = false;
@@ -156,6 +161,14 @@ bool processLIDARSignal(){
 
     // Read the LIDAR Sensor
     if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
+      
+    }else {
+      tfDist = 1200;  // Our typical error on a failed 'getData' is 'low signal' suggesting no reflection back. 
+                      // experimenting with just returning 12 meters (infinity)
+    }
+
+    bool validData = true; 
+    if( validData /*tfmP.getData( tfDist, tfFlux, tfTemp)*/) { 
 
       // When very close, or looking off into empty space, the sensor reports Zero.
       // The short range isn't an issue for us. 
@@ -209,12 +222,50 @@ bool processLIDARSignal(){
 bool sendReceiveLoRa(String msg){
   long timeout = 10000;
   long t2,t1;
-
+ 
   t1 = millis();
   t2 = t1;
 
   bool replyPending = true;
+
+
+  strRetryCount = String(retryCount,0);
+  strRetryCount.trim();
+
+  // Allocate a temporary JsonDocument
+  // Don't forget to change the capacity to match your requirements.
+  // Use https://arduinojson.org/v6/assistant to compute the capacity.
+  StaticJsonDocument<512> doc;
+  // Deserialize the JSON document
+  char json[512] = {};
+
+  // The message contains a JSON payload extract to the char array json
+  msg.toCharArray(json,msg.length()+1);
+
+  // Deserialize the JSON document
+  DeserializationError error = deserializeJson(doc, json);
+
+  // Test if parsing succeeds.
+  if (error) {
+    debugUART.print(F("deserializeJson() failed: "));
+    debugUART.println(error.f_str());
+    return false;
+  }
+
   
+  doc["r"] = strRetryCount;
+
+  //debugUART.println(retryCount);
+  //debugUART.println((const char*)doc["r"]);
+
+  msg ="";
+    // Serialize JSON to file
+  if (serializeJson(doc, msg) == 0) {
+    Serial.println(F("Failed to write to string"));
+  }
+
+ 
+
   //Send the message... Base Stations Default to an address of 1.
   String reyaxMsg = "AT+SEND=1,"+String(msg.length())+","+msg;
 
@@ -238,6 +289,7 @@ bool sendReceiveLoRa(String msg){
           #else
             debugUART.println("ACK Received: " + inString); 
           #endif
+          retryCount = 0; // Reset for the next message.
           return true;
         }
       } 
@@ -249,6 +301,7 @@ bool sendReceiveLoRa(String msg){
     #else
       debugUART.println("Timeout!");
     #endif
+    retryCount++;
     return false;
   }
 
@@ -427,7 +480,7 @@ void initLIDAR(){
         if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){ //FRAME_0 is triggered mode.
            debugUART.println("  Frame Rate Adjusted.");
         }
-        else tfmP.printReply(); 
+        //else tfmP.printReply(); 
     }
     else {
         debugUART.println("ERROR! LIDAR Sensor not found or sensor error.");

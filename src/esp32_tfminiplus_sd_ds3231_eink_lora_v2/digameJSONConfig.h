@@ -54,6 +54,11 @@ struct Config
 
 const char *filename = "/params.txt";  // <- SD library uses 8.3 filenames
 
+void loadConfiguration(const char *filename, const Config &config);
+void saveConfiguration(const char *filename, const Config &config);
+void printFile(const char *filename);
+
+
 //****************************************************************************************
 // See if the card is present and can be initialized.
 bool initSDCard(){
@@ -69,6 +74,10 @@ bool initSDCard(){
 void loadConfiguration(const char *filename, Config &config) {
   // Open file for reading
   File file = SD.open(filename);
+  if (!file) {
+    Serial.println(F("Failed to open file. Creating it from default parameters."));
+    saveConfiguration(filename, config);
+  }
 
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
