@@ -27,12 +27,12 @@ struct Config
   // Parameters found in PARAMETERS.TXT on the SD card. 
   // Fails over to these values if not found.
   
-  String deviceName          = "LoRa-WiFi Base Station"; // 
+  String deviceName          = "HEIMDALL LoRa-WiFi Base Station"; // 
   
   // Network:       
-  String ssid                = "Bighead";        // Wireless network name. 
-  String password            = "billgates";      // Network PW
-  String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
+  String ssid                = "YOUR_SSID";     // Wireless network name. 
+  String password            = "YOUR_PASSWORD"; // Network PW
+  String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php"; // The ParkData server URL
   
   // LoRa:
   String loraAddress         = "1";

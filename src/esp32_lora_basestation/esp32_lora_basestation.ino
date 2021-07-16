@@ -337,7 +337,7 @@ void setLowPowerMode() {
     setCpuFrequencyMhz(40);
     
     //Set LoRa module into sleep mode.
-    loraUART.println("AT+MODE=1");
+    sendReceive("AT+MODE=1");
     debugUART.println("  Low Power Mode Enabled.");
     
     // Use this if 40Mhz is not supported
@@ -346,11 +346,11 @@ void setLowPowerMode() {
  
 //************************************************************************ 
 void setNormalMode() {
-    //setCpuFrequencyMhz(240);
+    setCpuFrequencyMhz(240);
     enableWiFi(); 
     //debugUART.println("Adjusting Power Mode:");
     // Wake up LoRa module.
-    loraUART.println("AT");   
+    sendReceive("AT");   
     //debugUART.println("  Normal Mode Enabled.");
 }
 
@@ -697,20 +697,22 @@ void setup() {
   splash();
     
   debugUART.println("INITIALIZING\n");
-
-  if (digitalRead(CTR_RESET)== LOW) {
-    debugUART.println("*******************************");
-    debugUART.println("Launching in Access Point Mode!");  
-    debugUART.println("*******************************");
-    
-    accessPointMode = true;
-  }
-
+  
   debugUART.println("Reading Parameters from SD Card...");
   initSDCard();
 
   //saveConfiguration(filename,config);
   loadConfiguration(filename,config);
+
+  // Unconfigured base station or RESET button pressed at boot. 
+  // -- Enter Access Point Mode to configure.
+  if ((config.ssid == "YOUR_SSID") || (digitalRead(CTR_RESET)== LOW)){ 
+    debugUART.println("*******************************");
+    debugUART.println("Launching in Access Point Mode!");  
+    debugUART.println("*******************************");
+  
+    accessPointMode = true;
+  }
 
   if (accessPointMode){
       Serial.print("Setting AP (Access Point)…");
