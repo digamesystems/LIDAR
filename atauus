@@ -1,0 +1,432 @@
+[1mdiff --git a/src/esp32_lora_basestation/digameDisplay.h b/src/esp32_lora_basestation/digameDisplay.h[m
+[1mindex 864726f..384871c 100644[m
+[1m--- a/src/esp32_lora_basestation/digameDisplay.h[m
+[1m+++ b/src/esp32_lora_basestation/digameDisplay.h[m
+[36m@@ -48,6 +48,7 @@[m [mvoid initDisplay()[m
+   return;[m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ #if defined(ESP8266) || defined(ESP32)[m
+ #include <StreamString.h>[m
+[36m@@ -76,6 +77,7 @@[m [mvoid centerPrint(String s, uint16_t y){[m
+   display.print(s);[m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayTitles(String title1, String title2){[m
+   display.fillScreen(GxEPD_WHITE);[m
+[36m@@ -87,6 +89,7 @@[m [mvoid displayTitles(String title1, String title2){[m
+   centerPrint(title2, 40);    [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayCopyright(){[m
+   display.setTextSize(1);[m
+[36m@@ -97,15 +100,16 @@[m [mvoid displayCopyright(){[m
+ }[m
+ [m
+ //******************************************************************************************[m
+[31m-void displaySplashScreen(){[m
+[31m-  displayTitles("HEIMDALL","(Base Station)");[m
+[32m+[m[32mvoid displaySplashScreen(String swVersion){[m
+[32m+[m[32m  displayTitles("HEIMDALL","(LIDAR Sensor)");[m
+   centerPrint("Vehicle", 70);[m
+   centerPrint("Counting System", 90);[m
+   centerPrint("Version", 110);[m
+[31m-  centerPrint("0.9.2", 130);[m
+[32m+[m[32m  centerPrint(swVersion, 130);[m
+   displayCopyright(); [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayIPScreen(String s){[m
+   displayTitles("NETWORK","");[m
+[36m@@ -114,6 +118,7 @@[m [mvoid displayIPScreen(String s){[m
+   displayCopyright(); [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayAPScreen(String ssid, String ip){[m
+   displayTitles("NETWORK","(ACCESS POINT)"); [m
+[36m@@ -124,6 +129,7 @@[m [mvoid displayAPScreen(String ssid, String ip){[m
+   displayCopyright(); [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayStatusScreen(String s){[m
+   displayTitles("MESSAGES",""); [m
+[36m@@ -133,7 +139,6 @@[m [mvoid displayStatusScreen(String s){[m
+ }[m
+ [m
+ [m
+[31m-[m
+ //******************************************************************************************[m
+ void displayCountScreen(double v)[m
+ {[m
+[36m@@ -164,24 +169,9 @@[m [mvoid showValue(double v)[m
+   [m
+   int16_t tbx, tby; uint16_t tbw, tbh;[m
+   display.getTextBounds(valueString, 0, 0, &tbx, &tby, &tbw, &tbh);[m
+[31m-  /*[m
+[31m-  debugUART.print("tbx: ");[m
+[31m-  debugUART.print(tbx);  [m
+[31m-  debugUART.print(" tby: ");[m
+[31m-  debugUART.print(tby);  [m
+[31m-  debugUART.print(" tbw: ");[m
+[31m-  debugUART.print(tbw);  [m
+[31m-  debugUART.print(" tbh: ");[m
+[31m-  debugUART.println(tbh);  [m
+[31m-  */[m
+[32m+[m
+   uint16_t x = ((display.width() - tbw) / 2) - tbx;[m
+   uint16_t y = ((display.height() - tbh) / 2) - tby;  //+ tbh / 2; // y is base line![m
+[31m-  /*[m
+[31m-  debugUART.print("x: ");[m
+[31m-  debugUART.print(x);[m
+[31m-  debugUART.print(" y: ");[m
+[31m-  debugUART.println(y);[m
+[31m-  */[m
+   [m
+   // show what happens, if we use the bounding box for partial window[m
+   uint16_t wx = (display.width() - tbw) / 2;[m
+[36m@@ -189,8 +179,7 @@[m [mvoid showValue(double v)[m
+   [m
+   display.setPartialWindow(wx, wy, tbw, tbh);[m
+   display.firstPage();[m
+[31m-  do[m
+[31m-  {[m
+[32m+[m[32m  do {[m
+     display.fillScreen(GxEPD_WHITE);[m
+     display.setCursor(x, y);[m
+     display.print(valueString);[m
+[1mdiff --git a/src/esp32_lora_basestation/digameJSONConfig.h b/src/esp32_lora_basestation/digameJSONConfig.h[m
+[1mindex f51247e..f17cb33 100644[m
+[1m--- a/src/esp32_lora_basestation/digameJSONConfig.h[m
+[1m+++ b/src/esp32_lora_basestation/digameJSONConfig.h[m
+[36m@@ -14,7 +14,6 @@[m
+ [m
+ #include <ArduinoJson.h>[m
+ [m
+[31m-[m
+ // Our configuration structure.[m
+ //[m
+ // Never use a JsonDocument to store the configuration![m
+[36m@@ -60,13 +59,12 @@[m [mstruct Config[m
+   String sens4Name = "Sensor 4";[m
+   String sens4MAC  = "aa:bb:cc:dd:ee:04";[m
+   [m
+[31m-  [m
+ };[m
+ [m
+ [m
+ const char *filename = "/params.txt";  // <- SD library uses 8.3 filenames[m
+ [m
+[31m-[m
+[32m+[m[32m// Declares[m
+ void loadConfiguration(const char *filename, const Config &config);[m
+ void saveConfiguration(const char *filename, const Config &config);[m
+ void printFile(const char *filename);[m
+[36m@@ -83,6 +81,7 @@[m [mbool initSDCard(){[m
+ }[m
+ [m
+ [m
+[32m+[m[32m//****************************************************************************************[m
+ // Loads the configuration from a file[m
+ void loadConfiguration(const char *filename, Config &config) {[m
+   // Open file for reading[m
+[36m@@ -141,6 +140,8 @@[m [mvoid loadConfiguration(const char *filename, Config &config) {[m
+   file.close();[m
+ }[m
+ [m
+[32m+[m
+[32m+[m[32m//****************************************************************************************[m
+ // Saves the configuration to a file[m
+ void saveConfiguration(const char *filename, const Config &config) {[m
+   // Delete existing file, otherwise the configuration is appended to the file[m
+[36m@@ -192,6 +193,7 @@[m [mvoid saveConfiguration(const char *filename, const Config &config) {[m
+   file.close();[m
+ }[m
+ [m
+[32m+[m[32m//****************************************************************************************[m
+ // Prints the content of a file to the Serial[m
+ void printFile(const char *filename) {[m
+   // Open file for reading[m
+[36m@@ -211,51 +213,4 @@[m [mvoid printFile(const char *filename) {[m
+   file.close();[m
+ }[m
+ [m
+[31m-/*[m
+[31m-void setup() {[m
+[31m-  // Initialize serial port[m
+[31m-  Serial.begin(9600);[m
+[31m-  while (!Serial) continue;[m
+[31m-[m
+[31m-  // Initialize SD library[m
+[31m-  const int chipSelect = 4;[m
+[31m-  while (!SD.begin(chipSelect)) {[m
+[31m-    Serial.println(F("Failed to initialize SD library"));[m
+[31m-    delay(1000);[m
+[31m-  }[m
+[31m-[m
+[31m-  // Should load default config if run for the first time[m
+[31m-  Serial.println(F("Loading configuration..."));[m
+[31m-  loadConfiguration(filename, config);[m
+[31m-[m
+[31m-  // Create configuration file[m
+[31m-  Serial.println(F("Saving configuration..."));[m
+[31m-  saveConfiguration(filename, config);[m
+[31m-[m
+[31m-  // Dump config file[m
+[31m-  Serial.println(F("Print config file..."));[m
+[31m-  printFile(filename);[m
+[31m-}[m
+[31m-*/[m
+[31m-[m
+[31m-// Performance issue?[m
+[31m-// ------------------[m
+[31m-//[m
+[31m-// File is an unbuffered stream, which is not optimal for ArduinoJson.[m
+[31m-// See: https://arduinojson.org/v6/how-to/improve-speed/[m
+[31m-[m
+[31m-// See also[m
+[31m-// --------[m
+[31m-//[m
+[31m-// https://arduinojson.org/ contains the documentation for all the functions[m
+[31m-// used above. It also includes an FAQ that will help you solve any[m
+[31m-// serialization or deserialization problem.[m
+[31m-//[m
+[31m-// The book "Mastering ArduinoJson" contains a case study of a project that has[m
+[31m-// a complex configuration with nested members.[m
+[31m-// Contrary to this example, the project in the book uses the SPIFFS filesystem.[m
+[31m-// Learn more at https://arduinojson.org/book/[m
+[31m-// Use the coupon code TWENTY for a 20% discount ❤❤❤❤❤[m
+[31m-[m
+[31m-[m
+ #endif[m
+[1mdiff --git a/src/esp32_lora_basestation/esp32_lora_basestation.ino b/src/esp32_lora_basestation/esp32_lora_basestation.ino[m
+[1mindex 12cf16f..14b1e36 100644[m
+[1m--- a/src/esp32_lora_basestation/esp32_lora_basestation.ino[m
+[1m+++ b/src/esp32_lora_basestation/esp32_lora_basestation.ino[m
+[36m@@ -51,6 +51,7 @@[m [mbool   loraConfigMode = false;[m
+ String cmdMsg;[m
+ String loraMsg;[m
+ [m
+[32m+[m[32mString swVersion = "0.9.3";[m
+ const char *ssid = "Digame-STN-AP"; //STN = "(Base) Station"[m
+ [m
+ SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).[m
+[36m@@ -85,7 +86,7 @@[m [mvoid splash(){[m
+ [m
+   debugUART.println("*****************************************************");[m
+   debugUART.println("HEIMDALL VCS - LoRa Base Station");[m
+[31m-  debugUART.println("Version 0.9.3");[m
+[32m+[m[32m  debugUART.println("Version " + swVersion);[m
+   debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");[m
+   debugUART.println();[m
+   debugUART.print("Compiled on ");[m
+[36m@@ -97,7 +98,7 @@[m [mvoid splash(){[m
+ [m
+   // first update should be full refresh[m
+   initDisplay();[m
+[31m-  displaySplashScreen();[m
+[32m+[m[32m  displaySplashScreen(swVersion);[m
+ [m
+ }[m
+ [m
+[36m@@ -766,11 +767,11 @@[m [mvoid setup() {[m
+     [m
+     xTaskCreate([m
+       messageManager,    // Function that should be called[m
+[31m-      "Message Manager",   // Name of the task (for debugging)[m
+[31m-      7000,            // Stack size (bytes)[m
+[31m-      NULL,            // Parameter to pass[m
+[31m-      1,               // Task priority[m
+[31m-      NULL             // Task handle[m
+[32m+[m[32m      "Message Manager", // Name of the task (for debugging)[m
+[32m+[m[32m      7000,              // Stack size (bytes)[m
+[32m+[m[32m      NULL,              // Parameter to pass[m
+[32m+[m[32m      1,                 // Task priority[m
+[32m+[m[32m      NULL               // Task handle[m
+     );[m
+ [m
+     displayMode=3;[m
+[36m@@ -806,7 +807,7 @@[m [mvoid loop() {[m
+       [m
+       switch (displayMode) {[m
+         case 1:[m
+[31m-          displaySplashScreen();[m
+[32m+[m[32m          displaySplashScreen(swVersion);[m
+           break;[m
+         case 2:[m
+           displayIPScreen(WiFi.localIP().toString()); [m
+[36m@@ -886,6 +887,7 @@[m [mvoid loop() {[m
+         }[m
+         if (cmdMsg.indexOf("WAKE")>=0) {[m
+           setNormalMode();[m
+[32m+[m[32m          configureLoRa(config);[m
+         }[m
+       } [m
+       [m
+[1mdiff --git a/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameDisplay.h b/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameDisplay.h[m
+[1mindex 21957ef..1ac3f7a 100644[m
+[1m--- a/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameDisplay.h[m
+[1m+++ b/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameDisplay.h[m
+[36m@@ -29,6 +29,7 @@[m [mGxEPD2_BW<GxEPD2_154, GxEPD2_154::HEIGHT> display(GxEPD2_154(/*CS=5*/ EPD_CS, /*[m
+ [m
+ #define debugUART Serial[m
+ [m
+[32m+[m[32m// Declares[m
+ void initDisplay();[m
+ void displaySplash();[m
+ void displayInitializing();[m
+[36m@@ -76,6 +77,7 @@[m [mvoid centerPrint(String s, uint16_t y){[m
+   display.print(s);[m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayTitles(String title1, String title2){[m
+   display.fillScreen(GxEPD_WHITE);[m
+[36m@@ -87,6 +89,7 @@[m [mvoid displayTitles(String title1, String title2){[m
+   centerPrint(title2, 40);    [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayCopyright(){[m
+   display.setTextSize(1);[m
+[36m@@ -96,6 +99,7 @@[m [mvoid displayCopyright(){[m
+   display.display();    [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displaySplashScreen(String swVersion){[m
+   displayTitles("HEIMDALL","(LIDAR Sensor)");[m
+[36m@@ -106,6 +110,7 @@[m [mvoid displaySplashScreen(String swVersion){[m
+   displayCopyright(); [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayIPScreen(String s){[m
+   displayTitles("NETWORK","");[m
+[36m@@ -114,6 +119,7 @@[m [mvoid displayIPScreen(String s){[m
+   displayCopyright(); [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayAPScreen(String ssid, String ip){[m
+   displayTitles("NETWORK","(ACCESS POINT)"); [m
+[36m@@ -124,6 +130,7 @@[m [mvoid displayAPScreen(String ssid, String ip){[m
+   displayCopyright(); [m
+ }[m
+ [m
+[32m+[m
+ //******************************************************************************************[m
+ void displayStatusScreen(String s){[m
+   displayTitles("SELF-TEST",""); [m
+[36m@@ -133,22 +140,17 @@[m [mvoid displayStatusScreen(String s){[m
+ }[m
+ [m
+ [m
+[31m-[m
+ //******************************************************************************************[m
+[31m-void displayCountScreen(double v)[m
+[31m-{[m
+[32m+[m[32mvoid displayCountScreen(double v){[m
+   displayTitles("COUNTS","");[m
+   displayCopyright();     [m
+ }[m
+ [m
+ [m
+ //******************************************************************************************[m
+[31m-void showValue(double v)[m
+[31m-{[m
+[32m+[m[32mvoid showValue(double v){[m
+   int digits = 0; [m
+   [m
+[31m-  //display.setRotation(0);[m
+[31m-  //display.setFont(&FreeMonoBold18pt7b);[m
+   display.setTextSize(5);[m
+   display.setTextColor(GxEPD_BLACK);[m
+   [m
+[36m@@ -157,33 +159,17 @@[m [mvoid showValue(double v)[m
+   [m
+   int16_t tbx, tby; uint16_t tbw, tbh;[m
+   display.getTextBounds(valueString, 0, 0, &tbx, &tby, &tbw, &tbh);[m
+[31m-  /*[m
+[31m-  debugUART.print("tbx: ");[m
+[31m-  debugUART.print(tbx);  [m
+[31m-  debugUART.print(" tby: ");[m
+[31m-  debugUART.print(tby);  [m
+[31m-  debugUART.print(" tbw: ");[m
+[31m-  debugUART.print(tbw);  [m
+[31m-  debugUART.print(" tbh: ");[m
+[31m-  debugUART.println(tbh);  [m
+[31m-  */[m
+[32m+[m
+   uint16_t x = ((display.width() - tbw) / 2) - tbx;[m
+   uint16_t y = ((display.height() - tbh) / 2) - tby;  //+ tbh / 2; // y is base line![m
+[31m-  /*[m
+[31m-  debugUART.print("x: ");[m
+[31m-  debugUART.print(x);[m
+[31m-  debugUART.print(" y: ");[m
+[31m-  debugUART.println(y);[m
+[31m-  */[m
+[31m-  [m
+[32m+[m
+   // show what happens, if we use the bounding box for partial window[m
+   uint16_t wx = (display.width() - tbw) / 2;[m
+   uint16_t wy = (display.height()- tbh) / 2;  // / 2;[m
+   [m
+   display.setPartialWindow(wx, wy, tbw, tbh);[m
+   display.firstPage();[m
+[31m-  do[m
+[31m-  {[m
+[32m+[m[32m  do {[m
+     display.fillScreen(GxEPD_WHITE);[m
+     display.setCursor(x, y);[m
+     display.print(valueString);[m
+[1mdiff --git a/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameJSONConfig.h b/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameJSONConfig.h[m
+[1mindex 1572c4f..4e6f4d0 100644[m
+[1m--- a/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameJSONConfig.h[m
+[1m+++ b/src/esp32_tfminiplus_sd_ds3231_eink_lora_v2/digameJSONConfig.h[m
+[36m@@ -30,9 +30,9 @@[m [mstruct Config[m
+   String deviceName          = "YOUR_DEVICE_NAME"; // [m
+   [m
+   // Network:       [m
+[31m-  String ssid                = "YOUR_SSID"; //"AndroidAP3AE2"; //"Bighead";        // Wireless network name. [m
+[31m-  String password            = "YOUR_PASSWORD"; //"ohpp8971";      //"billgates";      // Network PW[m
+[31m-  String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL[m
+[32m+[m[32m  String ssid                = "YOUR_SSID";     // Wireless network name.[m[41m [m
+[32m+[m[32m  String password            = "YOUR_PASSWORD"; // Network PW[m
+[32m+[m[32m  String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php"; // The ParkData server URL[m
+   [m
+   // LoRa:[m
+   String loraAddress         = "0";[m
+[36m@@ -70,6 +70,7 @@[m [mbool initSDCard(){[m
+ }[m
+ [m
+ [m
+[32m+[m[32m//****************************************************************************************[m
+ // Loads the configuration from a file[m
+ void loadConfiguration(const char *filename, Config &config) {[m
+   // Open file for reading[m
+[36m@@ -117,6 +118,8 @@[m [mvoid loadConfiguration(const char *filename, Config &config) {[m
+   file.close();[m
+ }[m
+ [m
+[32m+[m
+[32m+[m[32m//****************************************************************************************[m
+ // Saves the configuration to a file[m
+ void saveConfiguration(const char *filename, const Config &config) {[m
+   // Delete existing file, otherwise the configuration is appended to the file[m

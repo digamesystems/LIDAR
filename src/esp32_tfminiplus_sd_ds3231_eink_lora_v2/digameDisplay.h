@@ -29,6 +29,7 @@ GxEPD2_BW<GxEPD2_154, GxEPD2_154::HEIGHT> display(GxEPD2_154(/*CS=5*/ EPD_CS, /*
 
 #define debugUART Serial
 
+// Declares
 void initDisplay();
 void displaySplash();
 void displayInitializing();
@@ -76,6 +77,7 @@ void centerPrint(String s, uint16_t y){
   display.print(s);
 }
 
+
 //******************************************************************************************
 void displayTitles(String title1, String title2){
   display.fillScreen(GxEPD_WHITE);
@@ -87,6 +89,7 @@ void displayTitles(String title1, String title2){
   centerPrint(title2, 40);    
 }
 
+
 //******************************************************************************************
 void displayCopyright(){
   display.setTextSize(1);
@@ -95,6 +98,7 @@ void displayCopyright(){
   centerPrint("All rights reserved.", 190);
   display.display();    
 }
+
 
 //******************************************************************************************
 void displaySplashScreen(String swVersion){
@@ -106,6 +110,7 @@ void displaySplashScreen(String swVersion){
   displayCopyright(); 
 }
 
+
 //******************************************************************************************
 void displayIPScreen(String s){
   displayTitles("NETWORK","");
@@ -114,15 +119,17 @@ void displayIPScreen(String s){
   displayCopyright(); 
 }
 
+
 //******************************************************************************************
-void displayAPScreen(String s){
+void displayAPScreen(String ssid, String ip){
   displayTitles("NETWORK","(ACCESS POINT)"); 
   centerPrint("SSID",70);
-  centerPrint("Digame-AP", 90); 
+  centerPrint(ssid, 90); 
   centerPrint("IP Address",115);
-  centerPrint(s, 135);
+  centerPrint(ip, 135);
   displayCopyright(); 
 }
+
 
 //******************************************************************************************
 void displayStatusScreen(String s){
@@ -133,22 +140,17 @@ void displayStatusScreen(String s){
 }
 
 
-
 //******************************************************************************************
-void displayCountScreen(double v)
-{
+void displayCountScreen(double v){
   displayTitles("COUNTS","");
   displayCopyright();     
 }
 
 
 //******************************************************************************************
-void showValue(double v)
-{
+void showValue(double v){
   int digits = 0; 
   
-  //display.setRotation(0);
-  //display.setFont(&FreeMonoBold18pt7b);
   display.setTextSize(5);
   display.setTextColor(GxEPD_BLACK);
   
@@ -157,33 +159,17 @@ void showValue(double v)
   
   int16_t tbx, tby; uint16_t tbw, tbh;
   display.getTextBounds(valueString, 0, 0, &tbx, &tby, &tbw, &tbh);
-  /*
-  debugUART.print("tbx: ");
-  debugUART.print(tbx);  
-  debugUART.print(" tby: ");
-  debugUART.print(tby);  
-  debugUART.print(" tbw: ");
-  debugUART.print(tbw);  
-  debugUART.print(" tbh: ");
-  debugUART.println(tbh);  
-  */
+
   uint16_t x = ((display.width() - tbw) / 2) - tbx;
   uint16_t y = ((display.height() - tbh) / 2) - tby;  //+ tbh / 2; // y is base line!
-  /*
-  debugUART.print("x: ");
-  debugUART.print(x);
-  debugUART.print(" y: ");
-  debugUART.println(y);
-  */
-  
+
   // show what happens, if we use the bounding box for partial window
   uint16_t wx = (display.width() - tbw) / 2;
   uint16_t wy = (display.height()- tbh) / 2;  // / 2;
   
   display.setPartialWindow(wx, wy, tbw, tbh);
   display.firstPage();
-  do
-  {
+  do {
     display.fillScreen(GxEPD_WHITE);
     display.setCursor(x, y);
     display.print(valueString);

@@ -6,18 +6,17 @@
  */
 
 // Mix-n-match hardware configuration
-#define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
-#define SHOW_DATA_STREAM true  // A debugging flag to show raw LIDAR values on the serial monitor
+#define ADAFRUIT_EINK_SD true // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
+#define SHOW_DATA_STREAM false // A debugging flag to show raw LIDAR values on the serial monitor
  
-#include <TFMPlus.h>            // Include TFMini Plus LIDAR Library v1.4.0
-#include <WiFi.h>               // WiFi stack
-#include <CircularBuffer.h>     // Adafruit library. Pretty small!
+#include <TFMPlus.h>          // Include TFMini Plus LIDAR Library v1.4.0
+#include <WiFi.h>             // WiFi stack
+#include <CircularBuffer.h>   // Adafruit library. Pretty small!
 
-#include "digameTime.h"         // Digame Time Functions
-//#include "digameMath.h"         // Mean and correlation
-#include "digameJSONConfig.h"   // Program parameters from config file on SD card
-#include "digameNetwork.h"      // Digame Network Functions
-#include "digameDisplay.h"      // Digame eInk Display Functions.
+#include "digameTime.h"       // Digame Time Functions
+#include "digameJSONConfig.h" // Program parameters from config file on SD card
+#include "digameNetwork.h"    // Digame Network Functions
+#include "digameDisplay.h"    // Digame eInk Display Functions.
 
 
 #include "driver/adc.h"
@@ -31,9 +30,10 @@
 
 String swVersion = "0.9.3";
 bool accessPointMode = false;
+
 // Set web server port number to 80
 WiFiServer server(80);
-const char *ssid = "Digame-AP";
+const char *ssid = "Digame-CTR-AP";
 
 Config config; // A structure to hold program configuration parameters. See: digameJSONConfig.h
 
@@ -300,6 +300,7 @@ bool sendReceiveLoRa(String msg){
     #if SHOW_DATA_STREAM
     #else
       debugUART.println("Timeout!");
+      debugUART.println();
     #endif
     retryCount++;
     return false;
@@ -325,9 +326,9 @@ void messageManager(void *parameter){
     if (loraMsgBuffer.size()>0){
       #if SHOW_DATA_STREAM
       #else
-        Serial.print("MessageManager: loraMsgBuffer.size(): ");
-        Serial.println(loraMsgBuffer.size());
-        Serial.println("MessageManager: Sending LoRa message: ");
+        //Serial.print("MessageManager: loraMsgBuffer.size(): ");
+        //Serial.println(loraMsgBuffer.size());
+        //Serial.println("MessageManager: Sending LoRa message: ");
       #endif  
           
       xSemaphoreTake(mutex_v, portMAX_DELAY); 
@@ -336,7 +337,7 @@ void messageManager(void *parameter){
       
       #if SHOW_DATA_STREAM
       #else
-        Serial.println(activeMessage);
+        //Serial.println(activeMessage);
       #endif
 
       //Send the data to the base station
@@ -345,7 +346,8 @@ void messageManager(void *parameter){
       //sendReceive("AT+MODE=1");
       #if SHOW_DATA_STREAM
       #else
-        Serial.println("Sent!");
+        Serial.println("Success!");
+        Serial.println();
       #endif
     }
     
@@ -716,32 +718,29 @@ void setup()
 {
     initPorts();           // Set up UARTs and GPIOs
     initUI();              // Splash screens 
+    initFileSystem();      // Setup SD card and load default values.
     
-    if (digitalRead(CTR_RESET)== LOW) {
+    // If the unit is unconfigured or is booted witht the RESET button held down, enter AP mode.
+    if ((config.deviceName == "YOUR_DEVICE_NAME")||(digitalRead(CTR_RESET)== LOW)) {
       accessPointMode = true;
       
       debugUART.println("*******************************");
       debugUART.println("Launching in Access Point Mode!");  
       debugUART.println("*******************************");
-      
-      initFileSystem();      // Setup SD card and load default values.
-
-      debugUART.print("Setting AP (Access Point)…");
-      // Remove the password parameter, if you want the AP (Access Point) to be open
+      debugUART.println("Setting AP (Access Point)…");
       
       WiFi.softAP(ssid);//, password);
     
       IPAddress IP = WiFi.softAPIP();
-      debugUART.print("AP IP address: ");
+      debugUART.print("  AP IP address: ");
       debugUART.println(IP);
       
       server.begin();
-      displayAPScreen(WiFi.softAPIP().toString()); 
+      displayAPScreen(ssid, WiFi.softAPIP().toString()); 
       
     } else {
       delay(1000);
       setLowPowerMode();     // Lower clock rate and turn off WiFi    
-      initFileSystem();      // Setup SD card and load default values.
       configureLoRa(config); // Configure radio params  
       initLIDAR();           // Turn on LIDAR sensor
       initRealTimeClock();   // Check RTC is present
@@ -834,8 +833,9 @@ void loop()
           
           #if SHOW_DATA_STREAM
           #else
-            debugUART.print("Loop: Count event. Counts: ");
+            debugUART.print("Vehicle event! Counts: ");
             debugUART.println(count);  
+            debugUART.println();
           #endif 
                
           // Consider sliding this into another thread

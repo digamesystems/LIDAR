@@ -27,15 +27,15 @@ struct Config
   // Parameters found in PARAMETERS.TXT on the SD card. 
   // Fails over to these values if not found.
   
-  String deviceName          = "Digame Parking Lot"; // 
+  String deviceName          = "YOUR_DEVICE_NAME"; // 
   
   // Network:       
-  String ssid                = "Bighead"; //"AndroidAP3AE2"; //"Bighead";        // Wireless network name. 
-  String password            = "billgates"; //"ohpp8971";      //"billgates";      // Network PW
-  String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php";     // The ParkData server URL
+  String ssid                = "YOUR_SSID";     // Wireless network name. 
+  String password            = "YOUR_PASSWORD"; // Network PW
+  String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php"; // The ParkData server URL
   
   // LoRa:
-  String loraAddress         = "6";
+  String loraAddress         = "0";
   String loraNetworkID       = "7";
   String loraBand            = "915000000";
   String loraSF              = "7";
@@ -70,13 +70,17 @@ bool initSDCard(){
 }
 
 
+//****************************************************************************************
 // Loads the configuration from a file
 void loadConfiguration(const char *filename, Config &config) {
   // Open file for reading
   File file = SD.open(filename);
+  
   if (!file) {
     Serial.println(F("Failed to open file. Creating it from default parameters."));
     saveConfiguration(filename, config);
+    Serial.println("Trying again...");
+    file = SD.open(filename);
   }
 
   // Allocate a temporary JsonDocument
@@ -86,9 +90,13 @@ void loadConfiguration(const char *filename, Config &config) {
 
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(doc, file);
-  if (error)
-    Serial.println(F("Failed to read file, using default configuration"));
-
+  
+  if (error){
+    Serial.println(F("Failed to parse file, using default configuration"));
+    file.close();
+    return;
+  }
+  
   // Copy values from the JsonDocument to the Config
   config.deviceName    = (const char*)doc["name"];
   config.ssid          = (const char*)doc["network"]["ssid"];
@@ -110,6 +118,8 @@ void loadConfiguration(const char *filename, Config &config) {
   file.close();
 }
 
+
+//****************************************************************************************
 // Saves the configuration to a file
 void saveConfiguration(const char *filename, const Config &config) {
   // Delete existing file, otherwise the configuration is appended to the file

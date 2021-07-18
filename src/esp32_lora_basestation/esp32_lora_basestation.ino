@@ -51,8 +51,19 @@ bool   loraConfigMode = false;
 String cmdMsg;
 String loraMsg;
 
-const char *ssid = "Digame-AP";
-const char *password ="digame";
+String swVersion = "0.9.3";
+const char *ssid = "Digame-STN-AP"; //STN = "(Base) Station"
+
+
+int heartbeatTime;    // Issue Heartbeat message once an hour. Holds the current Minute.
+int oldHeartbeatTime; // Value the last time we looked.
+int bootMinute;       // The minute (0-59) within the hour we woke up at boot. 
+bool heartbeatMessageNeeded = true;
+String currentTime;
+String myMACAddress; 
+
+
+
 
 SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).
 
@@ -61,6 +72,7 @@ CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messa
 
 bool accessPointMode = false;
 
+// Declares
 String sendReceive(String s);
 void setLowPowerMode();
 void setNormalMode();
@@ -85,7 +97,7 @@ void splash(){
 
   debugUART.println("*****************************************************");
   debugUART.println("HEIMDALL VCS - LoRa Base Station");
-  debugUART.println("Version 0.9.3");
+  debugUART.println("Version " + swVersion);
   debugUART.println("Copyright 2021, Digame Systems. All rights reserved.");
   debugUART.println();
   debugUART.print("Compiled on ");
@@ -97,7 +109,7 @@ void splash(){
 
   // first update should be full refresh
   initDisplay();
-  displaySplashScreen();
+  displaySplashScreen(swVersion);
 
 }
 
@@ -120,9 +132,11 @@ void postJSON(String jsonPayload, String strServerURL){
   http.addHeader("Content-Type", "application/json");
  
   int httpResponseCode = http.POST(jsonPayload);
-
+  debugUART.println("POSTing to Server:");
+  debugUART.println(jsonPayload);
   debugUART.print("HTTP response code: ");
   debugUART.println(httpResponseCode);
+  debugUART.println();
 
   // Free resources
   http.end();
@@ -138,13 +152,14 @@ void processLoRaMessage(String msg){
 
   StaticJsonDocument<512> doc;
 
-  debugUART.println("processing: ");
-  debugUART.println(msg);
+  //debugUART.println("processing: ");
+  //debugUART.println(msg);
+  
   // Get the device's Address.
   int idxstart = msg.indexOf('=')+1;
   int idxstop  = msg.indexOf(','); 
   String strAddress = msg.substring(idxstart,idxstop);
-  debugUART.println(strAddress);
+  //debugUART.println(strAddress);
   
   // Start and end of the JSON payload in the msg.
   idxstart = msg.indexOf('{');
@@ -194,6 +209,7 @@ void processLoRaMessage(String msg){
       strEventType = "Vehicle";
   } else { 
       strEventType = "Unknown";
+      return;  // If we don't know what this is, don't bother the server with it.
   } 
 
   // Timestamp
@@ -269,7 +285,7 @@ void processLoRaMessage(String msg){
                  "\",\"retries\":\""       + strRetries +               
                  "\"}";
 
-  debugUART.println(jsonPayload);
+  //debugUART.println(jsonPayload);
   postJSON(jsonPayload, config.serverURL);
 
 }
@@ -322,7 +338,7 @@ void disableWiFi(){
 
 //************************************************************************
 void disableBluetooth(){
-    // Quite unuseful, no real savings in power consumption
+    // Quite disappointing. -No real savings in power consumption
     btStop();
     debugUART.println("");
     debugUART.println("Bluetooth stopped!");
@@ -355,35 +371,65 @@ void setNormalMode() {
 }
 
 
+
+//****************************************************************************************
+// JSON messages to the server all have a similar format. 
+String buildJSONHeader(String eventType){
+  String jsonHeader;
+
+  jsonHeader = "{\"deviceName\":\"" + config.deviceName + 
+                 "\",\"deviceMAC\":\"" + myMACAddress + 
+                 "\",\"timeStamp\":\"" + currentTime +  
+                 "\",\"eventType\":\"" + eventType + 
+                 "\""; 
+                   
+  return jsonHeader;
+}
+
+
 /********************************************************************************/
 // Experimenting with using a circular buffer and multi-tasking to enqueue 
 // messages to the server...
 void messageManager(void *parameter){
   String activeMessage;
+  String jsonPayload;
 
   for(;;){  
 
     //Serial.println("messageManager TICK");
+
+    //**********************************************
+    // Check if we need to send a heartbeat message
+    //**********************************************      
+    if (heartbeatMessageNeeded){
+
+      jsonPayload = buildJSONHeader("heartbeat");
+      jsonPayload = jsonPayload + "}";
+
+      //debugUART.println(jsonPayload);
+      postJSON(jsonPayload, config.serverURL);
+
+      xSemaphoreTake(mutex_v, portMAX_DELAY); 
+        heartbeatMessageNeeded = false;
+      xSemaphoreGive(mutex_v);
+      
+    }
     
     //********************************************
     // Check for Messages on the Queue and Process
     //********************************************
     if (loraMsgBuffer.size()>0){
 
-      Serial.print("MessageManager: loraMsgBuffer.size(): ");
-      Serial.println(loraMsgBuffer.size());
-      Serial.println("MessageManager: Processing LoRa message: ");
+      //Serial.print("MessageManager: loraMsgBuffer.size(): ");
+      //Serial.println(loraMsgBuffer.size());
+      //Serial.println("MessageManager: Processing LoRa message: ");
 
       xSemaphoreTake(mutex_v, portMAX_DELAY); 
         activeMessage=loraMsgBuffer.shift();
       xSemaphoreGive(mutex_v);
       
-      Serial.println(activeMessage);
+      //Serial.println(activeMessage);
       processLoRaMessage(activeMessage);
-
-
-    } else{
-      //Serial.println("MessageManager: Nothing to do...");      
     }
 
     vTaskDelay(100 / portTICK_PERIOD_MS);   
@@ -701,7 +747,7 @@ void setup() {
   debugUART.println("Reading Parameters from SD Card...");
   initSDCard();
 
-  //saveConfiguration(filename,config);
+  ///saveConfiguration(filename,config);
   loadConfiguration(filename,config);
 
   // Unconfigured base station or RESET button pressed at boot. 
@@ -725,15 +771,13 @@ void setup() {
       Serial.println(IP);
       
       server.begin();
-      displayAPScreen(WiFi.softAPIP().toString()); 
+      displayAPScreen(ssid, WiFi.softAPIP().toString()); 
          
       
     
     
   }else{
 
-    //config.ssid = "Bighead";
-    //config.password = "billgates";
     debugUART.println("  Device Name: " + config.deviceName);
     debugUART.println("  SSID: " + config.ssid);
     debugUART.println("  ServerURL: " + config.serverURL);
@@ -741,8 +785,9 @@ void setup() {
     //printFile(filename);  
     
     setNormalMode(); //Run at full power and max speed with WiFi enabled by default
-    debugUART.println("  MAC Address: " + getMACAddress());  
-  
+    myMACAddress = getMACAddress();
+    debugUART.println("  MAC Address: " + myMACAddress);  
+      
     configureLoRa(config);
   
     debugUART.println("Testing for Real-Time-Clock module... ");
@@ -756,27 +801,38 @@ void setup() {
       debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
       //stat +="    RTC  : ERROR!\n"; 
     }
-    
+
     if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
       synchTime(rtcPresent);
-      //displayIPScreen(WiFi.localIP().toString());
+      displayIPScreen(WiFi.localIP().toString());
+      delay(5000);
     }
+
+    bootMinute = getRTCMinute();
+    heartbeatTime = bootMinute;
+    oldHeartbeatTime = heartbeatTime; 
+    currentTime = getRTCTime();
+
         
     mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
     
     xTaskCreate(
       messageManager,    // Function that should be called
-      "Message Manager",   // Name of the task (for debugging)
-      7000,            // Stack size (bytes)
-      NULL,            // Parameter to pass
-      1,               // Task priority
-      NULL             // Task handle
+      "Message Manager", // Name of the task (for debugging)
+      7000,              // Stack size (bytes)
+      NULL,              // Parameter to pass
+      1,                 // Task priority
+      NULL               // Task handle
     );
-    
+
+    displayMode=3;
+    displayStatusScreen("    Listening\n\n       ...");
+   
   }
   
   server.begin();
-    
+
+ 
   debugUART.println();
   debugUART.println("RUNNING\n");
 }
@@ -802,17 +858,31 @@ void loop() {
       
       switch (displayMode) {
         case 1:
-          displaySplashScreen();
+          displaySplashScreen(swVersion);
           break;
         case 2:
           displayIPScreen(WiFi.localIP().toString()); 
           break;
         case 3:
-          displayStatusScreen("");
+          displayStatusScreen("    Listening\n\n       ...");
           break;     
       }
     }
-  
+
+    // Issue a heartbeat message every hour.
+    currentTime = getRTCTime();
+    heartbeatTime = getRTCMinute();
+    if ((oldHeartbeatTime != bootMinute) && (heartbeatTime == bootMinute)){
+      xSemaphoreTake(mutex_v, portMAX_DELAY); 
+        heartbeatMessageNeeded = true;
+      xSemaphoreGive(mutex_v);
+    }  
+    oldHeartbeatTime = heartbeatTime;
+    
+
+    //debugUART.println(getRTCTime());
+    //delay(1000);
+    
     // Handle what the LoRa module has to say. 
     // If it's a message from another module, add it to the queue
     // so the manager function can handle it.
@@ -824,8 +894,7 @@ void loop() {
          
       //Messages received by the Module start with '+RCV'
       if (loraMsg.indexOf("+RCV")>=0){
-        debugUART.println();
-        debugUART.print("LoRa Message Received. ");  
+        debugUART.println("LoRa Message Received: ");  
         debugUART.println(loraMsg);
         
         // Send an acknowlegement to the sender.
@@ -840,14 +909,15 @@ void loop() {
         String senderAddress = loraMsg.substring(idxstart,idxstop); 
       
         // Now we can answer anyone who talks to us.
-        debugUART.print("Sending ACK: ");
-        loraUART.println("AT+SEND=" + senderAddress + ",3,ACK"); 
+        debugUART.println("Sending ACK. ");
+        debugUART.println();
+        sendReceive("AT+SEND=" + senderAddress + ",3,ACK"); 
   
         xSemaphoreTake(mutex_v, portMAX_DELAY);      
           loraMsgBuffer.push(loraMsg);
-          debugUART.print("loraMsgBuffer.size: ");
-          debugUART.println(loraMsgBuffer.size());
-          debugUART.println();
+          //debugUART.print("loraMsgBuffer.size: ");
+          //debugUART.println(loraMsgBuffer.size());
+          //debugUART.println();
         xSemaphoreGive(mutex_v);
     
       } else {
@@ -882,6 +952,7 @@ void loop() {
         }
         if (cmdMsg.indexOf("WAKE")>=0) {
           setNormalMode();
+          configureLoRa(config);
         }
       } 
       

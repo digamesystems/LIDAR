@@ -14,7 +14,6 @@
 
 #include <ArduinoJson.h>
 
-
 // Our configuration structure.
 //
 // Never use a JsonDocument to store the configuration!
@@ -60,11 +59,16 @@ struct Config
   String sens4Name = "Sensor 4";
   String sens4MAC  = "aa:bb:cc:dd:ee:04";
   
-  
 };
 
 
 const char *filename = "/params.txt";  // <- SD library uses 8.3 filenames
+
+// Declares
+void loadConfiguration(const char *filename, const Config &config);
+void saveConfiguration(const char *filename, const Config &config);
+void printFile(const char *filename);
+
 
 //****************************************************************************************
 // See if the card is present and can be initialized.
@@ -77,10 +81,19 @@ bool initSDCard(){
 }
 
 
+//****************************************************************************************
 // Loads the configuration from a file
 void loadConfiguration(const char *filename, Config &config) {
   // Open file for reading
   File file = SD.open(filename);
+
+  if (!file) {
+    Serial.println(F("Failed to open file. Creating it from default parameters."));
+    saveConfiguration(filename, config);
+    Serial.println("Trying again...");
+    file = SD.open(filename);
+
+  }
 
   // Allocate a temporary JsonDocument
   // Don't forget to change the capacity to match your requirements.
@@ -89,9 +102,12 @@ void loadConfiguration(const char *filename, Config &config) {
 
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(doc, file);
-  if (error)
+  if (error) {
     Serial.println(F("Failed to read file, using default configuration"));
-
+    file.close();
+    return;
+  }
+  
   // Copy values from the JsonDocument to the Config
   config.deviceName    = (const char*)doc["name"];
   config.ssid          = (const char*)doc["network"]["ssid"];
@@ -124,6 +140,8 @@ void loadConfiguration(const char *filename, Config &config) {
   file.close();
 }
 
+
+//****************************************************************************************
 // Saves the configuration to a file
 void saveConfiguration(const char *filename, const Config &config) {
   // Delete existing file, otherwise the configuration is appended to the file
@@ -175,6 +193,7 @@ void saveConfiguration(const char *filename, const Config &config) {
   file.close();
 }
 
+//****************************************************************************************
 // Prints the content of a file to the Serial
 void printFile(const char *filename) {
   // Open file for reading
@@ -193,52 +212,5 @@ void printFile(const char *filename) {
   // Close the file
   file.close();
 }
-
-/*
-void setup() {
-  // Initialize serial port
-  Serial.begin(9600);
-  while (!Serial) continue;
-
-  // Initialize SD library
-  const int chipSelect = 4;
-  while (!SD.begin(chipSelect)) {
-    Serial.println(F("Failed to initialize SD library"));
-    delay(1000);
-  }
-
-  // Should load default config if run for the first time
-  Serial.println(F("Loading configuration..."));
-  loadConfiguration(filename, config);
-
-  // Create configuration file
-  Serial.println(F("Saving configuration..."));
-  saveConfiguration(filename, config);
-
-  // Dump config file
-  Serial.println(F("Print config file..."));
-  printFile(filename);
-}
-*/
-
-// Performance issue?
-// ------------------
-//
-// File is an unbuffered stream, which is not optimal for ArduinoJson.
-// See: https://arduinojson.org/v6/how-to/improve-speed/
-
-// See also
-// --------
-//
-// https://arduinojson.org/ contains the documentation for all the functions
-// used above. It also includes an FAQ that will help you solve any
-// serialization or deserialization problem.
-//
-// The book "Mastering ArduinoJson" contains a case study of a project that has
-// a complex configuration with nested members.
-// Contrary to this example, the project in the book uses the SPIFFS filesystem.
-// Learn more at https://arduinojson.org/book/
-// Use the coupon code TWENTY for a 20% discount ❤❤❤❤❤
-
 
 #endif
