@@ -75,7 +75,7 @@ bool initSDCard(){
 void loadConfiguration(const char *filename, Config &config) {
   // Open file for reading
   File file = SD.open(filename);
-  
+  //saveConfiguration(filename, config);
   if (!file) {
     Serial.println(F("Failed to open file. Creating it from default parameters."));
     saveConfiguration(filename, config);
