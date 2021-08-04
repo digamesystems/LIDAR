@@ -31,6 +31,8 @@
 // select the display constructor line in one of the following files (old style):
 #include "GxEPD2_display_selection.h"
 
+
+
 void setup()
 {
   Serial.begin(115200);

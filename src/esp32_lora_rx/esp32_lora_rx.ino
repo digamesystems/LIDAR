@@ -6,6 +6,52 @@
 
 int RX_LED = 13;
 
+//************************************************************************ 
+//Send a message to the LoRa device and wait for a response
+String sendReceive(String s){
+  
+  String loraMsg;
+
+  //Send the command
+  debugUART.println("Sending: " + s);
+  loraUART.println(s);
+
+  //Read reply
+  while (!loraUART.available()) {
+    delay(10);
+  }
+  loraMsg = loraUART.readStringUntil('\n');
+
+  debugUART.println("Received: " + loraMsg);
+  return loraMsg;
+  
+}
+
+
+//************************************************************************ 
+void configureLoRa(){
+  
+  debugUART.println("Configuring LoRa...");
+  
+  debugUART.println("  Setting Address to: 0");
+  sendReceive("AT+ADDRESS=1");
+  sendReceive("AT+ADDRESS?");
+
+  debugUART.println("  Setting Network ID to: 0");
+  sendReceive("AT+NETWORKID=7");
+  sendReceive("AT+NETWORKID?");
+  
+  debugUART.println("  Setting Band to: 915000000");
+  sendReceive("AT+BAND=915000000");
+  sendReceive("AT+BAND?");
+
+  debugUART.println("  Setting Modulation Parameters to: 10,7,1,8");
+  sendReceive("AT+PARAMETER=10,7,1,8"); //+config.loraSF+","+config.loraBW+","+config.loraCR+","+config.loraPreamble);
+  sendReceive("AT+PARAMETER?");
+  
+}
+
+
 void setup() {
 
   pinMode(RX_LED, OUTPUT);
@@ -20,15 +66,8 @@ void setup() {
   debugUART.println("Verson 0.9.2");
   debugUART.println("**********************");
   
-  //debugUART.println("Setting Network ID");
-  //loraUART.println("AT+NETWORKID=7");
-  //delay(100);
-  debugUART.println("Setting Device Address");
-  loraUART.println("AT+ADDRESS=1"); //MY ADDRESS -- Base Stations Default to 1.
-  delay(1000);
-  //debugUART.println("Setting RF Params");
-  //loraUART.println("AT+PARAMETER=7,9,1,7");
-  //delay(100);
+  configureLoRa();
+
 }
 
 String msg;

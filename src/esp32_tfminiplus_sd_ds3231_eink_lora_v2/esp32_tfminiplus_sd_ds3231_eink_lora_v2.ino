@@ -1,35 +1,31 @@
-/*
- * HEIMDALL VCS - Vehicle Counting Systems 
+/* HEIMDALL VCS - Vehicle Counting Systems 
  * A traffic counting system that uses LIDAR to track pedestrians and vehicles.
  * 
  * Copyright 2021, Digame Systems. All rights reserved.
  */
 
 // Mix-n-match hardware configuration
-#define ADAFRUIT_EINK_SD true // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
+#define ADAFRUIT_EINK_SD true  // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
 #define SHOW_DATA_STREAM false // A debugging flag to show raw LIDAR values on the serial monitor
  
 #include <TFMPlus.h>          // Include TFMini Plus LIDAR Library v1.4.0
-#include <WiFi.h>             // WiFi stack
 #include <CircularBuffer.h>   // Adafruit library. Pretty small!
 
-#include "digameTime.h"       // Digame Time Functions
+#include <digameTime.h>       // Time Functions - RTC, NTP Synch etc
+#include <digameNetwork.h>    // Network Functions - Login, MAC addr
+#include <digamePowerMgt.h>   // Power management modes 
+#include <digameDisplay.h>    // eInk Display Functions
+
 #include "digameJSONConfig.h" // Program parameters from config file on SD card
-#include "digameNetwork.h"    // Digame Network Functions
-#include "digameDisplay.h"    // Digame eInk Display Functions.
-
-
-#include "driver/adc.h"
-#include <esp_bt.h>
 
 // Aliases for easier reading
 #define debugUART  Serial
+#define LoRaUART   Serial1
 #define tfMiniUART Serial2  
-#define LoRaUART Serial1
 
-
-String swVersion = "0.9.3";
-bool accessPointMode = false;
+String swVersion      = "0.9.4";
+String terseSWVersion = "094";  // for the LoRa boot/hearbeats
+bool accessPointMode  = false;
 
 // Set web server port number to 80
 WiFiServer server(80);
@@ -48,9 +44,7 @@ TFMPlus tfmP; // Create a TFMini Plus object
 
 // HW Status Variables -- sniffed in setup()
 bool sdCardPresent = false;
-bool rtcPresent    = false;
 bool lidarPresent  = false; 
-bool wifiConnected = false;
 
 long msLastConnectionAttempt;  // Timer value of the last time we tried to connect to the wifi.
 
@@ -66,47 +60,18 @@ bool bootMessageNeeded      = true;
 bool heartbeatMessageNeeded = false;
 bool vehicleMessageNeeded   = false;
 
-// The message being sent
-String loraPayload; //A stripped down version for LoRa
-String strRetryCount = "0"; //The number of times the active message to the base station has failed to receive an ACK.
-double retryCount = 0.0;
+String loraPayload;         // The message being sent to the base station. (A stripped down JSON for LoRa.)
+String strRetryCount = "0"; // The number of times the active message to the base station has failed to receive an ACK.
+double retryCount    = 0.0;
 
 // The minute (0-59) within the hour we woke up at boot. 
 int bootMinute;
 
-String hwStatus="";
-
-//****************************************************************************************
-void disableWiFi(){
-    adc_power_off();
-    WiFi.disconnect(true);  // Disconnect from the network
-    WiFi.mode(WIFI_OFF);    // Switch WiFi off
-    //debugUART.println("");
-    //debugUART.println("WiFi disconnected!");
-}
-
-//****************************************************************************************
-void disableBluetooth(){
-    // Rather disappointing on power improvement.
-    btStop();
-    //debugUART.println("");
-    //debugUART.println("Bluetooth stop!");
-}
- 
-
-//****************************************************************************************
-void setLowPowerMode() {
-    debugUART.print("  Setting Power Mode... ");
-    disableWiFi();
-    disableBluetooth();
-    setCpuFrequencyMhz(40);
-    debugUART.println(" Done. (Low Power Mode Enabled)");
-}
+String hwStatus = "";
 
 
-//****************************************************************************************
+//************************************************************************
 // LoRa messages to the server all have a similar format. 
-
 String buildLoRaHeader(String eventType, double count){
   String loraHeader;
   String strCount;
@@ -114,29 +79,26 @@ String buildLoRaHeader(String eventType, double count){
   strCount= String(count,0);
   strCount.trim();
   
-  if (rtcPresent){
-    loraHeader = "{\"ts\":\"" + getRTCTime() + 
-                   "\",\"et\":\"" + eventType +
-                   "\",\"c\":\"" + strCount +  
-                   "\",\"t\":\"" + String(getRTCTemperature(),1)+
-                   "\",\"r\":\"" + "0" +
-                   "\"";
+  if (rtcPresent()){
+    loraHeader = "{\"ts\":\"" + getRTCTime(); // Timestamp
   } else {
-    loraHeader = "{\"ts\":\"" + getLocalTime() + 
-                   "\",\"et\":\"" + eventType + 
-                   "\",\"c\":\"" + strCount + 
-                   "\",\"t\":\"" + String(getRTCTemperature(),1)+
-                   "\",\"r\":\"" + "0" +
-                   "\"";  
-  }                    
+    loraHeader = "{\"ts\":\"" + getESPTime(); 
+  }  
+  
+  loraHeader = loraHeader +
+               "\",\"v\":\"" + terseSWVersion + // Firmware version
+               "\",\"et\":\"" + eventType +     // Event type: boot, heartbeat, vehicle
+               "\",\"c\":\"" + strCount +       // Total counts registered
+               "\",\"t\":\"" + String(getRTCTemperature(),1) + // Temperature in C
+               "\",\"r\":\"" + "0" +            // Retries 
+               "\"";     
+                            
   return loraHeader;
 }
 
 
 //************************************************************************
 // LIDAR Siganal Processing Functions
-//************************************************************************
-
 //************************************************************************
 // A dirt-simple processing scheme based on a hard threshold read from the
 // SD card. Pretty susceptible to noisy conditions. TODO: Improve. 
@@ -148,16 +110,15 @@ bool processLIDARSignal(){
     int16_t tfTemp        = 0;    // Internal temperature of Lidar sensor chip
     static float smoothed = 0.0;
     
-    static bool  carPresent      = false;    
-    static bool  lastCarPresent  = false; 
-    int   carEvent        = 0;
-    int   lidarUpdateRate = 15;
-    float correl1 = 0.0;
+    static bool carPresent = false;         // Do we see a car now?
+    static bool previousCarPresent = false; // Had we seen a car last time? 
+    int         carEvent = 0;               // A variable for the serial plotter.
+    int         lidarUpdateRate = 15;       // Time in ms between readings
   
     bool retValue = false;
 
-    tfmP.sendCommand(TRIGGER_DETECTION, 0); //Uncomment in triggered mode.
-    delay(lidarUpdateRate);
+    tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
+    delay(lidarUpdateRate);                 //  
 
     // Read the LIDAR Sensor
     if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
@@ -179,7 +140,7 @@ bool processLIDARSignal(){
       }
       
       //Filter the measured distance
-      smoothed = smoothed * (config.lidarSmoothingFactor.toFloat()) + (float)tfDist * (1.0- config.lidarSmoothingFactor.toFloat());
+      smoothed = smoothed * (config.lidarSmoothingFactor.toFloat()) + (float)tfDist * (1.0 - config.lidarSmoothingFactor.toFloat());
       int intSmoothed = (int) smoothed*10;
 
       buffer.push(intSmoothed);
@@ -190,7 +151,7 @@ bool processLIDARSignal(){
         carPresent = false; 
       }
 
-     if ((lastCarPresent == true) && (carPresent == false)){ // The car has left the field of view.   
+     if ((previousCarPresent == true) && (carPresent == false)){ // The car has left the field of view.   
         carEvent = 500;
         retValue = true;
           
@@ -208,26 +169,22 @@ bool processLIDARSignal(){
      debugUART.println(carEvent);
 #endif
      
-     lastCarPresent = carPresent;
+     previousCarPresent = carPresent;
   }
-
     
   return retValue;  
 }
 
 
-
-//****************************************************************************************
+//************************************************************************
 // Sends a message to another LoRa module and listens for an ACK reply.
 bool sendReceiveLoRa(String msg){
-  long timeout = 10000;
+  long timeout      = 10000;
+  bool replyPending = true;
   long t2,t1;
  
   t1 = millis();
   t2 = t1;
-
-  bool replyPending = true;
-
 
   strRetryCount = String(retryCount,0);
   strRetryCount.trim();
@@ -236,7 +193,6 @@ bool sendReceiveLoRa(String msg){
   // Don't forget to change the capacity to match your requirements.
   // Use https://arduinojson.org/v6/assistant to compute the capacity.
   StaticJsonDocument<512> doc;
-  // Deserialize the JSON document
   char json[512] = {};
 
   // The message contains a JSON payload extract to the char array json
@@ -245,28 +201,24 @@ bool sendReceiveLoRa(String msg){
   // Deserialize the JSON document
   DeserializationError error = deserializeJson(doc, json);
 
-  // Test if parsing succeeds.
+  // Test if parsing succeeded.
   if (error) {
     debugUART.print(F("deserializeJson() failed: "));
     debugUART.println(error.f_str());
     return false;
   }
-
   
-  doc["r"] = strRetryCount;
-
-  //debugUART.println(retryCount);
-  //debugUART.println((const char*)doc["r"]);
+  doc["r"] = strRetryCount; // Add the retry count to the JSON doc
 
   msg ="";
-    // Serialize JSON to file
+  
+  // Serialize JSON 
   if (serializeJson(doc, msg) == 0) {
     Serial.println(F("Failed to write to string"));
+    return false;
   }
 
- 
-
-  //Send the message... Base Stations Default to an address of 1.
+  // Send the message. - Base stations use address 1.
   String reyaxMsg = "AT+SEND=1,"+String(msg.length())+","+msg;
 
   #if SHOW_DATA_STREAM
@@ -277,9 +229,9 @@ bool sendReceiveLoRa(String msg){
   
   LoRaUART.println(reyaxMsg);
   
-  //wait for ACK or timeout
+  // Wait for ACK or timeout
   while ((replyPending == true) && ((t2-t1)<timeout)){
-    t2=millis();
+    t2 = millis();
     if (LoRaUART.available()) {
       String inString = LoRaUART.readStringUntil('\n');
       if (replyPending) {
@@ -296,7 +248,7 @@ bool sendReceiveLoRa(String msg){
     } 
   }
   
-  if((t2-t1)>= timeout){
+  if((t2-t1) >= timeout){
     #if SHOW_DATA_STREAM
     #else
       debugUART.println("Timeout!");
@@ -311,11 +263,10 @@ bool sendReceiveLoRa(String msg){
 }
 
 
-
-
 /********************************************************************************/
 // Experimenting with using a circular buffer to enqueue messages to the server...
 void messageManager(void *parameter){
+  
   String activeMessage;
   
   for(;;){  
@@ -323,27 +274,19 @@ void messageManager(void *parameter){
     //****************************
     //LoRa message
     //****************************
-    if (loraMsgBuffer.size()>0){
-      #if SHOW_DATA_STREAM
-      #else
-        //Serial.print("MessageManager: loraMsgBuffer.size(): ");
-        //Serial.println(loraMsgBuffer.size());
-        //Serial.println("MessageManager: Sending LoRa message: ");
-      #endif  
+    if (loraMsgBuffer.size()>0){ 
           
       xSemaphoreTake(mutex_v, portMAX_DELAY); 
         activeMessage=loraMsgBuffer.shift();
       xSemaphoreGive(mutex_v);
       
-      #if SHOW_DATA_STREAM
-      #else
-        //Serial.println(activeMessage);
-      #endif
-
       //Send the data to the base station
-      //sendReceive("AT+MODE=0");
-      while (!sendReceiveLoRa(activeMessage)){};
-      //sendReceive("AT+MODE=1");
+      while (!sendReceiveLoRa(activeMessage)){}; // TODO: This runs forever if no base station is available.
+                                                 // Is this the right way to go? Consider adding a timeout.
+                                                 // If we do that, do we save the data to the SD card?
+                                                 // Come up with a scheme to send the buffered data when a
+                                                 // base station becomes available. 
+      
       #if SHOW_DATA_STREAM
       #else
         Serial.println("Success!");
@@ -353,59 +296,61 @@ void messageManager(void *parameter){
     
     vTaskDelay(100 / portTICK_PERIOD_MS);   
   }   
+  
 }
 
 //************************************************************************
+// Write a message out to the Reyax LoRa module and wait for a reply.
 String sendReceive(String s){
-  //String strReturn;
+  
   String loraMsg;
 
   //Send the command
   LoRaUART.println(s);
 
-  //Read reply
+  //Read reply. TODO: Parse Error codes.
   while (!LoRaUART.available()) {
     delay(10);
   }
+  
   loraMsg = LoRaUART.readStringUntil('\n');
-  //}
-
-  //debugUART.println(loraMsg);
+  
   return loraMsg;
   
 }
 
+
 //************************************************************************
+// Set up the LoRa communication parameters from the config data structure
 void configureLoRa(Config config){
   
   debugUART.println("  Configuring LoRa...");
   
   debugUART.println("    Setting Address to: " + config.loraAddress);
-  sendReceive("AT+ADDRESS="+config.loraAddress);
+  sendReceive("AT+ADDRESS=" + config.loraAddress);
   sendReceive("AT+ADDRESS?");
   sendReceive("AT+ADDRESS?");
 
   debugUART.println("    Setting Network ID to: " + config.loraNetworkID);
-  sendReceive("AT+NETWORKID="+config.loraNetworkID);
+  sendReceive("AT+NETWORKID=" + config.loraNetworkID);
   sendReceive("AT+NETWORKID?");
   
   debugUART.println("    Setting Band to: " + config.loraBand);
-  sendReceive("AT+BAND="+config.loraBand);
+  sendReceive("AT+BAND=" + config.loraBand);
   sendReceive("AT+BAND?");
 
-  debugUART.println("    Setting Modulation Parameters to: " + config.loraSF+","+config.loraBW+","+config.loraCR+","+config.loraPreamble);
-  sendReceive("AT+PARAMETER="+config.loraSF+","+config.loraBW+","+config.loraCR+","+config.loraPreamble);
+  debugUART.println("    Setting Modulation Parameters to: " + config.loraSF + "," + config.loraBW + "," + config.loraCR + "," + config.loraPreamble);
+  sendReceive("AT+PARAMETER=" + config.loraSF + "," + config.loraBW + "," + config.loraCR + "," + config.loraPreamble);
   sendReceive("AT+PARAMETER?");
 
-  //sendReceive("AT+MODE=1");
-  
   hwStatus+= "   LoRa : OK\n\n";
+  
 }
 
 
-
-//****************************************************************************************
+//************************************************************************
 void splash(){
+  
     String compileDate = F(__DATE__);
     String compileTime = F(__TIME__);
   
@@ -422,10 +367,13 @@ void splash(){
     debugUART.println();
     debugUART.println("HARDWARE INITIALIZATION");
     debugUART.println();
+    
 }
 
-//****************************************************************************************
+
+//************************************************************************
 void initPorts(){
+  
     // Ready the LED and RESET pins
     pinMode(LED_DIAG, OUTPUT);
     pinMode(CTR_RESET,INPUT_PULLUP);      
@@ -433,19 +381,25 @@ void initPorts(){
     LoRaUART.begin(115200, SERIAL_8N1, 25, 33);
     delay(1000);               // Give port time to initalize
     Wire.begin(); 
+    
 }
 
+
+//************************************************************************
 void initUI(){
+  
     display.init(0);
     // first update should be full refresh
     initDisplay();
-    displaySplashScreen(swVersion);
+    displaySplashScreen("(LIDAR Counter)",swVersion);
     splash();
-    //delay(5000);
-    //displayInitializingScreen();
+    
 }
 
+
+//************************************************************************
 void initFileSystem(){
+  
     debugUART.print("  Testing for SD Card Module... ");
     sdCardPresent = initSDCard();
     if (sdCardPresent){
@@ -458,63 +412,69 @@ void initFileSystem(){
       debugUART.println("ERROR! Module NOT found. (Parameters set to default values.)");    
       hwStatus+= "   SD   : ERROR!\n\n";
     }  
+    
 }
 
-void initLIDAR(){
-  tfMiniUART.begin(115200);  // Initialize TFMPLus device serial port.
-    delay(1000);               // Give port time to initalize
-    tfmP.begin(&tfMiniUART);   // Initialize device library object and...
-                               // pass device serial port to the object.
 
-    // Send some commands to the TFMini-Plus
-    // - - Perform a system reset - - 
-    
-    debugUART.print( "  Activating LIDAR Sensor... ");
-    
-    //debugUART.printf( "  Testing for LIDAR Sensor... ");
-    if( tfmP.sendCommand(SYSTEM_RESET, 0)){
-        debugUART.println("Done. (LIDAR Sensor initialized)");
-        hwStatus+="   LIDAR: OK\n\n";
-
-        delay(500);
-        
-        debugUART.printf( "  Adjusting Frame Rate... ");
-        if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){ //FRAME_0 is triggered mode.
-           debugUART.println("  Frame Rate Adjusted.");
-        }
-        //else tfmP.printReply(); 
-    }
-    else {
-        debugUART.println("ERROR! LIDAR Sensor not found or sensor error.");
-        hwStatus+="   LIDAR: ERROR!\n\n";
-        //tfmP.printReply();
-    }
+//************************************************************************
+// Set up the LIDAR sensor in triggered mode
+void initLIDAR() {
   
+  tfMiniUART.begin(115200); // Initialize TFMPLus device serial port.
+  delay(1000);              // Give port time to initalize
+  tfmP.begin(&tfMiniUART);  // Initialize device library object and...
+                            // pass device serial port to the object.
+
+  // Perform a system reset
+  debugUART.print( "  Activating LIDAR Sensor... ");
+  
+  if ( tfmP.sendCommand(SYSTEM_RESET, 0) ){
+    
+    debugUART.println("Done. (LIDAR Sensor initialized)");
+    hwStatus+="   LIDAR: OK\n\n";
+    delay(500);
+    debugUART.printf( "  Adjusting Frame Rate... ");
+    if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_0)){ //FRAME_0 is triggered mode.
+       debugUART.println("  Frame Rate Adjusted.");
+    }
+    
+  }
+  else {
+    
+    debugUART.println("ERROR! LIDAR Sensor not found or sensor error.");
+    hwStatus+="   LIDAR: ERROR!\n\n";
+    
+  }
+
 }
 
+
+//************************************************************************
 void initRealTimeClock(){
-    debugUART.print("  Testing for Real-Time-Clock module... ");
-    rtcPresent = initRTC();
-    if (rtcPresent){
-      debugUART.println("RTC found. (Program will use time from RTC)");
-      hwStatus+="   RTC  : OK\n\n";
-      debugUART.print("      RTC Time: ");
-      debugUART.println(getRTCTime()); 
-    }else{
-      debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time)");   
-      hwStatus+="    RTC  : ERROR!\n\n"; 
-    }
-
-    bootMinute = getRTCMinute();
-    heartbeatTime = bootMinute;
-    oldHeartbeatTime = heartbeatTime;
   
+  debugUART.print("  Testing for Real-Time-Clock module... ");
+
+  if (rtcPresent()){
+    debugUART.println("RTC found. (Program will use time from RTC)");
+    hwStatus+="   RTC  : OK\n\n";
+    debugUART.print("    RTC Time: ");
+    debugUART.println(getRTCTime()); 
+  }else{
+    debugUART.println("ERROR! Could NOT find RTC. (Program will attempt to use NTP time)");   
+    hwStatus+="    RTC  : ERROR!\n\n"; 
+  }
+
+  bootMinute = getRTCMinute();
+  heartbeatTime = bootMinute;
+  oldHeartbeatTime = heartbeatTime;
 
 }
 
-//****************************************************************************************
-//Extract a value for a query parameter from an HTTP header.
+
+//************************************************************************
+// Extract a value for a query parameter from an HTTP header.
 String getParam(String header, String paramName){
+  
   String result= ""; 
 
   int strStart = header.indexOf(paramName+"=");
@@ -523,6 +483,7 @@ String getParam(String header, String paramName){
     Serial.println(paramName + " not found.");
     return ("Not found.");  
   }
+  
   strStart = strStart + paramName.length() + 1;
 
   int strStop = header.indexOf(" HTTP/1.1");
@@ -538,9 +499,15 @@ String getParam(String header, String paramName){
   Serial.println(result);
   
   return result;
+  
 }
 
+//************************************************************************
+// Handle interactions on the web page. - We're using GETs with query 
+// parameters as our method to tweak parameters. TODO: Consider a more 
+// secure method to do this.
 void processClient(WiFiClient client){
+  
   // Variable to store the HTTP request
   String header;
   // Current time
@@ -710,12 +677,11 @@ void processClient(WiFiClient client){
 }
 
 
-
 //****************************************************************************************
 // Device initialization                                   
 //****************************************************************************************
-void setup()
-{
+void setup(){
+  
     initPorts();           // Set up UARTs and GPIOs
     initUI();              // Splash screens 
     initFileSystem();      // Setup SD card and load default values.
@@ -739,6 +705,7 @@ void setup()
       displayAPScreen(ssid, WiFi.softAPIP().toString()); 
       
     } else {
+      
       delay(1000);
       setLowPowerMode();     // Lower clock rate and turn off WiFi    
       configureLoRa(config); // Configure radio params  
@@ -749,6 +716,8 @@ void setup()
       delay(3000);
   
       mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
+      
+      //Create a separate task to manage messages we want to send to the base station
       xTaskCreate(
         messageManager,      // Function that should be called
         "Message Manager",   // Name of the task (for debugging)
@@ -760,14 +729,14 @@ void setup()
 
       displayCountScreen(0);
       showValue(0);
-    }     
+      
+    }    
+     
     debugUART.println();
     debugUART.println("RUNNING!");  
     debugUART.println(); 
   
 }
-
-
 
 
 //************************************************************************
@@ -776,93 +745,107 @@ void setup()
 
 long count = 0;
 
-void loop()
-{ 
+void loop(){ 
 
-  if (accessPointMode){ //***************** Access Point Operation **********************
+  //***************** Access Point Operation **********************
+  if (accessPointMode){ 
     
-    WiFiClient client = server.available();   // Listen for incoming clients
-    if (client){ processClient(client); }     // Handle the web UI
+    WiFiClient client = server.available(); // Listen for incoming clients
+    if (client){ processClient(client); }   // Handle the web UI
+  
+  //******************* Standard Operation ************************  
+  } else {      
+    // Test if vehicle event has occured 
+    vehicleMessageNeeded = processLIDARSignal(); // Threshold Detection Algorithm
+    
+    // Check for RESET button being pressed. If it has been, reset the counter to zero.
+    if (digitalRead(CTR_RESET)== LOW) {
+      
+      count = 0;
+   
+      #if SHOW_DATA_STREAM
+      #else
+         debugUART.print("Loop: RESET button pressed. Count: ");
+         debugUART.println(count);  
+      #endif
 
-  }else{                //******************* Standard Operation ************************
-    //DATA ACQUISITION
+      initDisplay();
+      displayCountScreen(count);
+      showValue(count);
+ 
+    }
     
-     vehicleMessageNeeded = processLIDARSignal(); // Threshold Detection
-  
-     // Check for RESET button being pressed
-     if (digitalRead(CTR_RESET)== LOW) {
-       count = 0;
-       #if SHOW_DATA_STREAM
-       #else
-          debugUART.print("Loop: RESET button pressed. Count: ");
-          debugUART.println(count);  
-       #endif
-  
-       initDisplay();
-       displayCountScreen(count);
-       showValue(count);
-  
-     }
-  
-    //MESSAGE HANDLING
+    // Check if we need to send a message of some kind
     
-      // Runs once at startup.
-      if (bootMessageNeeded){
-        loraPayload = buildLoRaHeader("b",count);
-        loraPayload = loraPayload + "}"; 
-        jsonPostNeeded = true;
-        bootMessageNeeded = false;
-      }
-  
-      // Issue a heartbeat message every hour.
-      heartbeatTime = getRTCMinute();
-      if ((oldHeartbeatTime != bootMinute) && (heartbeatTime == bootMinute)){heartbeatMessageNeeded = true;}  
+    // Boot messages are sent at startup.
+    if (bootMessageNeeded){
       
-      if (heartbeatMessageNeeded){
-        loraPayload = buildLoRaHeader("hb",count);
-        loraPayload = loraPayload + "}";
-        jsonPostNeeded = true;
-        heartbeatMessageNeeded = false;
-      }
-      oldHeartbeatTime = heartbeatTime;
+      loraPayload = buildLoRaHeader("b",count);
+      loraPayload = loraPayload + "}"; 
+      jsonPostNeeded = true;
+      bootMessageNeeded = false;
       
-      if (vehicleMessageNeeded){ // Set by processLIDARSignal above
-        if (buffer.size()==samples){ //Fill up the buffer before processing so we don't get false events at startup.
-          
-          count++;
-          
-          #if SHOW_DATA_STREAM
-          #else
-            debugUART.print("Vehicle event! Counts: ");
-            debugUART.println(count);  
-            debugUART.println();
-          #endif 
-               
-          // Consider sliding this into another thread
-          if ((count%10==0)&(count>0)) {
-            initDisplay();
-            displayCountScreen(count);
-          }
-          showValue(count);
-          
-          loraPayload = buildLoRaHeader("v",count);
-          // Detection algorithm
-          String da = "t"; // String(params.detAlgorithm[0]); //[T]hreshold or [C]orrelation
-          da.toLowerCase();
-          loraPayload = loraPayload + ",\"da\":\"" + da +"\"";
-          loraPayload = loraPayload + "}";
+    }
+    
+    // Issue a heartbeat message every hour.
+    heartbeatTime = getRTCMinute();
+    
+    if ((oldHeartbeatTime != bootMinute) && (heartbeatTime == bootMinute)){heartbeatMessageNeeded = true;}  
+    
+    if (heartbeatMessageNeeded){
+      
+      loraPayload = buildLoRaHeader("hb",count);
+      loraPayload = loraPayload + "}";
+      jsonPostNeeded = true;
+      heartbeatMessageNeeded = false;
+      
+    }
+    oldHeartbeatTime = heartbeatTime;
+
+    // Issue a vehicle event message
+    if (vehicleMessageNeeded){ 
+      
+      if (buffer.size()==samples){ // Fill up the buffer before processing so we don't get false events at startup.
         
-          jsonPostNeeded = true; 
+        count++;
+        
+        #if SHOW_DATA_STREAM
+        #else
+          debugUART.print("Vehicle event! Counts: ");
+          debugUART.println(count);  
+          debugUART.println();
+        #endif 
+             
+        // Consider sliding this into another thread
+        if ((count%10==0)&(count>0)) {
+          initDisplay();
+          displayCountScreen(count);
         }
-        vehicleMessageNeeded = false; 
+        
+        showValue(count);
+        
+        loraPayload = buildLoRaHeader("v",count);
+        // Detection algorithm
+        String da = "t"; // String(params.detAlgorithm[0]); //[T]hreshold or [C]orrelation
+        da.toLowerCase();
+        loraPayload = loraPayload + ",\"da\":\"" + da +"\"";
+        loraPayload = loraPayload + "}";
+      
+        jsonPostNeeded = true; 
       }
+      vehicleMessageNeeded = false; 
+    }
        
-      // Push the JSON Payload into the message buffer. The messageManager task will handle it. 
-      if (jsonPostNeeded){
-        xSemaphoreTake(mutex_v, portMAX_DELAY);  
-            loraMsgBuffer.push(loraPayload);
-        xSemaphoreGive(mutex_v);
-        jsonPostNeeded = false;     
-      }  
+    // If we need to send a message, push the JSON payload into the message buffer. 
+    // The messageManager task will handle it in a separate task. 
+    if (jsonPostNeeded){
+      
+      xSemaphoreTake(mutex_v, portMAX_DELAY);  
+        loraMsgBuffer.push(loraPayload);
+      xSemaphoreGive(mutex_v);
+      
+      jsonPostNeeded = false;     
+      
+    }  
   }
 }

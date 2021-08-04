@@ -1,6 +1,12 @@
-/*  A simple LoRa base station that listens for events from our Vehicle Counters. 
- *   
- *  Build up a JSON message for each event and route to our server over WiFi.
+/* esp_lora_basestation
+ *  
+ *  A simple LoRa listener for events from our Vehicle Counters. 
+ *  Builds up a JSON message for each event and routes them our server 
+ *  over WiFi.
+ *  
+ *  The program provides a web interface for configuration of LoRa
+ *  and WiFi parameters.
+ *  
  *  
  *  
  *  Copyright 2021, Digame systems. All rights reserved. 
@@ -12,23 +18,21 @@
 #define USE_EINK true           // Adafruit eInk Display
 #define ADAFRUIT_EINK_SD true   // Some Adafruit Eink Displays have an integrated SD card so we don't need a separate module
  
-#include <WiFi.h>               // WiFi stack
+#include <CircularBuffer.h>     // Adafruit library. Pretty small!
+#include <ArduinoJson.h>        // 
+
+#include <digameTime.h>         // Digame Time Functions
+#include <digameNetwork.h>      // Digame Network Functions
+#include <digameDisplay.h>      // Digame eInk Display Functions.
+#include <digamePowerMgt.h>
+
+
+#include "digameJSONConfig.h"   // Program parameters from config file on SD card
 
 #if USE_WIFI
   #include <HTTPClient.h>       // To post to the ParkData Server
 #endif
 
-#include <CircularBuffer.h>     // Adafruit library. Pretty small!
-
-#include "digameTime.h"         // Digame Time Functions
-#include "digameJSONConfig.h"   // Program parameters from config file on SD card
-#include "digameNetwork.h"      // Digame Network Functions
-
-#if USE_EINK
-  #include "digameDisplay.h"    // Digame eInk Display Functions.
-#endif
-
-#include <ArduinoJson.h>
 
 #define loraUART Serial1
 #define debugUART Serial
@@ -36,51 +40,54 @@
 // Set web server port number to 80
 WiFiServer server(80);
 
-Config config;
+// Globals
+String    swVersion = "0.9.3";
+String    terseSWVersion = "093";
 
-int RX_LED    = 13;
-int LED_DIAG  = 12;  // Indicator LED
-int CTR_RESET = 32;  // Counter Reset Input
+Config    config;
+int       RX_LED    = 13;
+int       LED_DIAG  = 12;  // Indicator LED
+int       CTR_RESET = 32;  // Counter Reset Input
+long      msLastConnectionAttempt = 0;
 
-long   msLastConnectionAttempt = 0;
-bool   wifiConnected = false;
-bool   rtcPresent    = false;
+int       displayMode = 1; // 1=Title, 2=Network, 3=Last Message
+bool      loraConfigMode = false;
+String    cmdMsg;
+String    loraMsg;
 
-int    displayMode = 1; // 1=Title, 2=Network, 3=Last Message
-
-bool   loraConfigMode = false;
-String cmdMsg;
-String loraMsg;
-
-String swVersion = "0.9.3";
 const char *ssid = "Digame-STN-AP"; //STN = "(Base) Station"
-
-
-int heartbeatTime;    // Issue Heartbeat message once an hour. Holds the current Minute.
-int oldHeartbeatTime; // Value the last time we looked.
-int bootMinute;       // The minute (0-59) within the hour we woke up at boot. 
-bool heartbeatMessageNeeded = true;
-String currentTime;
-String myMACAddress; 
-
-
-
+int       heartbeatTime;    // Issue Heartbeat message once an hour. Holds the current Minute.
+int       oldHeartbeatTime; // Value the last time we looked.
+int       bootMinute;       // The minute (0-59) within the hour we woke up at boot. 
+bool      heartbeatMessageNeeded = true;
+String    currentTime;
+String    myMACAddress; 
+bool      accessPointMode = false;
 
 SemaphoreHandle_t mutex_v; // Mutex used to protect our jsonMsgBuffers (see below).
 
 const int samples = 20;
 CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages sent to the LoRa basestation.
 
-bool accessPointMode = false;
-
 // Declares
-String sendReceive(String s);
-void setLowPowerMode();
-void setNormalMode();
-void enableWiFi();
+void   initPorts();
+void   splash();
+
+String buildJSONHeader(String);
+void   postJSON(String, String);
+void   processLoRaMessage(String);
+
+void   messageManager(void *);
+
+void   configureLoRa(Config);
+String sendReceive(String);
+
+String getParam(String, String);
+void   processClient(WiFiClient);
  
 
 //************************************************************************
+// Configure the IO pins and set up the UARTs
 void initPorts(){
   pinMode(RX_LED, OUTPUT);
   pinMode(CTR_RESET,INPUT_PULLUP);
@@ -109,8 +116,10 @@ void splash(){
   debugUART.println();
 
   // first update should be full refresh
+#if USE_EINK
   initDisplay();
-  displaySplashScreen(swVersion);
+  displaySplashScreen("(Base Station)",swVersion);
+#endif
 
 }
 
@@ -121,7 +130,7 @@ void postJSON(String jsonPayload, String strServerURL){
 
   if (WiFi.status() != WL_CONNECTED){
     debugUART.println("WiFi Connection Lost.");
-    enableWiFi();      
+    enableWiFi(config.ssid,config.password);      
   }
 
   HTTPClient http;
@@ -147,6 +156,8 @@ void postJSON(String jsonPayload, String strServerURL){
 
 
 //************************************************************************
+// Parse a LoRa message from a vehicle counter. Format as a JSON message
+// and POST it to the server. 
 void processLoRaMessage(String msg){
 
   static String lastMessageTimeStamp;
@@ -201,7 +212,9 @@ void processLoRaMessage(String msg){
   // In other case, you can do doc["time"].as<long>();
   String strEventType;
   String et = doc["et"];
-   
+
+  String strVersion = doc["v"];
+  
   if (et=="b"){
       strEventType = "Boot";
   } else if (et == "h"){
@@ -262,20 +275,22 @@ void processLoRaMessage(String msg){
   
   if (displayMode ==3) { // Update the eInk display with the latest information
     String strDisplay="";
-    strDisplay =   " Addr:  " + strAddress + 
-                 "\n Event: " + strEventType + 
-                 "\n Count: " + strCount + 
-                 "\n Temp:  " + strTemperature +
-                 "\n Date:  " + strTime.substring(0,strTime.indexOf(" ")) +
-                 "\n Time:  " + strTime.substring(strTime.indexOf(" ")+1); 
-    displayStatusScreen(strDisplay);
-  
+    strDisplay =   "Addr: " + strAddress + 
+                 "\nEvent:" + strEventType + 
+                 "\nCount:" + strCount + 
+                 "\nTemp: " + strTemperature +
+                 "\nDate: " + strTime.substring(0,strTime.indexOf(" ")) +
+                 "\nTime: " + strTime.substring(strTime.indexOf(" ")+1); 
+    #if USE_EINK
+      displayEventScreen(strDisplay);
+    #endif  
   }
 
 
   jsonPayload = "{\"deviceName\":\""       + strDeviceName + 
                  "\",\"deviceMAC\":\""     + strDeviceMAC  + 
-                 "\",\"timeStamp\":\""     + "20" + strTime + 
+                 "\",\"firmwareVER\":\""   + strVersion  + 
+                 "\",\"timeStamp\":\""     + strTime + 
                  "\",\"linkMode\":\""      + "LoRa" +
                  "\",\"eventType\":\""     + strEventType + 
                  "\",\"detAlgorithm\":\""  + strDetAlg +
@@ -292,95 +307,15 @@ void processLoRaMessage(String msg){
 }
 
 
-//************************************************************************
-void blinkLED(){
-  digitalWrite(RX_LED, HIGH);   
-  delay(100);
-  digitalWrite(RX_LED, LOW);  
-}
-
-
-//************************************************************************
-void enableWiFi(){
-    //adc_power_on();
-    delay(200);
- 
-    WiFi.disconnect(false);  // Reconnect the network
-    WiFi.mode(WIFI_OFF);     // Switch WiFi off
- 
-    delay(200);
- 
-    debugUART.print("Starting WiFi");
-    WiFi.begin(config.ssid.c_str(), config.password.c_str());
- 
-    while (WiFi.status() != WL_CONNECTED) {
-        delay(1000);
-        debugUART.print(".");
-    }
- 
-    debugUART.println("");
-    debugUART.println("  WiFi connected.");
-    debugUART.print("  IP address: ");
-    debugUART.println(WiFi.localIP());
-    wifiConnected = true;
-    
-}
-
-
-//************************************************************************
-void disableWiFi(){
-    //adc_power_off();
-    WiFi.disconnect(true);  // Disconnect from the network
-    WiFi.mode(WIFI_OFF);    // Switch WiFi off
-    debugUART.println("");
-    debugUART.println("WiFi disconnected!");
-}
-
-
-//************************************************************************
-void disableBluetooth(){
-    // Quite disappointing. -No real savings in power consumption
-    btStop();
-    debugUART.println("");
-    debugUART.println("Bluetooth stopped!");
-}
-
-
-//************************************************************************
-void setLowPowerMode() {
-    debugUART.println("Adjusting Power Mode:");
-    disableWiFi();
-    disableBluetooth();
-    setCpuFrequencyMhz(40);
-    
-    //Set LoRa module into sleep mode.
-    sendReceive("AT+MODE=1");
-    debugUART.println("  Low Power Mode Enabled.");
-    
-    // Use this if 40Mhz is not supported
-    // setCpuFrequencyMhz(80);
-}
- 
 //************************************************************************ 
-void setNormalMode() {
-    setCpuFrequencyMhz(240);
-    enableWiFi(); 
-    //debugUART.println("Adjusting Power Mode:");
-    // Wake up LoRa module.
-    sendReceive("AT");   
-    //debugUART.println("  Normal Mode Enabled.");
-}
-
-
-
-//****************************************************************************************
 // JSON messages to the server all have a similar format. 
 String buildJSONHeader(String eventType){
   String jsonHeader;
 
   jsonHeader = "{\"deviceName\":\"" + config.deviceName + 
-                 "\",\"deviceMAC\":\"" + myMACAddress + 
-                 "\",\"timeStamp\":\"" + currentTime +  
+                 "\",\"deviceMAC\":\"" + myMACAddress + // Read at boot
+                 "\",\"firmwareVER\":\""   + terseSWVersion  + 
+                 "\",\"timeStamp\":\"" + currentTime +  // Updated in main loop from RTC
                  "\",\"eventType\":\"" + eventType + 
                  "\""; 
                    
@@ -388,7 +323,7 @@ String buildJSONHeader(String eventType){
 }
 
 
-/********************************************************************************/
+//************************************************************************ 
 // Experimenting with using a circular buffer and multi-tasking to enqueue 
 // messages to the server...
 void messageManager(void *parameter){
@@ -437,7 +372,8 @@ void messageManager(void *parameter){
   }   
 }
 
-//************************************************************************
+//************************************************************************ 
+//Send a message to the LoRa device and wait for a response
 String sendReceive(String s){
   //String strReturn;
   String loraMsg;
@@ -457,7 +393,7 @@ String sendReceive(String s){
   
 }
 
-//************************************************************************
+//************************************************************************ 
 void configureLoRa(Config config){
   
   debugUART.println("Configuring LoRa...");
@@ -480,7 +416,7 @@ void configureLoRa(Config config){
   sendReceive("AT+PARAMETER?");
 }
 
-//****************************************************************************************
+//************************************************************************ 
 //Extract a value for a query parameter from an HTTP header.
 String getParam(String header, String paramName){
   String result= ""; 
@@ -507,24 +443,25 @@ String getParam(String header, String paramName){
   
   return result;
 }
-//****************************************************************************************
+//************************************************************************ 
 void processClient(WiFiClient client){
+  
   // Variable to store the HTTP request
   String header;
   // Current time
-  unsigned long currentTime = millis();
+  unsigned long currentMillis = millis();
   // Previous time
-  unsigned long previousTime = 0; 
+  unsigned long previousMillis = 0; 
   // Define timeout time in milliseconds (example: 2000ms = 2s)
-  const long timeoutTime = 2000;
+  const long timeoutMillis = 2000;
 
   if (client) {                             // If a new client connects,
-    currentTime = millis();
-    previousTime = currentTime;
+    currentMillis = millis();
+    previousMillis = currentMillis;
     Serial.println("New Client.");          // print a message out in the serial port
     String currentLine = "";                // make a String to hold incoming data from the client
-    while (client.connected() && currentTime - previousTime <= timeoutTime) {  // loop while the client's connected
-      currentTime = millis();
+    while (client.connected() && currentMillis - previousMillis <= timeoutMillis) {  // loop while the client's connected
+      currentMillis = millis();
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
         Serial.write(c);                    // print it out the serial monitor
@@ -740,6 +677,7 @@ void processClient(WiFiClient client){
 // Setup
 //************************************************************************
 void setup() {
+  
   initPorts(); //Set up serial ports and GPIO
   splash();
     
@@ -748,7 +686,7 @@ void setup() {
   debugUART.println("Reading Parameters from SD Card...");
   initSDCard();
 
-  ///saveConfiguration(filename,config);
+  //saveConfiguration(filename,config);
   loadConfiguration(filename,config);
 
   // Unconfigured base station or RESET button pressed at boot. 
@@ -762,20 +700,16 @@ void setup() {
   }
 
   if (accessPointMode){
-      Serial.print("Setting AP (Access Point)…");
-      // Remove the password parameter, if you want the AP (Access Point) to be open
-      
-      WiFi.softAP(ssid);//, password);
     
-      IPAddress IP = WiFi.softAPIP();
-      Serial.print("AP IP address: ");
-      Serial.println(IP);
-      
-      server.begin();
-      displayAPScreen(ssid, WiFi.softAPIP().toString()); 
-         
-      
+    WiFi.softAP(ssid);//, password);
+  
+    IPAddress IP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(IP);
     
+    server.begin();
+
+    displayAPScreen(ssid, WiFi.softAPIP().toString());  
     
   }else{
 
@@ -785,15 +719,16 @@ void setup() {
     
     //printFile(filename);  
     
-    setNormalMode(); //Run at full power and max speed with WiFi enabled by default
+    setFullPowerMode(); //Run at full power and max speed with WiFi enabled by default
+    enableWiFi(config.ssid, config.password);
+    
     myMACAddress = getMACAddress();
     debugUART.println("  MAC Address: " + myMACAddress);  
       
     configureLoRa(config);
   
     debugUART.println("Testing for Real-Time-Clock module... ");
-    rtcPresent = initRTC();
-    if (rtcPresent){
+    if (rtcPresent()){
       debugUART.println("  RTC found. (Program will use time from RTC.)");
       //stat +="   RTC  : OK\n";
       debugUART.print("    RTC Time: ");
@@ -804,9 +739,11 @@ void setup() {
     }
 
     if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
-      synchTime(rtcPresent);
-      displayIPScreen(WiFi.localIP().toString());
-      delay(5000);
+      synchTimesToNTP();
+      #if USE_EINK
+        displayIPScreen(WiFi.localIP().toString());
+        delay(5000);
+      #endif
     }
 
     bootMinute = getRTCMinute();
@@ -827,27 +764,26 @@ void setup() {
     );
 
     displayMode=3;
-    displayStatusScreen("    Listening\n\n       ...");
-   
+    #if USE_EINK
+      displayStatusScreen("    Listening\n\n       ...");
+    #endif 
   }
   
   server.begin();
 
- 
   debugUART.println();
   debugUART.println("RUNNING\n");
+  
 }
 
 
-//************************************************************************
+//************************************************************************ 
 // Main Loop
 //************************************************************************
 void loop() {
 
   WiFiClient client = server.available();   // Listen for incoming clients
-
   if (client){ processClient(client); }
-
 
   if (!accessPointMode){
  
@@ -856,33 +792,33 @@ void loop() {
       //debugUART.println("Loop: RESET button pressed.");
       displayMode++;
       if (displayMode>3) displayMode = 1;
-      
-      switch (displayMode) {
-        case 1:
-          displaySplashScreen(swVersion);
-          break;
-        case 2:
-          displayIPScreen(WiFi.localIP().toString()); 
-          break;
-        case 3:
-          displayStatusScreen("    Listening\n\n       ...");
-          break;     
-      }
+
+      #if USE_EINK
+        switch (displayMode) {
+          case 1:
+            displaySplashScreen("(Base Station)",swVersion);
+            break;
+          case 2:
+            displayIPScreen(WiFi.localIP().toString()); 
+            break;
+          case 3:
+            displayStatusScreen("    Listening\n\n       ...");
+            break;     
+        }
+      #endif
     }
 
     // Issue a heartbeat message every hour.
     currentTime = getRTCTime();
     heartbeatTime = getRTCMinute();
     if ((oldHeartbeatTime != bootMinute) && (heartbeatTime == bootMinute)){
+      
       xSemaphoreTake(mutex_v, portMAX_DELAY); 
         heartbeatMessageNeeded = true;
       xSemaphoreGive(mutex_v);
+    
     }  
     oldHeartbeatTime = heartbeatTime;
-    
-
-    //debugUART.println(getRTCTime());
-    //delay(1000);
     
     // Handle what the LoRa module has to say. 
     // If it's a message from another module, add it to the queue
@@ -929,15 +865,17 @@ void loop() {
     
     // Someone is sending us data on the debugUART. 
     // Only route this to the LoRa module if we are in loraConfigMode.
-    
     if (debugUART.available()) {
+      
       cmdMsg = debugUART.readStringUntil('\n');    
       cmdMsg.trim();
+      
       if (cmdMsg.indexOf("CONFIG")>=0){ 
         debugUART.println("Entering LoRa configuration mode:");
         loraConfigMode=true;
         cmdMsg = "AT"; //Get the module's attention.
       }
+      
       if (cmdMsg.indexOf("EXIT")>=0) {
         debugUART.println("Leaving LoRa configuration mode:");
         loraConfigMode=false;
@@ -952,11 +890,14 @@ void loop() {
           setLowPowerMode();
         }
         if (cmdMsg.indexOf("WAKE")>=0) {
-          setNormalMode();
+          setFullPowerMode();
           configureLoRa(config);
         }
+        
       } 
-      
+     
     } 
+    
   }
+  
 }
