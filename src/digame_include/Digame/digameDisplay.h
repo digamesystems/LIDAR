@@ -24,13 +24,13 @@
 #define EPD_RESET   -1   // can set to -1 and share with chip Reset (can't deep sleep)
 
 
+
 // Just grabbed the constructor we need from GxEPD2_display_selection and copied here.
 // ADAFRUIT 1.54" ePaper Display. SSD1608
-GxEPD2_BW<GxEPD2_154, GxEPD2_154::HEIGHT> display(GxEPD2_154(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEH0154D67
+  GxEPD2_BW<GxEPD2_154, GxEPD2_154::HEIGHT> display(GxEPD2_154(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEH0154D67
 
 // ADAFRUIT 1.54" ePaper Display. SSD1681
-//GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display(GxEPD2_154_D67(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEW0154M09 200x200
-
+//  GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display2(GxEPD2_154_D67(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEW0154M09 200x200
 
 
 #define debugUART Serial
@@ -48,6 +48,7 @@ void showValue(double v);
 //******************************************************************************************
 void initDisplay()
 {
+
   display.init(0);
   display.setRotation(3);
   display.setTextSize(2);
@@ -56,6 +57,7 @@ void initDisplay()
   display.fillScreen(GxEPD_WHITE);
   return;
 }
+
 
 //******************************************************************************************
 #if defined(ESP8266) || defined(ESP32)
@@ -140,21 +142,24 @@ void displayAPScreen(String ssid, String ip){
 
 
 //******************************************************************************************
-void displayStatusScreen(String s){
-  displayTitles("SELF-TEST",""); 
+void displayTextScreen(String title, String s){
+  displayTitles(title,""); 
   display.setCursor(0, 50);
   display.print(s);
   displayCopyright();  
 }
+
+
+//******************************************************************************************
+void displayStatusScreen(String s){
+  displayTextScreen("SELF-TEST",s);   
+}
+
 
 //******************************************************************************************
 void displayEventScreen(String s){
-  displayTitles("EVENT",""); 
-  display.setCursor(0, 50);
-  display.print(s);
-  displayCopyright();  
+  displayTextScreen("EVENT",s);   
 }
-
 
 
 //******************************************************************************************

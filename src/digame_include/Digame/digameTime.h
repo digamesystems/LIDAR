@@ -29,6 +29,7 @@ const long  gmtOffset_sec      = 0; // No timezone offset (using GMT)
 const int   daylightOffset_sec = 0; // No Daylight Savings time offset 
 
 // Declares
+bool   initRTC(); 
 String getESPTime();   // Returns GMT time in the ESP32's internal RTC
 
 bool   rtcPresent();   // Tests for presence of the DS3231 module
@@ -47,7 +48,24 @@ String twoDigits(byte); // Utility function to format integers as two-
                         // digit strings
 
 
-//************************************************************************
+//****************************************************************************************
+bool initRTC(){
+  debugUART.println("  Testing for Real-Time-Clock module... ");
+  if (rtcPresent()){
+    debugUART.println("    RTC found. (Program will use time from RTC.)");
+    //stat +="   RTC  : OK\n";
+    debugUART.print("      RTC Time: ");
+    debugUART.println(getRTCTime()); 
+    return true;
+  }else{
+    debugUART.println("    ERROR! Could NOT find RTC. (Program will attempt to use NTP time.)");   
+    //stat +="    RTC  : ERROR!\n";
+    return false; 
+  }  
+
+}
+
+//*****************************************************************************
 // "ESP Time" is the time in the ESP32's internal RTC. -- This isn't 
 // battery backed, but can be set using the NTP. 
 String getESPTime()
@@ -77,7 +95,7 @@ String getESPTime()
   return retStr;
 }
 
-//************************************************************************
+//*****************************************************************************
 bool rtcPresent(){
   String tNow;
 
@@ -95,7 +113,7 @@ bool rtcPresent(){
   
 }
 
-//************************************************************************
+//*****************************************************************************
 // Retrieve the time from the external, battery-backed RTC and format. 
 String getRTCTime(){
   
@@ -127,35 +145,35 @@ String getRTCTime(){
   return message;   
 }
 
-//************************************************************************
+//*****************************************************************************
 int getRTCSecond(){
   RTClib myRTC;
   DateTime now = myRTC.now();
   return now.second(); 
 }
 
-//************************************************************************
+//*****************************************************************************
 int getRTCMinute(){
   RTClib myRTC;
   DateTime now = myRTC.now();
   return now.minute(); 
 }
 
-//************************************************************************
+//*****************************************************************************
 int getRTCHour(){
   RTClib myRTC;
   DateTime now = myRTC.now();
   return now.hour(); 
 }
 
-//****************************************************************************************
+//*****************************************************************************
 float getRTCTemperature(){
     DS3231 clock;
     return clock.getTemperature(); 
 }
 
 
-//************************************************************************
+//*****************************************************************************
 // Attempt to synchronize the external RTC with the ESP32's internal RTC.
 // If the internal RTC isn't set, leave the current value in the RTC.
 bool setRTCTime(){
@@ -180,11 +198,11 @@ bool setRTCTime(){
   return true;
 }  
 
-//************************************************************************
+//*****************************************************************************
 // Get the time from an NTP server and copy it into the external RTC
 bool synchTimesToNTP(){
   
-  debugUART.println("Getting time from NTP Server... ");
+  debugUART.println("  Getting time from NTP Server... ");
   
   // The return value for the function
   String stringLocalTime="Failed to obtain NTP time";
@@ -193,22 +211,22 @@ bool synchTimesToNTP(){
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   
   stringLocalTime = getESPTime();
-  debugUART.print("  NTP Time: ");
+  debugUART.print("    NTP Time: ");
   debugUART.println(stringLocalTime);
   
   if (stringLocalTime != "Failed to obtain NTP time"){      
     // Set the external, battery-backed RTC to the ESP32's time
     if (rtcPresent()){
-      debugUART.println("Synchronizing RTC w/ NTP Time...");
+      debugUART.println("  Synchronizing RTC w/ NTP Time...");
       setRTCTime(); // Set the RTC to the NTP value we just got.
-      debugUART.print("  Updated RTC Time: ");
+      debugUART.print("    Updated RTC Time: ");
       debugUART.println(getRTCTime()); 
     }
   }  
   
 }
 
-//************************************************************************
+//*****************************************************************************
 // Format a byte as a left zero-padded, two-digit decimal string
 String twoDigits(byte value){
   String message = String(value, DEC);

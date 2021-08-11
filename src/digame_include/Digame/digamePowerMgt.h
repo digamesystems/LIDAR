@@ -12,7 +12,7 @@
 #define debugUART Serial
 
 
-//************************************************************************
+//*****************************************************************************
 void setLowPowerMode() {
     debugUART.print("  Switching to Low Power Mode... ");
     WiFi.disconnect(true);
@@ -26,14 +26,14 @@ void setLowPowerMode() {
 }
 
 
-//************************************************************************ 
+//***************************************************************************** 
 void setFullPowerMode() {
-    debugUART.print("Switching to Full Power Mode... ");
+    debugUART.println("  Switching to Full Power Mode... ");
     setCpuFrequencyMhz(240); // Speed up the CPU
     btStart();               // Turn on Bluetooth
     adc_power_on();          // Turn on the ADCs
     WiFi.mode(WIFI_STA);
-    debugUART.print("Done. Full Power Mode Enabled. ");
+    debugUART.println("    Done. Full Power Mode Enabled. ");
 }
 
 #endif 
