@@ -67,7 +67,7 @@ struct Config
   String sens4Name = "Sensor 4";
   String sens4MAC  = "aa:bb:cc:dd:ee:04";
 
-  String displayType = "SSD1608";
+  String displayType = "SSD1608"; // so we can switch displays at run time based on the config file.
   
 };
 
@@ -167,6 +167,8 @@ void loadConfiguration(const char *filename, Config& config) {
   config.sens4Addr     = (const char*)doc["sensor"]["4"]["addr"];
   config.sens4MAC      = (const char*)doc["sensor"]["4"]["mac"];
  
+  config.displayType   = (const char*)doc["displayType"];
+
   // Close the file (Curiously, File's destructor doesn't close the file)
   file.close();
   printFile(filename);

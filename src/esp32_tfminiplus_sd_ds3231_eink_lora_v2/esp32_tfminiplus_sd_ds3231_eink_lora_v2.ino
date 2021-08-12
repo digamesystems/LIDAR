@@ -5,13 +5,13 @@
  */
 
 // Pick one LoRa or WiFi. These are mutually exclusive.
-#define USE_LORA false         // Use LoRa as the reporting link
-#define USE_WIFI true        // Use WiFi as the reporting link
+#define USE_LORA true         // Use LoRa as the reporting link
+#define USE_WIFI false        // Use WiFi as the reporting link
 
 #define APPEND_RAW_DATA_WIFI true   // In USE_WIFI mode, add 100 points of raw LIDAR data to the wifi 
                                // JSON msg for analysis.
 
-#define STAND_ALONE_LORA false // In USE_LORA mode, this flag enables the AP web server and 
+#define STAND_ALONE_LORA true // In USE_LORA mode, this flag enables the AP web server and 
                                // disables the ACK requirement on LoRa messages, allowing you 
                                // to run without a base station and configure parameters through
                                // the web page. 
@@ -20,8 +20,8 @@
                                 // serial monitor. -- This mode disables other output to the 
                                 // serial monitor after bootup.
 
-const String SW_VERSION       = "0.9.5";
-const String TERSE_SW_VERSION = "095";  
+const String SW_VERSION       = "0.9.51";
+const String TERSE_SW_VERSION = "0951";  
 
 #define debugUART Serial      // Alias for easier reading instead of "Serial, Serial1, Serial2, etc..."
 
