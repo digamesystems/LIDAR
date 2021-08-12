@@ -181,12 +181,17 @@ String loraMsgToJSON(String msg){
   
   // Start and end of the JSON payload in the msg.
   idxstart = msg.indexOf('{');
-  idxstop = msg.indexOf('}')+1;
-
+  
+  //idxstop = msg.indexOf('}')+1; // Changed the approach after we started nesting JSON structs. 
+    idxstop = msg.length() - 8;   // Now going from the end of the msg back 8 chars: 
+                                  // ",-XX,YY" (XX =RSSI, YY=SNR) 
+  
   char json[512] = {};
 
   // The message contains a JSON payload extract to the char array json
   String payload = msg.substring(idxstart,idxstop); 
+  //debugUART.println("LORA Payload");
+  //debugUART.println(payload);
   payload.toCharArray(json,payload.length()+1);
 
   // Deserialize the JSON document
@@ -262,6 +267,8 @@ String loraMsgToJSON(String msg){
   String strDeviceName = "Unknown Device";
   String strDeviceMAC  = "00:01:02:03:04:05";
 
+  String strSettings = doc["s"];
+
   // TODO: move to a look up function and come up with a better storage scheme.
   if (strAddress == config.sens1Addr){
     strDeviceName = config.sens1Name;
@@ -299,9 +306,14 @@ String loraMsgToJSON(String msg){
                  "\",\"rssi\":\""          + strRSSI + 
                  "\",\"snr\":\""           + strSNR +    
                  "\",\"temp\":\""          + strTemperature +  
-                 "\",\"retries\":\""       + strRetries +               
-                 "\"}";
-
+                 "\",\"retries\":\""       + strRetries; 
+                 
+ if ((et=="b")||("et"=="hb")){
+  jsonPayload = jsonPayload + "\",\"settings\":" + strSettings;                  
+  jsonPayload = jsonPayload + "}";
+ } else {       
+  jsonPayload = jsonPayload + "\"}";
+ }
   return jsonPayload;
   
 }

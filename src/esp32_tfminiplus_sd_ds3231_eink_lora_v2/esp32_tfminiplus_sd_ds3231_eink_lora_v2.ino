@@ -5,8 +5,8 @@
  */
 
 // Pick one LoRa or WiFi. These are mutually exclusive.
-#define USE_LORA true         // Use LoRa as the reporting link
-#define USE_WIFI false        // Use WiFi as the reporting link
+#define USE_LORA false         // Use LoRa as the reporting link
+#define USE_WIFI true        // Use WiFi as the reporting link
 
 #define APPEND_RAW_DATA_WIFI true   // In USE_WIFI mode, add 100 points of raw LIDAR data to the wifi 
                                // JSON msg for analysis.
@@ -124,8 +124,6 @@ void initPorts(){
 //****************************************************************************************
 void initUI(){
   
-    initDisplay();
-    displaySplashScreen("(LIDAR Counter)",SW_VERSION);
     splash();
     
 }
@@ -147,20 +145,31 @@ String buildLoRaJSONHeader(String eventType, double count){
   }  
   
   loraHeader = loraHeader +
-               "\",\"v\":\"" + TERSE_SW_VERSION + // Firmware version
-               "\",\"et\":\"" + eventType +       // Event type: boot, heartbeat, vehicle
-               "\",\"c\":\"" + strCount +         // Total counts registered
-               "\",\"t\":\"" + String(getRTCTemperature(),1); // Temperature in C
-
+               "\",\"v\":\""  + TERSE_SW_VERSION + // Firmware version
+               "\",\"et\":\"" + eventType +        // Event type: boot, heartbeat, vehicle
+               "\",\"c\":\""  + strCount +         // Total counts registered
+               "\",\"t\":\""  + String(getRTCTemperature(),1) + // Temperature in C
+               "\",\"r\":\"" + "0" ;             // Retries 
+     
   if (eventType =="v"){
     loraHeader = loraHeader + 
-                 "\",\"da\":\"" + "t";           // Detection algorithm (Threshold)       
+                 "\",\"da\":\"" + "t" + "\"";           // Detection algorithm (Threshold)       
   }             
+               
+  if ((eventType =="b")||(eventType=="hb")){ //In the boot/heartbeat messages, send the current settings.
+    loraHeader = loraHeader +
+                 "\",\"s\":{" +
+                    "\"ui\":\"" + config.lidarUpdateInterval  + "\"" +
+                   ",\"sf\":\"" + config.lidarSmoothingFactor + "\"" +
+                   ",\"rt\":\"" + config.lidarResidenceTime   + "\"" +
+                   ",\"1m\":\"" + config.lidarZone1Min        + "\"" +
+                   ",\"1x\":\"" + config.lidarZone1Max        + "\"" +
+                   ",\"2m\":\"" + config.lidarZone2Min        + "\"" +
+                   ",\"2x\":\"" + config.lidarZone2Max        + "\"" +
+                 "}"; 
+  }
 
-  loraHeader = loraHeader +
-               "\",\"r\":\"" + "0" +              // Retries 
-               "\"";     
-                            
+  debugUART.println(loraHeader);
   return loraHeader;
   
 }
@@ -192,10 +201,23 @@ String buildWiFiJSONHeader(String eventType, double count){
 
   if (eventType =="vehicle"){
     jsonHeader = jsonHeader + 
-                 "\",\"detAlgorithm\":\"" + "Threshold";       // Detection algorithm (Threshold)       
-  }             
+                 "\",\"detAlgorithm\":\"" + "Threshold\"";       // Detection algorithm (Threshold)       
+  }            
 
-  jsonHeader = jsonHeader + "\""; 
+  if ((eventType =="boot")||(eventType=="heartbeat")){ //In the boot/heartbeat messages, send the current settings.
+    jsonHeader = jsonHeader +
+                 "\",\"settings\":{" +
+                    "\"ui\":\"" + config.lidarUpdateInterval  + "\"" +
+                   ",\"sf\":\"" + config.lidarSmoothingFactor   + "\"" +
+                   ",\"rt\":\"" + config.lidarResidenceTime   + "\"" +
+                   ",\"1m\":\"" + config.lidarZone1Min        + "\"" +
+                   ",\"1x\":\"" + config.lidarZone1Max        + "\"" +
+                   ",\"2m\":\"" + config.lidarZone2Min        + "\"" +
+                   ",\"2x\":\"" + config.lidarZone2Max        + "\"" +
+                 "}"; 
+  } 
+
+  //  jsonHeader = jsonHeader + "\""; 
                                    
   return jsonHeader;  
 }
@@ -246,7 +268,11 @@ void messageManager(void *parameter){
         // If we do that, do we save the data to the SD card?
         // Come up with a scheme to send the buffered data when a
         // base station becomes available.      
-        while (!sendReceiveLoRa(activeMessage)){};                                              
+        while (!sendReceiveLoRa(activeMessage)){};  
+
+        //************************
+        // Debugging for range checking! Undo later!!!
+        //count++;                                            
       #endif 
 
       // Send the data to the ParkData server directly
@@ -328,6 +354,9 @@ void setup(){
   initPorts();                      // Set up UARTs and GPIOs
   initUI();                         // Splash screens 
   initJSONConfig(filename, config); // Setup SD card and load default values.
+
+  initDisplay();
+  displaySplashScreen("(LIDAR Counter)",SW_VERSION); 
   
   // If the unit is unconfigured or is booted witht the RESET button held down, enter AP mode.
   if ((config.deviceName == "YOUR_DEVICE_NAME")||(digitalRead(CTR_RESET)== LOW)) {
@@ -346,6 +375,8 @@ void setup(){
     debugUART.println(IP);
     
     server.begin();
+
+    
     displayAPScreen(ssid, WiFi.softAPIP().toString()); 
     
   } else {
@@ -376,7 +407,7 @@ void setup(){
 
     #if USE_WIFI
       myMACAddress = getMACAddress();
-      enableWiFi(config.ssid, config.password);
+      enableWiFi(config);
       hwStatus += "   WiFi:  OK\n\n";
       server.begin();
     

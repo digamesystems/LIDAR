@@ -66,6 +66,8 @@ struct Config
   String sens4Addr = "13";
   String sens4Name = "Sensor 4";
   String sens4MAC  = "aa:bb:cc:dd:ee:04";
+
+  String displayType = "SSD1608";
   
 };
 
@@ -228,6 +230,8 @@ void saveConfiguration(const char *filename, Config& config) {
   doc["sensor"]["4"]["name"]         = config.sens4Name;
   doc["sensor"]["4"]["addr"]         = config.sens4Addr;
   doc["sensor"]["4"]["mac"]          = config.sens4MAC;
+
+  doc["displayType"]                 = config.displayType;
 
   // Serialize JSON to file
   debugUART.println("Writing file...");

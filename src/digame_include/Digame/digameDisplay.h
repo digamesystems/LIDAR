@@ -9,9 +9,10 @@
 
 // base class GxEPD2_GFX can be used to pass references or pointers to the display instance as parameter, uses ~1.2k more code
 // enable or disable GxEPD2_GFX base class
-#define ENABLE_GxEPD2_GFX 0
+#define ENABLE_GxEPD2_GFX 1 // Took me a longer than it should have to find this! -- 
 
 #include <GxEPD2_BW.h>
+
 
 //#include "GxEPD2_display_selection.h"
 
@@ -23,36 +24,38 @@
 #define SD_CS       14  // SD card chip select
 #define EPD_RESET   -1   // can set to -1 and share with chip Reset (can't deep sleep)
 
-
-
-// Just grabbed the constructor we need from GxEPD2_display_selection and copied here.
-// ADAFRUIT 1.54" ePaper Display. SSD1608
-  GxEPD2_BW<GxEPD2_154, GxEPD2_154::HEIGHT> display(GxEPD2_154(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEH0154D67
-
-// ADAFRUIT 1.54" ePaper Display. SSD1681
-//  GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display2(GxEPD2_154_D67(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEW0154M09 200x200
-
-
 #define debugUART Serial
 
-// Declares
-/*
-//void initDisplay();
-void displaySplash(String s);
-void displaySplashScreen(String s, String swVersion)
-void displayInitializing();
-void displayCount(double c);
-void showValue(double v);
-*/
+
+// Just grabbed the constructors we need from GxEPD2_display_selection and copied here.
+
+// ADAFRUIT 1.54" ePaper Display. SSD1608
+  GxEPD2_BW<GxEPD2_154, GxEPD2_154::HEIGHT> display1(GxEPD2_154(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEH0154D67
+
+// ADAFRUIT 1.54" ePaper Display. SSD1681
+  GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display2(GxEPD2_154_D67(/*CS=5*/ EPD_CS, /*DC=*/ EPD_DC, /*RST=*/ EPD_RESET, /*BUSY=*/ EPD_BUSY)); // GDEW0154M09 200x200
+
+//GxEPD2_GFX& display = display2;
+String displayType = "SSD1681";
 
 //******************************************************************************************
+GxEPD2_GFX& getDisplay(){ // So we can use different displays. 
+
+  if (displayType == "SSD1608"){
+    return display1;
+  }else {
+    return display2;
+  }
+}
+
 void initDisplay()
 {
-
+ 
+  GxEPD2_GFX& display = getDisplay();
+  
   display.init(0);
   display.setRotation(3);
   display.setTextSize(2);
-  //display.setFont(&FreeMonoBold9pt7b);
   display.setTextColor(GxEPD_BLACK);
   display.fillScreen(GxEPD_WHITE);
   return;
@@ -78,6 +81,7 @@ class PrintString : public Print, public String
 //******************************************************************************************
 // Print a string on the display, centered, at a particular y value.
 void centerPrint(String s, uint16_t y){
+  GxEPD2_GFX& display = getDisplay();
   int16_t tx, ty; 
   uint16_t tw, th;
   display.getTextBounds(s, 0, 0, &tx, &ty, &tw, &th);
@@ -90,9 +94,8 @@ void centerPrint(String s, uint16_t y){
 
 //******************************************************************************************
 void displayTitles(String title1, String title2){
-  display.fillScreen(GxEPD_WHITE);
-  //display.display();   
-  //display.setTextColor(GxEPD_BLACK);      
+  GxEPD2_GFX& display = getDisplay();
+  display.fillScreen(GxEPD_WHITE);    
   display.setTextSize(3);
   centerPrint(title1,10);
   display.setTextSize(2);
@@ -102,6 +105,7 @@ void displayTitles(String title1, String title2){
 
 //******************************************************************************************
 void displayCopyright(){
+  GxEPD2_GFX& display = getDisplay();
   display.setTextSize(1);
   centerPrint("HEIMDALL VCS", 170);
   centerPrint("Copyright 2021, Digame Systems.", 180);
@@ -122,7 +126,7 @@ void displaySplashScreen(String s, String swVersion){
 
 
 //******************************************************************************************
-void displayIPScreen(String s){
+void displayIPScreen( String s){
   displayTitles("NETWORK","");
   centerPrint("IP Address",75);
   centerPrint(s, 100);
@@ -143,6 +147,7 @@ void displayAPScreen(String ssid, String ip){
 
 //******************************************************************************************
 void displayTextScreen(String title, String s){
+  GxEPD2_GFX& display = getDisplay();
   displayTitles(title,""); 
   display.setCursor(0, 50);
   display.print(s);
@@ -171,6 +176,7 @@ void displayCountScreen(double v){
 
 //******************************************************************************************
 void showValue(double v){
+  GxEPD2_GFX& display = getDisplay();
   int digits = 0; 
   
   display.setTextSize(5);
