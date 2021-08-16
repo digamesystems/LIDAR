@@ -5,13 +5,13 @@
  */
 
 // Pick one LoRa or WiFi. These are mutually exclusive.
-#define USE_LORA true         // Use LoRa as the reporting link
+#define USE_LORA true       // Use LoRa as the reporting link
 #define USE_WIFI false        // Use WiFi as the reporting link
 
-#define APPEND_RAW_DATA_WIFI true   // In USE_WIFI mode, add 100 points of raw LIDAR data to the wifi 
-                               // JSON msg for analysis.
+#define APPEND_RAW_DATA_WIFI true // In USE_WIFI mode, add 100 points of raw LIDAR data to the wifi 
+                                  // JSON msg for analysis.
 
-#define STAND_ALONE_LORA true // In USE_LORA mode, this flag enables the AP web server and 
+#define STAND_ALONE_LORA false // In USE_LORA mode, this flag enables the AP web server and 
                                // disables the ACK requirement on LoRa messages, allowing you 
                                // to run without a base station and configure parameters through
                                // the web page. 
@@ -20,8 +20,7 @@
                                 // serial monitor. -- This mode disables other output to the 
                                 // serial monitor after bootup.
 
-const String SW_VERSION       = "0.9.51";
-const String TERSE_SW_VERSION = "0951";  
+#include <digameVersion.h> 
 
 #define debugUART Serial      // Alias for easier reading instead of "Serial, Serial1, Serial2, etc..."
 
@@ -63,7 +62,7 @@ TaskHandle_t displayManagerTask;
 // Messaging flags
 bool   jsonPostNeeded         = false;
 bool   bootMessageNeeded      = true;
-bool   heartbeatMessageNeeded = false;
+bool   heartbeatMessageNeeded = true;
 bool   vehicleMessageNeeded   = false;
 
 // DIO
@@ -123,9 +122,7 @@ void initPorts(){
 
 //****************************************************************************************
 void initUI(){
-  
-    splash();
-    
+    splash();   
 }
 
 
@@ -169,7 +166,7 @@ String buildLoRaJSONHeader(String eventType, double count){
                  "}"; 
   }
 
-  debugUART.println(loraHeader);
+  // debugUART.println(loraHeader);
   return loraHeader;
   
 }
@@ -250,9 +247,9 @@ void messageManager(void *parameter){
   
   for(;;){  
 
-    //****************************
-    //LoRa message
-    //****************************
+    //*******************************
+    // Process a message on the queue
+    //*******************************
     if (msgBuffer.size()>0){ 
           
       xSemaphoreTake(mutex_v, portMAX_DELAY); 
@@ -268,11 +265,7 @@ void messageManager(void *parameter){
         // If we do that, do we save the data to the SD card?
         // Come up with a scheme to send the buffered data when a
         // base station becomes available.      
-        while (!sendReceiveLoRa(activeMessage)){};  
-
-        //************************
-        // Debugging for range checking! Undo later!!!
-        //count++;                                            
+        while (!sendReceiveLoRa(activeMessage)){};                                             
       #endif 
 
       // Send the data to the ParkData server directly
@@ -293,7 +286,8 @@ void messageManager(void *parameter){
 }
 
 
-
+//****************************************************************************************
+// A task to update the display when the count changes. -- Runs on core 0.
 void countDisplayManager(void *parameter){
   int countDisplayUpdateRate = 20;
   unsigned int myCount;
@@ -305,8 +299,7 @@ void countDisplayManager(void *parameter){
   #endif 
   
   for(;;){  
-    
-    
+      
     myCount = count;
 
     if (myCount != oldCount){
@@ -336,9 +329,6 @@ void handleModeButtonPress(){
        debugUART.print("Loop: RESET button pressed. Count: ");
        debugUART.println(count);  
     #endif
-    //initDisplay();
-    //displayCountScreen(count);
-    //showValue(count);
   }  
 }
 
@@ -348,13 +338,19 @@ void handleModeButtonPress(){
 //****************************************************************************************
 void setup(){
 
-
   String hwStatus = "";             // String to hold the results of self-test
   
   initPorts();                      // Set up UARTs and GPIOs
   initUI();                         // Splash screens 
-  initJSONConfig(filename, config); // Setup SD card and load default values.
-
+  
+  if (initJSONConfig(filename, config))
+  {// Setup SD card and load default values.
+    hwStatus+="     SD:  OK\n\n";
+      
+  } else{
+    hwStatus+="     SD:  ERROR!\n\n"; 
+  };
+  
   initDisplay();
   displaySplashScreen("(LIDAR Counter)",SW_VERSION); 
   
@@ -392,7 +388,7 @@ void setup(){
         debugUART.println(IP);   
         server.begin();
         displayAPScreen(ssid, WiFi.softAPIP().toString());
-        delay(2000); 
+        delay(3000); 
       #else
         setLowPowerMode(); // Lower clock rate and turn off WiFi   
       #endif
@@ -410,7 +406,6 @@ void setup(){
       enableWiFi(config);
       hwStatus += "   WiFi:  OK\n\n";
       server.begin();
-    
     #endif
     
     if (initLIDAR(true)) { // Turn on LIDAR sensor
@@ -467,6 +462,11 @@ void setup(){
   
 }
 
+void pushMessage(String message){
+  xSemaphoreTake(mutex_v, portMAX_DELAY);  
+    msgBuffer.push(message);
+  xSemaphoreGive(mutex_v);  
+}
 
 //****************************************************************************************
 // Main Loop
@@ -521,7 +521,7 @@ void loop(){
       if (bootMessageNeeded){
         msgPayload = buildJSONHeader("b",count);
         msgPayload = msgPayload + "}"; 
-        jsonPostNeeded = true;
+        pushMessage(msgPayload);
         bootMessageNeeded = false;
       }
 
@@ -532,7 +532,7 @@ void loop(){
       if (heartbeatMessageNeeded){
         msgPayload = buildJSONHeader("hb",count);
         msgPayload = msgPayload + "}";
-        jsonPostNeeded = true;
+        pushMessage(msgPayload);
         heartbeatMessageNeeded = false; 
       }
       oldheartbeatMinute = heartbeatMinute;
@@ -565,20 +565,10 @@ void loop(){
           #endif
           
           msgPayload = msgPayload + "}";   
-          jsonPostNeeded = true; 
+          pushMessage(msgPayload);
         }
         vehicleMessageNeeded = false; 
       }
     
-
-    //********************************************************************************
-    // If we need to send a message, push the JSON payload into the message buffer. 
-    // The messageManager task will handle it in a separate task. 
-      if (jsonPostNeeded){
-        xSemaphoreTake(mutex_v, portMAX_DELAY);  
-          msgBuffer.push(msgPayload);
-        xSemaphoreGive(mutex_v);
-        jsonPostNeeded = false;     
-      }  
   } 
 }

@@ -10,10 +10,10 @@
  *  Copyright 2021, Digame systems. All rights reserved. 
  */
  
-const String SW_VERSION       = "0.9.5";
-const String TERSE_SW_VERSION = "095";
 
 #define USE_LORA true
+
+#include <digameVersion.h>
 
 #include <CircularBuffer.h>   // Adafruit library. Pretty small!
 #include <ArduinoJson.h>      // 
@@ -228,7 +228,7 @@ String loraMsgToJSON(String msg){
   
   if (et=="b"){
       strEventType = "Boot";
-  } else if (et == "h"){
+  } else if (et == "hb"){
       strEventType = "Heartbeat";
   } else if (et == "v"){
       strEventType = "Vehicle";
