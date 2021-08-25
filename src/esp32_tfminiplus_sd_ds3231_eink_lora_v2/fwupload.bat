@@ -1,0 +1,1 @@
+esptool.exe --chip esp32 --port COM25 --baud 921600 --before default_reset --after hard_reset write_flash -z --flash_mode dio --flash_freq 80m --flash_size detect 0x10000 esp32_tfminiplus_sd_ds3231_eink_lora_v2.ino.esp32.bin

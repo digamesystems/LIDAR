@@ -12,7 +12,7 @@ uint16_t LoRaRetryCount = 0;
 void initLoRa()
 {
   LoRaUART.begin(115200, SERIAL_8N1, 25, 33);
-  delay(1000);
+  delay(1500);
 }
 
 //****************************************************************************************
@@ -46,9 +46,10 @@ bool configureLoRa(Config &config)
 {
 
   debugUART.println("  Configuring LoRa...");
-
-  sendReceiveReyax("AT"); // Get the module's attention
-  sendReceiveReyax("AT"); // Get the module's attention
+  LoRaUART.println("AT");
+  delay(1000);
+  //sendReceiveReyax("AT"); // Get the module's attention
+  //sendReceiveReyax("AT"); // Get the module's attention
 
   debugUART.println("    Setting Address to: " + config.loraAddress);
   ///config.loraAddress.trim();
@@ -76,7 +77,7 @@ bool configureLoRa(Config &config)
 // Sends a message to another LoRa module and listens for an ACK reply.
 bool sendReceiveLoRa(String msg)
 {
-  long timeout = 1000; // TODO: Make this part of the Config struct -- better yet,
+  long timeout = 2000; // TODO: Make this part of the Config struct -- better yet,
                        // calculate from the LoRa RF parameters and payload...
   bool replyPending = true;
   String strRetryCount;

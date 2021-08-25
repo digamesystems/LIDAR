@@ -108,6 +108,7 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
               config.loraPreamble = getQueryParam(header,"preamble");
               saveConfiguration(filename,config);
               #if USE_LORA 
+              initLoRa();
               configureLoRa(config);
               #endif
             

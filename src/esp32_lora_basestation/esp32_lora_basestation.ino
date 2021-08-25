@@ -118,6 +118,8 @@ void splash(){
 void postDatalog(){
   if (initSDCard()){
     String jsonPayload="";
+
+    debugUART.println("POSTING DATALOG.TXT to server...");
     
     File dataFile = SD.open("/DATALOG.TXT");
   
@@ -509,7 +511,7 @@ void setup() {
     debugUART.println("    ServerURL: " + config.serverURL);
     
     setFullPowerMode(); //Run at full power and max speed with WiFi enabled by default
-    
+    delay(500);
     enableWiFi(config);
     
     myMACAddress = getMACAddress();

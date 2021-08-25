@@ -11,7 +11,7 @@
 #define APPEND_RAW_DATA_WIFI true // In USE_WIFI mode, add 100 points of raw LIDAR data to the wifi 
                                   // JSON msg for analysis.
 
-#define STAND_ALONE_LORA false // In USE_LORA mode, this flag enables the AP web server and 
+#define STAND_ALONE_LORA true // In USE_LORA mode, this flag enables the AP web server and 
                                // disables the ACK requirement on LoRa messages, allowing you 
                                // to run without a base station and configure parameters through
                                // the web page. 
@@ -244,6 +244,7 @@ void messageManager(void *parameter){
 
   debugUART.print("Message Manager Running on Core #: ");
   debugUART.println(xPortGetCoreID());
+  debugUART.println();
   
   for(;;){  
 
@@ -296,6 +297,7 @@ void countDisplayManager(void *parameter){
   #if !(SHOW_DATA_STREAM)
   debugUART.print("Display Manager Running on Core #: ");
   debugUART.println(xPortGetCoreID());
+  debugUART.println();
   #endif 
   
   for(;;){  
@@ -304,10 +306,12 @@ void countDisplayManager(void *parameter){
 
     if (myCount != oldCount){
       // Total refresh every 10 counts. (Or when we zero out the counter.)
-      if ((myCount%10==0)) {
-        initDisplay();
-        displayCountScreen(myCount);
-      }       
+      //if (displayType=="SSD1608"){
+        if ((myCount%100==0)) {
+          initDisplay();
+          displayCountScreen(myCount);
+        }       
+      //}
       showValue(myCount);  
       oldCount = myCount;
     }
@@ -345,10 +349,10 @@ void setup(){
   
   if (initJSONConfig(filename, config))
   {// Setup SD card and load default values.
-    hwStatus+="     SD:  OK\n\n";
+    hwStatus+="   SD   : OK\n\n";
       
   } else{
-    hwStatus+="     SD:  ERROR!\n\n"; 
+    hwStatus+="   SD   : ERROR!\n\n"; 
   };
   
   initDisplay();
@@ -381,10 +385,10 @@ void setup(){
 
     #if USE_LORA  
       #if STAND_ALONE_LORA
-        debugUART.println("Stand-Alone Mode. Setting AP (Access Point)…");  
+        debugUART.println("  Stand-Alone Mode. Setting AP (Access Point)…");  
         WiFi.softAP(ssid);
         IPAddress IP = WiFi.softAPIP();
-        debugUART.print("  AP IP address: ");
+        debugUART.print("    AP IP address: ");
         debugUART.println(IP);   
         server.begin();
         displayAPScreen(ssid, WiFi.softAPIP().toString());
@@ -395,9 +399,9 @@ void setup(){
       
       initLoRa();
       if (configureLoRa(config)){ // Configure radio params  
-        hwStatus+="   LoRa:  OK\n\n";
+        hwStatus+="   LoRa : OK\n\n";
       } else{
-        hwStatus+="   LoRa:  ERROR!\n\n";  
+        hwStatus+="   LoRa : ERROR!\n\n";  
       }
     #endif
 
@@ -419,9 +423,19 @@ void setup(){
     }else{
       hwStatus+="   RTC  : ERROR!\n";
     }
+
+    #if USE_WIFI
+      if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
+        synchTimesToNTP();
+        //displayIPScreen(WiFi.localIP().toString());
+        //delay(5000);
+      }
+    #endif
+
+    debugUART.println();
     
     displayStatusScreen(hwStatus); // Show results of the configuration above
-    delay(3000);
+    delay(5000);
 
     count=0;
     displayCountScreen(count);
@@ -456,6 +470,7 @@ void setup(){
 
   }    
   currentTime = getRTCTime(); 
+  bootMinute = getRTCMinute();
   debugUART.println();
   debugUART.println("RUNNING!");  
   debugUART.println(); 

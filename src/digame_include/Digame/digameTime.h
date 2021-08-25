@@ -54,7 +54,7 @@ bool initRTC(){
   if (rtcPresent()){
     debugUART.println("    RTC found. (Program will use time from RTC.)");
     //stat +="   RTC  : OK\n";
-    debugUART.print("      RTC Time: ");
+    debugUART.print("    RTC Time: ");
     debugUART.println(getRTCTime()); 
     return true;
   }else{

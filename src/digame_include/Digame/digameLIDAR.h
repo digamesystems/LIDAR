@@ -46,10 +46,10 @@ bool initLIDAR(bool triggeredMode = false)
     delay(500);
     if (triggeredMode)
     {
-      debugUART.printf("  Adjusting Frame Rate... ");
+      debugUART.print("    Adjusting LIDAR Frame Rate... ");
       if (tfmP.sendCommand(SET_FRAME_RATE, FRAME_0))
       { //FRAME_0 is triggered mode.
-        debugUART.println("  Frame Rate Adjusted.");
+        debugUART.println("Frame Rate Adjusted.");
       }
     }
 

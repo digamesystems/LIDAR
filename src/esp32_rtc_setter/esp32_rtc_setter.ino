@@ -8,18 +8,19 @@
  
 #define debugUART Serial
 
+#include <digameJSONConfig.h>   // Config Struct
 #include <digameTime.h>         // Digame Time Functions
 #include <digameNetwork.h>      // Digame Network Functions
 
 // Globals
 String swVersion = "1.0.0";
-String ssid       = "Bighead";   // YOUR_NETWORK_NAME 
-String password   = "billgates"; // YOUR_PASSWORD
+
+Config config;
 
 // Declares
 void  initPorts(); // Set up the Serial port
 void  splash();    // Show a boot message on the Serial port 
-void  enableWiFi(char*,char*); // Log into the network using our SSID/PW
+//void  enableWiFi(char*,char*); // Log into the network using our SSID/PW
 
 
 //************************************************************************
@@ -64,8 +65,11 @@ void setup() {
   splash();   
   
   debugUART.println("INITIALIZING\n");
-  
-  enableWiFi(ssid, password);
+
+  config.ssid       = (const char *)"Bighead";   // YOUR_NETWORK_NAME 
+  config.password   = (const char *)"billgates"; // YOUR_PASSWORD
+
+  enableWiFi(config);
   
   debugUART.println("  MAC Address: " + getMACAddress());  
   

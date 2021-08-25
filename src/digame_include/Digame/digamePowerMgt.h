@@ -30,9 +30,11 @@ void setLowPowerMode() {
 void setFullPowerMode() {
     debugUART.println("  Switching to Full Power Mode... ");
     setCpuFrequencyMhz(240); // Speed up the CPU
-    btStart();               // Turn on Bluetooth
+    //btStart();               // Turn on Bluetooth
+    //Experiment with not using bluetooth to reduce power consumption 
+    btStop();
+    esp_bt_controller_disable();
     adc_power_on();          // Turn on the ADCs
-    WiFi.mode(WIFI_STA);
     debugUART.println("    Done. Full Power Mode Enabled. ");
 }
 

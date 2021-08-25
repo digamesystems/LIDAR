@@ -49,14 +49,13 @@ bool enableWiFi(Config config)
     WiFi.disconnect();   // Disconnect the network
     WiFi.mode(WIFI_OFF); // Switch WiFi off
 
-    delay(200);
+    delay(1000); // Wait a bit...
 
     debugUART.print("  Starting WiFi");
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid.c_str(), password.c_str());
+    WiFi.mode(WIFI_STA); // Station mode
+    delay(250);
+    WiFi.begin(ssid.c_str(), password.c_str()); // Log in
 
-    // This will stay hear forever if there is no network... TODO: add timeout
-    // and retries...
 
     bool timedout = false;
     unsigned long wifiTimeout = 10000;

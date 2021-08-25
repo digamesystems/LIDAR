@@ -12,6 +12,7 @@
 #define ENABLE_GxEPD2_GFX 1 // Took me a longer than it should have to find this! --
 
 #include <GxEPD2_BW.h>
+#include <EEPROM.h>
 
 //#include "GxEPD2_display_selection.h"
 
@@ -52,6 +53,43 @@ GxEPD2_GFX &getDisplay()
 
 void initDisplay()
 {
+  debugUART.println("  Initializing eInk Display...");
+  debugUART.println("    Reading EEPROM");
+  EEPROM.begin(10);
+  delay(1000);
+
+  if (EEPROM.read(0)==255){
+    debugUART.println("    ****Display Uninitialized****");
+    debugUART.println("    Enter Display Type 1=SSD1608, 2=SSD1681: ");
+    
+    while (!(debugUART.available())){
+      delay(10); // wait for data from the user... 
+    }
+
+    String inString = debugUART.readStringUntil('\n');
+    inString.trim();
+    debugUART.print("    You entered: ");
+    debugUART.println(inString);
+
+    if (inString =="1"){
+       displayType = "SSD1608";
+       EEPROM.write(0,1);
+       EEPROM.commit();
+    }
+
+    if (inString == "2"){
+       displayType = "SSD1681";
+       EEPROM.write(0,2);
+       EEPROM.commit();
+    }
+  } 
+
+  debugUART.print("    Display Type: ");
+  debugUART.print(EEPROM.read(0));
+  if (EEPROM.read(0)==1){displayType="SSD1608";}
+  if (EEPROM.read(0)==2){displayType="SSD1681";}
+  debugUART.print(" = ");
+  debugUART.println(displayType);
 
   GxEPD2_GFX &display = getDisplay();
 
