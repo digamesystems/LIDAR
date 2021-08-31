@@ -134,10 +134,12 @@ bool sendReceiveLoRa(String msg)
 // Wait for ACK or timeout
 
 // For Testing, don't wait for an ACK from a basestation
+/*          
 #if STAND_ALONE_LORA
   replyPending = false;
   return true;
 #endif
+*/
 
   while ((replyPending == true) && ((t2 - t1) < timeout))
   {
