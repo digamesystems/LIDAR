@@ -28,12 +28,12 @@ String getMACAddress()
     String retString;
 
     WiFi.macAddress(mac);
-    retString = String(String(mac[5], HEX) + ":");
-    retString = String(retString + String(mac[4], HEX) + ":");
-    retString = String(retString + String(mac[3], HEX) + ":");
-    retString = String(retString + String(mac[2], HEX) + ":");
+    retString = String(String(mac[0], HEX) + ":");
     retString = String(retString + String(mac[1], HEX) + ":");
-    retString = String(retString + String(mac[0], HEX));
+    retString = String(retString + String(mac[2], HEX) + ":");
+    retString = String(retString + String(mac[3], HEX) + ":");
+    retString = String(retString + String(mac[4], HEX) + ":");
+    retString = String(retString + String(mac[5], HEX));
 
     return retString;
 }

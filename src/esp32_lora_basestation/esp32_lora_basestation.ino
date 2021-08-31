@@ -61,6 +61,13 @@ TaskHandle_t messageManagerTask;
 TaskHandle_t eventDisplayManagerTask;
 
 String strDisplay=""; // contents of the event screen.
+
+// Counter values for each counter
+String str1Count = "0";
+String str2Count = "0"; 
+String str3Count = "0"; 
+String str4Count = "0"; 
+String strTotal  = "0";
     
 const int samples = 200;
 CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages to be 
@@ -279,16 +286,24 @@ String loraMsgToJSON(String msg){
   if (strAddress == config.sens1Addr){
     strDeviceName = config.sens1Name;
     strDeviceMAC = config.sens1MAC;    
+    str1Count = strCount;
   } else if (strAddress == config.sens2Addr){
     strDeviceName = config.sens2Name;
     strDeviceMAC = config.sens2MAC;
+    str2Count = strCount;
   } else if (strAddress == config.sens3Addr){
     strDeviceName = config.sens3Name;
     strDeviceMAC = config.sens3MAC;
+    str3Count = strCount;
   } else if (strAddress == config.sens4Addr){
     strDeviceName = config.sens4Name;
     strDeviceMAC = config.sens4MAC;
+    str4Count = strCount;
   }
+
+  strTotal = String( str1Count.toInt() + str2Count.toInt() + str3Count.toInt() + str4Count.toInt());
+
+  
 
   String strRetries = doc["r"];
   
@@ -387,7 +402,8 @@ void handleModeButtonPress(){
         displayIPScreen(WiFi.localIP().toString()); 
         break;
       case 3:
-        displayTextScreen("STATUS","    Listening\n\n       ...");
+        //displayTextScreen("STATUS","    Listening\n\n       ...");
+        displayCountersSummaryScreen(strTotal,getCounterSummary());
         break;     
     }
   }   
@@ -472,7 +488,8 @@ void eventDisplayManager(void *parameter){
 
     if (strDisplay != oldStrDisplay){
         oldStrDisplay = strDisplay;        
-        displayEventScreen(strDisplay);
+        //displayEventScreen(strDisplay);
+        displayCountersSummaryScreen(strTotal,getCounterSummary());
       }       
   
     vTaskDelay(eventDisplayUpdateRate / portTICK_PERIOD_MS);
@@ -480,6 +497,16 @@ void eventDisplayManager(void *parameter){
 }
     
 
+String getCounterSummary(){
+  String retVal  = "";
+  retVal += "   Ctr.   Count\n";
+  retVal += " ---------------\n";
+  retVal += "    1      " + str1Count + "\n";
+  retVal += "    2      " + str2Count + "\n";
+  retVal += "    3      " + str3Count + "\n";
+  retVal += "    4      " + str4Count + "\n";
+  return retVal;
+}
 
 //****************************************************************************************
 // Setup
@@ -541,8 +568,8 @@ void setup() {
   //WiFi.mode(WIFI_AP);
   //WiFi.softAP("esp32");
   
-  Serial.print("local IP address: ");
-  Serial.println(WiFi.softAPIP());
+  //Serial.print("local IP address: ");
+  //Serial.println(WiFi.softAPIP());
 
        
     mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
@@ -570,14 +597,14 @@ void setup() {
       0);
 
     displayMode=3;
-    displayTextScreen("STATUS","    Listening\n\n       ...");
-    
+    //displayTextScreen("STATUS","    Listening\n\n       ...");
+    displayCountersSummaryScreen(strTotal,getCounterSummary());
   }
 
   // Port defaults to 3232
   // ArduinoOTA.setPort(3232);
   // Hostname defaults to esp3232-[MAC]
-  ArduinoOTA.setHostname("Digame-STN-001");
+  ArduinoOTA.setHostname(String(String("Digame-STN-") + getMACAddress()).c_str());
 
   // No authentication by default
   // ArduinoOTA.setPassword("admin");

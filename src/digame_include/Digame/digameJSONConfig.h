@@ -35,7 +35,7 @@ struct Config
   String loraAddress = "10";
   String loraNetworkID = "7";
   String loraBand = "915000000";
-  String loraSF = "7";
+  String loraSF = "10";
   String loraBW = "7";
   String loraCR = "1";
   String loraPreamble = "7";
@@ -44,7 +44,7 @@ struct Config
   String lidarDetectionAlgorithm = "Threshold";
   String lidarUpdateInterval = "10";
   String lidarSmoothingFactor = "0.6";
-  String lidarResidenceTime = "1000";
+  String lidarResidenceTime = "200";
   String lidarZone1Min = "0";
   String lidarZone1Max = "300";
   String lidarZone2Min = "400";

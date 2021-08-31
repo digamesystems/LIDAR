@@ -4,6 +4,11 @@
  * Copyright 2021, Digame Systems. All rights reserved.
  */
 
+//for Over-the-Air updates...
+#include <WiFi.h>
+#include <ArduinoOTA.h>
+
+
 // Pick one LoRa or WiFi. These are mutually exclusive.
 #define USE_LORA true       // Use LoRa as the reporting link
 #define USE_WIFI false        // Use WiFi as the reporting link
@@ -64,6 +69,9 @@ bool   jsonPostNeeded         = false;
 bool   bootMessageNeeded      = true;
 bool   heartbeatMessageNeeded = true;
 bool   vehicleMessageNeeded   = false;
+
+// Over the Air Updates work when we have WiFi or are in Access Point Mode...
+bool useOTA = false;
 
 // DIO
 int    LED_DIAG  = 12;     // Indicator LED
@@ -362,12 +370,14 @@ void setup(){
   if ((config.deviceName == "YOUR_DEVICE_NAME")||(digitalRead(CTR_RESET)== LOW)) {
     
     accessPointMode = true;
+    useOTA = true; 
     
     debugUART.println("*******************************");
     debugUART.println("Launching in Access Point Mode!");  
     debugUART.println("*******************************");
     debugUART.println("Setting AP (Access Point)…");
-    
+
+    WiFi.mode(WIFI_AP);
     WiFi.softAP(ssid);
   
     IPAddress IP = WiFi.softAPIP();
@@ -385,7 +395,9 @@ void setup(){
 
     #if USE_LORA  
       #if STAND_ALONE_LORA
+        useOTA = true;
         debugUART.println("  Stand-Alone Mode. Setting AP (Access Point)…");  
+        WiFi.mode(WIFI_AP);
         WiFi.softAP(ssid);
         IPAddress IP = WiFi.softAPIP();
         debugUART.print("    AP IP address: ");
@@ -406,11 +418,64 @@ void setup(){
     #endif
 
     #if USE_WIFI
+      useOTA = true;
+      
       myMACAddress = getMACAddress();
       enableWiFi(config);
+      displayIPScreen(String(WiFi.localIP().toString()));
+      delay(3000);
       hwStatus += "   WiFi:  OK\n\n";
       server.begin();
     #endif
+
+
+    debugUART.print("  USE OTA: ");
+    debugUART.println(useOTA);
+    if (useOTA){
+      
+      // Port defaults to 3232
+      // ArduinoOTA.setPort(3232);
+      // Hostname defaults to esp3232-[MAC]
+      ArduinoOTA.setHostname(String(String("Digame-CTR-") + getMACAddress()).c_str());
+    
+      // No authentication by default
+      // ArduinoOTA.setPassword("admin");
+    
+      // Password can be set with it's md5 value as well
+      // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+      // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+    
+      ArduinoOTA
+        .onStart([]() {
+          String type;
+          if (ArduinoOTA.getCommand() == U_FLASH)
+            type = "sketch";
+          else // U_SPIFFS
+            type = "filesystem";
+    
+          // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+          Serial.println("Start updating " + type);
+        })
+        .onEnd([]() {
+          Serial.println("\nEnd");
+        })
+        .onProgress([](unsigned int progress, unsigned int total) {
+          Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+        })
+        .onError([](ota_error_t error) {
+          Serial.printf("Error[%u]: ", error);
+          if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+          else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+          else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+          else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+          else if (error == OTA_END_ERROR) Serial.println("End Failed");
+        });
+    
+      ArduinoOTA.begin();
+    
+          
+    }
+    
     
     if (initLIDAR(true)) { // Turn on LIDAR sensor
       hwStatus+="   LIDAR: OK\n\n";
@@ -490,7 +555,12 @@ void pushMessage(String message){
 long lastHistMS = 0; // Timer variable
 
 void loop(){ 
-
+   
+   // OTA kick
+  if (useOTA){
+    ArduinoOTA.handle();
+  }
+   
   // Grab the current time
   currentTime = getRTCTime();
     

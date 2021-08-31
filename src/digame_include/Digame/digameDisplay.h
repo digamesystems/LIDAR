@@ -213,6 +213,16 @@ void displayCountScreen(double v)
 }
 
 //******************************************************************************************
+void displayCountersSummaryScreen(String total, String summary)
+{
+  GxEPD2_GFX &display = getDisplay();  
+  displayTitles("SUMMARY", "Total: " + total);
+  display.setCursor(0, 70);
+  display.print(summary);
+  displayCopyright();
+}
+
+//******************************************************************************************
 void showValue(double v)
 {
   GxEPD2_GFX &display = getDisplay();
