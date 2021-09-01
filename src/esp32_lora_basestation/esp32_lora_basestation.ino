@@ -238,6 +238,7 @@ String loraMsgToJSON(String msg){
   String et = doc["et"];
 
   String strVersion = doc["v"];
+  String strLane = doc["l"];
   
   if (et=="b"){
       strEventType = "Boot";
@@ -245,6 +246,7 @@ String loraMsgToJSON(String msg){
       strEventType = "Heartbeat";
   } else if (et == "v"){
       strEventType = "Vehicle";
+      
   } else { 
       strEventType = "Unknown";
       return "IGNORE";  // If we don't know what this is, don't bother the server with it.
@@ -321,13 +323,17 @@ String loraMsgToJSON(String msg){
                  "\",\"firmwareVER\":\""   + strVersion  + 
                  "\",\"timeStamp\":\""     + strTime + 
                  "\",\"linkMode\":\""      + "LoRa" +
-                 "\",\"eventType\":\""     + strEventType + 
+                 "\",\"eventType\":\""     + strEventType +
                  "\",\"detAlgorithm\":\""  + strDetAlg +
                  "\",\"count\":\""         + strCount + 
                  "\",\"rssi\":\""          + strRSSI + 
                  "\",\"snr\":\""           + strSNR +    
                  "\",\"temp\":\""          + strTemperature +  
                  "\",\"retries\":\""       + strRetries; 
+
+ if (et=="v"){
+  jsonPayload = jsonPayload + "\",\"lane\":\"" + strLane;
+ }
                  
  if ((et=="b")||("et"=="hb")){
   jsonPayload = jsonPayload + "\",\"settings\":" + strSettings;                  

@@ -104,8 +104,10 @@ bool sendReceiveLoRa(String msg)
   // Test if parsing succeeded.
   if (error)
   {
+    
     debugUART.print(F("deserializeJson() failed: "));
     debugUART.println(error.f_str());
+    debugUART.println(msg);
     return false;
   }
 
@@ -134,12 +136,12 @@ bool sendReceiveLoRa(String msg)
 // Wait for ACK or timeout
 
 // For Testing, don't wait for an ACK from a basestation
-/*          
+          
 #if STAND_ALONE_LORA
   replyPending = false;
   return true;
 #endif
-*/
+
 
   while ((replyPending == true) && ((t2 - t1) < timeout))
   {

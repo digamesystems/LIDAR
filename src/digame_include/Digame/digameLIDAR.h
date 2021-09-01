@@ -93,9 +93,11 @@ String getDistanceHistogramString()
 }
 
 //*****************************************************************************
-// A dirt-simple processing scheme based on a hard threshold read from the
-// SD card. Pretty susceptible to noisy conditions. TODO: Improve.
-bool processLIDARSignal(Config config)
+// A pretty simple zone-based scheme for detecting vehicles. A vehicle must be 
+// in a zone for a period of time to count as 'present'. When it leaves the zone
+// an event is generated. 
+
+int processLIDARSignal(Config config)
 {
   // LIDAR signal analysis parameters
 
@@ -120,7 +122,7 @@ bool processLIDARSignal(Config config)
   unsigned int lidarUpdateRate = 15;                                               // Time in ms between readings
   unsigned long minTimeInRange = (unsigned long)config.lidarResidenceTime.toInt(); // Minimum time to count as fully 'present'.
 
-  bool retValue = false; // Return value. Do we have a vehicle event?
+  int retValue = 0; // Return value. Do we have a vehicle event?
   bool lidarResult = false;
 
   tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
@@ -192,11 +194,20 @@ bool processLIDARSignal(Config config)
       carPresentLane2 = false;
     }
 
-    if (((previousCarPresentLane1 == true) && (carPresentLane1 == false)) ||
-        ((previousCarPresentLane2 == true) && (carPresentLane2 == false)))
+    if ((previousCarPresentLane1 == true) && (carPresentLane1 == false)) 
     { // The car has left the field of view.
       carEvent = 300;
-      retValue = true;
+      retValue = 1;
+    }
+    else
+    {
+      carEvent = 0;
+    }
+
+    if ((previousCarPresentLane2 == true) && (carPresentLane2 == false))    
+    { // The car has left the field of view.
+      carEvent = 300;
+      retValue = 2;
     }
     else
     {

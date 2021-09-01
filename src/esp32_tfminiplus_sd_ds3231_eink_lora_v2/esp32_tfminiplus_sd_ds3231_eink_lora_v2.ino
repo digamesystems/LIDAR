@@ -68,7 +68,7 @@ TaskHandle_t displayManagerTask;
 bool   jsonPostNeeded         = false;
 bool   bootMessageNeeded      = true;
 bool   heartbeatMessageNeeded = true;
-bool   vehicleMessageNeeded   = false;
+int    vehicleMessageNeeded   = 0;
 
 // Over the Air Updates work when we have WiFi or are in Access Point Mode...
 bool useOTA = false;
@@ -136,7 +136,7 @@ void initUI(){
 
 #if USE_LORA
 //****************************************************************************************
-String buildLoRaJSONHeader(String eventType, double count){
+String buildLoRaJSONHeader(String eventType, double count, String lane="1"){
   String loraHeader;
   String strCount;
 
@@ -158,7 +158,9 @@ String buildLoRaJSONHeader(String eventType, double count){
      
   if (eventType =="v"){
     loraHeader = loraHeader + 
-                 "\",\"da\":\"" + "t" + "\"";           // Detection algorithm (Threshold)       
+                 "\",\"da\":\"" + "t";           // Detection algorithm (Threshold)       
+    loraHeader = loraHeader + 
+                 "\",\"l\":\"" + lane + "\"";           // Lane number for the vehicle event
   }             
                
   if ((eventType =="b")||(eventType=="hb")){ //In the boot/heartbeat messages, send the current settings.
@@ -183,7 +185,7 @@ String buildLoRaJSONHeader(String eventType, double count){
 
 #if USE_WIFI
 //****************************************************************************************
-String buildWiFiJSONHeader(String eventType, double count){
+String buildWiFiJSONHeader(String eventType, double count, String lane ="1"){
   String jsonHeader;
   String strCount;
 
@@ -202,18 +204,21 @@ String buildWiFiJSONHeader(String eventType, double count){
                  "\",\"eventType\":\""   + eventType +
                  "\",\"count\":\""       + strCount +          // Total counts registered
                  "\",\"temp\":\""        + String(getRTCTemperature(),1); // Temperature in C
-
+  
 
   if (eventType =="vehicle"){
     jsonHeader = jsonHeader + 
-                 "\",\"detAlgorithm\":\"" + "Threshold\"";       // Detection algorithm (Threshold)       
+                 "\",\"detAlgorithm\":\"" + "Threshold";// Detection algorithm (Threshold)
+    jsonHeader = jsonHeader + 
+                 "\",\"lane\":\"" + lane + "\"";        // Lane in which the vehicle was seen   
+       
   }            
 
   if ((eventType =="boot")||(eventType=="heartbeat")){ //In the boot/heartbeat messages, send the current settings.
     jsonHeader = jsonHeader +
                  "\",\"settings\":{" +
                     "\"ui\":\"" + config.lidarUpdateInterval  + "\"" +
-                   ",\"sf\":\"" + config.lidarSmoothingFactor   + "\"" +
+                   ",\"sf\":\"" + config.lidarSmoothingFactor + "\"" +
                    ",\"rt\":\"" + config.lidarResidenceTime   + "\"" +
                    ",\"1m\":\"" + config.lidarZone1Min        + "\"" +
                    ",\"1x\":\"" + config.lidarZone1Max        + "\"" +
@@ -231,14 +236,17 @@ String buildWiFiJSONHeader(String eventType, double count){
 
 //****************************************************************************************
 // LoRa messages to the server all have a similar format. 
-String buildJSONHeader(String eventType, double count){
-
+String buildJSONHeader(String eventType, double count, String lane = "1"){
+  String retValue = "";
+  
   #if USE_LORA
-    return buildLoRaJSONHeader(eventType, count);
+    retValue = buildLoRaJSONHeader(eventType, count, lane);
+    //debugUART.println(retValue);
+    return retValue;
   #endif
 
   #if USE_WIFI
-    return buildWiFiJSONHeader(eventType, count);
+    return buildWiFiJSONHeader(eventType, count, lane);
   #endif
 
 }
@@ -624,7 +632,7 @@ void loop(){
 
     //********************************************************************************
     // Issue a vehicle event message
-      if (vehicleMessageNeeded){ 
+      if (vehicleMessageNeeded>0){ 
         if (lidarBuffer.size()==lidarSamples){ // Fill up the buffer before processing so 
                                                // we don't get false events at startup.      
           count++;     
@@ -632,8 +640,17 @@ void loop(){
             debugUART.print("Vehicle event! Counts: ");
             debugUART.println(count);  
           #endif             
-          msgPayload = buildJSONHeader("v",count);
 
+          if (vehicleMessageNeeded==1){
+            debugUART.println("LANE 1 Event!");
+            msgPayload = buildJSONHeader("v",count,"1");
+          }
+
+          if (vehicleMessageNeeded==2){
+            debugUART.println("LANE 2 Event!");
+            msgPayload = buildJSONHeader("v",count,"2");
+          }
+          
            
           #if (USE_WIFI) && (APPEND_RAW_DATA_WIFI)
             // Vehicle passing event messages may include raw data from the sensor.
@@ -652,7 +669,7 @@ void loop(){
           msgPayload = msgPayload + "}";   
           pushMessage(msgPayload);
         }
-        vehicleMessageNeeded = false; 
+        vehicleMessageNeeded = 0; 
       }
     
   } 
