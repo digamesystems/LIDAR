@@ -36,6 +36,7 @@ String getQueryParam(String header, String paramName){
   result.replace("+"," ");
   result.replace("%3A",":");
   result.replace("%2F","/");
+  result.replace("%21","!");
   
   //Serial.println(result);
   result.trim();

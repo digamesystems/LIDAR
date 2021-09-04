@@ -42,7 +42,7 @@ Config config; // Program configuration variables. See: digameJSONConfig.h
 int displayMode = 1; // Which eInk screen we are showing: 1=Title, 2=Network, 3=Last Message
 
 // Our network name when we are running in Access Point Mode.
-const char *ssid = "Digame-STN-AP"; //STN = "(Base) Station"
+//const char *ssid = "Digame-STN-AP"; //STN = "(Base) Station"
 bool   accessPointMode = false;
 
 // Heartbeat managment variables
@@ -71,7 +71,7 @@ String strTotal  = "0";
     
 const int samples = 200;
 CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages to be 
-                                               //   sent to the Server
+                                               // sent to the Server
 
 // FUNCTION DECLARATIONS
 
@@ -523,6 +523,9 @@ void setup() {
   splash();                         // Title, copyright, etc.
   initJSONConfig(filename, config); // Load the program config parameters 
 
+  String foo = "Digame-STN-" + getShortMACAddress();
+  const char* ssid = foo.c_str();
+
   // Check for an unconfigured base station or RESET button pressed at boot. 
   if ((config.ssid == "YOUR_SSID") || (digitalRead(CTR_RESET)== LOW)){
     
@@ -560,7 +563,10 @@ void setup() {
     initRTC();
 
     if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
-      synchTimesToNTP();
+      //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      synchTimesToNTP(); // This crashes the system when running with Bailee's phone as an AP. Why? 
+      //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      
       displayIPScreen(WiFi.localIP().toString());
       delay(5000);
     }

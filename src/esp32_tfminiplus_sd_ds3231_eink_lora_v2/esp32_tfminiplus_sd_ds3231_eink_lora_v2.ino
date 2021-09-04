@@ -52,7 +52,7 @@ String msgPayload;                         // The message being sent to the base
                                            // (JSON format depends on Link LoRa or WiFi)
 
 // Access point mode variables
-const char *ssid      = "Digame-CTR-AP";   // The name of our AP network
+//const char* ssid      = "Shooby Dooby";   // The name of our AP network
 bool accessPointMode  = false;             // Flag used at boot 
 
 Config config; // A structure to hold program configuration parameters. 
@@ -216,7 +216,7 @@ String buildWiFiJSONHeader(String eventType, double count, String lane ="1"){
 
   if ((eventType =="boot")||(eventType=="heartbeat")){ //In the boot/heartbeat messages, send the current settings.
     jsonHeader = jsonHeader +
-                 "\",\"settings\":{" +
+                 "  \",\"settings\":{" +
                     "\"ui\":\"" + config.lidarUpdateInterval  + "\"" +
                    ",\"sf\":\"" + config.lidarSmoothingFactor + "\"" +
                    ",\"rt\":\"" + config.lidarResidenceTime   + "\"" +
@@ -357,11 +357,14 @@ void handleModeButtonPress(){
 // Device initialization                                   
 //****************************************************************************************
 void setup(){
-
+  
   String hwStatus = "";             // String to hold the results of self-test
   
   initPorts();                      // Set up UARTs and GPIOs
   initUI();                         // Splash screens 
+
+  String foo = "Digame-CTR-" + getShortMACAddress();
+  const char* ssid = foo.c_str();
   
   if (initJSONConfig(filename, config))
   {// Setup SD card and load default values.
@@ -394,7 +397,6 @@ void setup(){
     
     server.begin();
 
-    
     displayAPScreen(ssid, WiFi.softAPIP().toString()); 
     
   } else {

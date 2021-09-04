@@ -39,6 +39,20 @@ String getMACAddress()
 }
 
 //*****************************************************************************
+// Return the last four digits of the device's MAC address as a String
+String getShortMACAddress()
+{
+
+    byte mac[6];
+    String retString;
+
+    WiFi.macAddress(mac);
+    retString = String(retString + String(mac[4], HEX));
+    retString = String(retString + String(mac[5], HEX));
+
+    return retString;
+}
+//*****************************************************************************
 // Enable WiFi and log into the network
 bool enableWiFi(Config config)
 {
