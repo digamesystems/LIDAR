@@ -8,28 +8,27 @@
 #include <WiFi.h>
 #include <ArduinoOTA.h>
 
-
-// Pick one LoRa or WiFi. These are mutually exclusive.
-#define USE_LORA true       // Use LoRa as the reporting link
-#define USE_WIFI false        // Use WiFi as the reporting link
+// Pick one LoRa or WiFi as the data reporting link. These are mutually exclusive.
+#define USE_LORA false         // Use LoRa as the reporting link
+#define USE_WIFI true        // Use WiFi as the reporting link
 
 #define APPEND_RAW_DATA_WIFI true // In USE_WIFI mode, add 100 points of raw LIDAR data to the wifi 
-                                  // JSON msg for analysis.
+                                  // JSON msg for analysis at the server.
 
 #define STAND_ALONE_LORA true // In USE_LORA mode, this flag enables the AP web server and 
                                // disables the ACK requirement on LoRa messages, allowing you 
                                // to run without a base station and configure parameters through
                                // the web page. 
 
-#define SHOW_DATA_STREAM false  // A debugging flag to show raw LIDAR values on the 
+#define SHOW_DATA_STREAM true   // A debugging flag to show raw LIDAR values on the 
                                 // serial monitor. -- This mode disables other output to the 
                                 // serial monitor after bootup.
 
-#include <digameVersion.h> 
+#include <digameVersion.h>    // Global SW version constants
 
 #define debugUART Serial      // Alias for easier reading instead of "Serial, Serial1, Serial2, etc..."
 
-#include <CircularBuffer.h>   // Adafruit library. Pretty small!
+#include <CircularBuffer.h>   // Adafruit library for handling circular buffers of data. 
 
 #include <digameJSONConfig.h> // Program parameters from config file on SD card
 #include <digameTime.h>       // Time Functions - RTC, NTP Synch etc
@@ -52,23 +51,22 @@ String msgPayload;                         // The message being sent to the base
                                            // (JSON format depends on Link LoRa or WiFi)
 
 // Access point mode variables
-//const char* ssid      = "Shooby Dooby";   // The name of our AP network
 bool accessPointMode  = false;             // Flag used at boot 
+bool usingWiFi = false;                    // True if USE_WIFI or AP mode is enabled
 
 Config config; // A structure to hold program configuration parameters. 
                // See: digameJSONConfig.h (Used all over the place)
 
-
 // Multi-Tasking
-SemaphoreHandle_t mutex_v; // Mutex used to protect variables across RTOS tasks. 
-TaskHandle_t messageManagerTask;
-TaskHandle_t displayManagerTask;
+SemaphoreHandle_t mutex_v;        // Mutex used to protect variables across RTOS tasks. 
+TaskHandle_t messageManagerTask;  // A task for handling data reporting
+TaskHandle_t displayManagerTask;  // A task for updating the EInk display
 
 // Messaging flags
 bool   jsonPostNeeded         = false;
-bool   bootMessageNeeded      = true;
+bool   bootMessageNeeded      = true; // Send boot and heartbeat messages at startup
 bool   heartbeatMessageNeeded = true;
-int    vehicleMessageNeeded   = 0;
+int    vehicleMessageNeeded   = 0;    // 0=false, 1=lane 1, 2=lane 2 messages
 
 // Over the Air Updates work when we have WiFi or are in Access Point Mode...
 bool useOTA = false;
@@ -87,6 +85,7 @@ String currentTime;        // Set in the main loop from the RTC
 
 
 //****************************************************************************************
+// Pretty(?) debug splash screen
 void splash(){
   
   String compileDate = F(__DATE__);
@@ -136,6 +135,7 @@ void initUI(){
 
 #if USE_LORA
 //****************************************************************************************
+// LoRa can't handle big payloads. We use a terse JSON message in this case.
 String buildLoRaJSONHeader(String eventType, double count, String lane="1"){
   String loraHeader;
   String strCount;
@@ -185,6 +185,7 @@ String buildLoRaJSONHeader(String eventType, double count, String lane="1"){
 
 #if USE_WIFI
 //****************************************************************************************
+// WiFi can handle a more human-readable JSON data payload. 
 String buildWiFiJSONHeader(String eventType, double count, String lane ="1"){
   String jsonHeader;
   String strCount;
@@ -192,11 +193,10 @@ String buildWiFiJSONHeader(String eventType, double count, String lane ="1"){
   strCount= String(count,0);
   strCount.trim();
 
-  if (eventType =="b") eventType  = "boot";
-  if (eventType =="hb") eventType = "heartbeat";
-  if (eventType =="v") eventType  = "vehicle";
+  if (eventType =="b") eventType  = "Boot";
+  if (eventType =="hb") eventType = "Heartbeat";
+  if (eventType =="v") eventType  = "Vehicle";
   
-
   jsonHeader = "{\"deviceName\":\""      + config.deviceName + 
                  "\",\"deviceMAC\":\""   + myMACAddress +      // Read at boot
                  "\",\"firmwareVer\":\"" + TERSE_SW_VERSION  + 
@@ -205,8 +205,7 @@ String buildWiFiJSONHeader(String eventType, double count, String lane ="1"){
                  "\",\"count\":\""       + strCount +          // Total counts registered
                  "\",\"temp\":\""        + String(getRTCTemperature(),1); // Temperature in C
   
-
-  if (eventType =="vehicle"){
+  if (eventType =="Vehicle"){
     jsonHeader = jsonHeader + 
                  "\",\"detAlgorithm\":\"" + "Threshold";// Detection algorithm (Threshold)
     jsonHeader = jsonHeader + 
@@ -214,7 +213,7 @@ String buildWiFiJSONHeader(String eventType, double count, String lane ="1"){
        
   }            
 
-  if ((eventType =="boot")||(eventType=="heartbeat")){ //In the boot/heartbeat messages, send the current settings.
+  if ((eventType =="Boot")||(eventType=="Heartbeat")){ //In the boot/heartbeat messages, send the current settings.
     jsonHeader = jsonHeader +
                  "  \",\"settings\":{" +
                     "\"ui\":\"" + config.lidarUpdateInterval  + "\"" +
@@ -253,11 +252,13 @@ String buildJSONHeader(String eventType, double count, String lane = "1"){
 
 
 //****************************************************************************************
-// Experimenting with using a circular buffer to enqueue messages to the server...
+// A task that runs on Core0 using a circular buffer to enqueue messages to the server...
+// Current version keeps retrying forever if an ACK isn't received. TODO: Fix.
 void messageManager(void *parameter){
   
-  String activeMessage;
-
+  String activeMessage; 
+  bool messageACKed=false; 
+  
   debugUART.print("Message Manager Running on Core #: ");
   debugUART.println(xPortGetCoreID());
   debugUART.println();
@@ -268,32 +269,36 @@ void messageManager(void *parameter){
     // Process a message on the queue
     //*******************************
     if (msgBuffer.size()>0){ 
+
+
+      activeMessage = msgBuffer.first(); // Read from the buffer without removing the data from it.
           
-      xSemaphoreTake(mutex_v, portMAX_DELAY); 
-        activeMessage=msgBuffer.shift();
-      xSemaphoreGive(mutex_v);
-
-      //sendDataHome(activeMessage, config);
-
-      // Send the data to the LoRa-WiFi base station
+      // Send the data to the LoRa-WiFi base station that re-formats and routes it to the 
+      // ParkData server.
       #if USE_LORA     
-        // TODO: This runs forever if no base station is available.
-        // Is this the right way to go? Consider adding a timeout.
-        // If we do that, do we save the data to the SD card?
-        // Come up with a scheme to send the buffered data when a
-        // base station becomes available.      
-        while (!sendReceiveLoRa(activeMessage)){};                                             
+        // TODO: Come up with a reasonable re-try scheme and deal with failures more 
+        // gracefully. This function simply yells out the message over the LoRa link and
+        // returns true if it gets an ACK from the basestation. It will retry forever...
+        // Probably not what we want.   
+         messageACKed = sendReceiveLoRa(activeMessage);                                             
       #endif 
 
-      // Send the data to the ParkData server directly
+      // Send the data directly to the ParkData server via http(s) POST
       #if USE_WIFI
-        while (!postJSON(activeMessage, config)){};       
+        messageACKed = postJSON(activeMessage, config);       
       #endif   
-      
-      #if !(SHOW_DATA_STREAM)
-        debugUART.println("Success!");
-        debugUART.println();
-      #endif
+
+      if (messageACKed) {
+        // Message sent and received. Take it off of the queue. 
+        xSemaphoreTake(mutex_v, portMAX_DELAY); 
+          activeMessage=msgBuffer.shift();
+        xSemaphoreGive(mutex_v);
+        
+        #if !(SHOW_DATA_STREAM)
+          debugUART.println("Success!");
+          debugUART.println();
+        #endif
+      } 
       
     }
     
@@ -304,7 +309,7 @@ void messageManager(void *parameter){
 
 
 //****************************************************************************************
-// A task to update the display when the count changes. -- Runs on core 0.
+// A task that runs on Core0 to update the display when the count changes. 
 void countDisplayManager(void *parameter){
   int countDisplayUpdateRate = 20;
   unsigned int myCount;
@@ -339,12 +344,19 @@ void countDisplayManager(void *parameter){
 
 
 //****************************************************************************************
+// Clear out measurement history
+void clearCountData(){
+  count = 0;
+  clearLIDARDistanceHistogram();  
+}
+
+
+//**************************************************************************************   
 // Check for display mode button being pressed and reset the vehicle count
 void handleModeButtonPress(){
   // Check for RESET button being pressed. If it has been, reset the counter to zero.
   if (digitalRead(CTR_RESET)== LOW) { 
-    count = 0;
-    clearLIDARDistanceHistogram();
+    clearCountData();
     #if !(SHOW_DATA_STREAM)
        debugUART.print("Loop: RESET button pressed. Count: ");
        debugUART.println(count);  
@@ -354,6 +366,68 @@ void handleModeButtonPress(){
 
 
 //****************************************************************************************
+// Configure for Over the Air Programming (OTA)
+void setupOTA(){
+  
+  // Port defaults to 3232
+  // ArduinoOTA.setPort(3232);
+  // Hostname defaults to esp3232-[MAC]
+  ArduinoOTA.setHostname(String(String("Digame-CTR-") + getMACAddress()).c_str());
+
+  // No authentication by default
+  // ArduinoOTA.setPassword("admin");
+
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+  ArduinoOTA
+    .onStart([]() {
+      String type;
+      if (ArduinoOTA.getCommand() == U_FLASH)
+        type = "sketch";
+      else // U_SPIFFS
+        type = "filesystem";
+
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      Serial.println("Start updating " + type);
+    })
+    .onEnd([]() {
+      Serial.println("\nEnd");
+    })
+    .onProgress([](unsigned int progress, unsigned int total) {
+      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    })
+    .onError([](ota_error_t error) {
+      Serial.printf("Error[%u]: ", error);
+      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+      else if (error == OTA_END_ERROR) Serial.println("End Failed");
+    });
+
+  ArduinoOTA.begin();
+      
+}
+
+
+//**************************************************************************************   
+// Configure the device as an access point
+void setupAPMode(const char* ssid){
+  
+  debugUART.println("  Stand-Alone Mode. Setting AP (Access Point)…");  
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(ssid);
+  IPAddress IP = WiFi.softAPIP();
+  debugUART.print("    AP IP address: ");
+  debugUART.println(IP);   
+  server.begin();
+  displayAPScreen(ssid, WiFi.softAPIP().toString());
+  delay(3000);  
+}
+
+//****************************************************************************************
 // Device initialization                                   
 //****************************************************************************************
 void setup(){
@@ -361,189 +435,195 @@ void setup(){
   String hwStatus = "";             // String to hold the results of self-test
   
   initPorts();                      // Set up UARTs and GPIOs
-  initUI();                         // Splash screens 
+  initUI();                         // Splash screens
 
   String foo = "Digame-CTR-" + getShortMACAddress();
   const char* ssid = foo.c_str();
-  
+
+  //**************************************************************************************   
+  // Setup SD card and load default values.
   if (initJSONConfig(filename, config))
-  {// Setup SD card and load default values.
-    hwStatus+="   SD   : OK\n\n";
-      
-  } else{
+  {
+    hwStatus+="   SD   : OK\n\n";     
+  }else{
     hwStatus+="   SD   : ERROR!\n\n"; 
   };
   
+  
+  
+  //**************************************************************************************   
+  // Show the splash screen
   initDisplay();
   displaySplashScreen("(LIDAR Counter)",SW_VERSION); 
   
-  // If the unit is unconfigured or is booted witht the RESET button held down, enter AP mode.
-  if ((config.deviceName == "YOUR_DEVICE_NAME")||(digitalRead(CTR_RESET)== LOW)) {
-    
-    accessPointMode = true;
-    useOTA = true; 
-    
-    debugUART.println("*******************************");
-    debugUART.println("Launching in Access Point Mode!");  
-    debugUART.println("*******************************");
-    debugUART.println("Setting AP (Access Point)…");
-
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(ssid);
   
-    IPAddress IP = WiFi.softAPIP();
-    debugUART.print("  AP IP address: ");
-    debugUART.println(IP);
-    
-    server.begin();
+  //**************************************************************************************   
+  // If the unit is unconfigured or is booted with the RESET button held down, enter AP mode.
+  if ((config.deviceName == "YOUR_DEVICE_NAME")||(digitalRead(CTR_RESET)== LOW)) {
+    accessPointMode = true;
+    usingWiFi = true;
+  }
 
-    displayAPScreen(ssid, WiFi.softAPIP().toString()); 
+  
+  
+  //**************************************************************************************   
+  // Data reporting over the LoRa link.
+  #if USE_LORA  
     
-  } else {
-    
-    delay(1000);
-
-    #if USE_LORA  
-      #if STAND_ALONE_LORA
-        useOTA = true;
-        debugUART.println("  Stand-Alone Mode. Setting AP (Access Point)…");  
-        WiFi.mode(WIFI_AP);
-        WiFi.softAP(ssid);
-        IPAddress IP = WiFi.softAPIP();
-        debugUART.print("    AP IP address: ");
-        debugUART.println(IP);   
-        server.begin();
-        displayAPScreen(ssid, WiFi.softAPIP().toString());
-        delay(3000); 
-      #else
-        setLowPowerMode(); // Lower clock rate and turn off WiFi   
-      #endif
-      
-      initLoRa();
-      if (configureLoRa(config)){ // Configure radio params  
-        hwStatus+="   LoRa : OK\n\n";
-      } else{
-        hwStatus+="   LoRa : ERROR!\n\n";  
-      }
+    #if STAND_ALONE_LORA
+      accessPointMode = true; 
+      usingWiFi = true;
     #endif
-
-    #if USE_WIFI
+    
+    if (accessPointMode){
       useOTA = true;
-      
-      myMACAddress = getMACAddress();
+      setupAPMode(ssid); 
+    }else{
+      useOTA = false;
+      usingWiFi = false;
+      setLowPowerMode(); // Lower clock rate and turn off WiFi
+    }
+
+    // Initialize radio
+    initLoRa();
+
+    // Configure radio params 
+    if (configureLoRa(config)){  
+      hwStatus+="   LoRa : OK\n\n";
+    }else{
+      hwStatus+="   LoRa : ERROR!\n\n";  
+    }
+    
+  #endif
+
+  
+  
+  //**************************************************************************************   
+  // Data reporting over the WiFi link
+  #if USE_WIFI
+
+    btStop();
+    adc_power_off();
+    //esp_wifi_stop();
+    esp_bt_controller_disable();
+  
+    useOTA = true;   
+    usingWiFi = true;
+    myMACAddress = getMACAddress();        
+    if (accessPointMode){
+      setupAPMode(ssid);  
+    }else{
       enableWiFi(config);
+      server.begin();
       displayIPScreen(String(WiFi.localIP().toString()));
       delay(3000);
       hwStatus += "   WiFi:  OK\n\n";
-      server.begin();
-    #endif
+    }  
 
 
-    debugUART.print("  USE OTA: ");
-    debugUART.println(useOTA);
-    if (useOTA){
+    
+  #endif
+
+
+  //**************************************************************************************   
+  debugUART.print("  USE OTA: ");
+  debugUART.println(useOTA);
+  if (useOTA){
+    setupOTA();    
+  }
+    
+    
+  //**************************************************************************************   
+  // Turn on the LIDAR Sensor
+  if (initLIDAR(true)) { 
+    hwStatus+="   LIDAR: OK\n\n";
+  } else {
+    hwStatus+="   LIDAR: ERROR!\n\n";
+  }
+
+  
+  //**************************************************************************************   
+  // Check that the RTC is present
+  if (initRTC()) { 
+    hwStatus+="   RTC  : OK\n";
+  }else{
+    hwStatus+="   RTC  : ERROR!\n";
+  }
+
+  #if LOG_RAW_DATA_TO_SD 
+    logFileName = getRTCTime(); 
+    logFileName.replace(":","");
+    
+    logFileName = "/" + logFileName.substring(11) + ".txt";
+  
+    debugUART.println(logFileName);
+    
+    logFile = SD.open(logFileName, FILE_WRITE);  // See digameLIDAR.
+ 
+    if (!logFile)
+    {
+      debugUART.println(F("    Failed to create log file!"));
+    }
+  #endif
+   
+
+  //**************************************************************************************   
+  // Synchronize the RTC to an NTP server, if available
+  #if USE_WIFI
+    if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
+      synchTimesToNTP();
+    }
+  #endif
+
+  debugUART.println();
+  
+  //**************************************************************************************   
+  // Show the results of the hardware configuration 
+  displayStatusScreen(hwStatus); 
+  delay(5000);
+
+
+  //**************************************************************************************   
+  // Set up the display to show vehicle events
+  count=0;
+  displayCountScreen(count);
+  showValue(count);
+  delay(1000);
+
+
+  //**************************************************************************************   
+  // Set up two tasks that run on CPU0 -- One to handle updating the display and one to 
+  // handle reporting data
+  mutex_v = xSemaphoreCreateMutex(); // The mutex we will use to protect variables 
+                                     // across tasks
+
+  // Create a task that will be executed in the messageManager() function, 
+  //   with priority 0 and executed on core 0
+  xTaskCreatePinnedToCore(
+    messageManager,      /* Task function. */
+    "Message Manager",   /* name of task. */
+    10000,               /* Stack size of task */
+    NULL,                /* parameter of the task */
+    0,                   /* priority of the task */
+    &messageManagerTask, /* Task handle to keep track of created task */
+    0);                  /* pin task to core 0 */ 
+
+  
+  // Create a task that will be executed in the CountDisplayManager() function, 
+  // with priority 0 and executed on core 0
+  xTaskCreatePinnedToCore(
+    countDisplayManager, /* Task function. */
+    "Display Manager",   /* name of task. */
+    10000,               /* Stack size of task */
+    NULL,                /* parameter of the task */
+    0,                   /* priority of the task */
+    &displayManagerTask, /* Task handle to keep track of created task */
+    0);
+
       
-      // Port defaults to 3232
-      // ArduinoOTA.setPort(3232);
-      // Hostname defaults to esp3232-[MAC]
-      ArduinoOTA.setHostname(String(String("Digame-CTR-") + getMACAddress()).c_str());
-    
-      // No authentication by default
-      // ArduinoOTA.setPassword("admin");
-    
-      // Password can be set with it's md5 value as well
-      // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-      // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
-    
-      ArduinoOTA
-        .onStart([]() {
-          String type;
-          if (ArduinoOTA.getCommand() == U_FLASH)
-            type = "sketch";
-          else // U_SPIFFS
-            type = "filesystem";
-    
-          // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-          Serial.println("Start updating " + type);
-        })
-        .onEnd([]() {
-          Serial.println("\nEnd");
-        })
-        .onProgress([](unsigned int progress, unsigned int total) {
-          Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-        })
-        .onError([](ota_error_t error) {
-          Serial.printf("Error[%u]: ", error);
-          if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-          else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-          else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-          else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-          else if (error == OTA_END_ERROR) Serial.println("End Failed");
-        });
-    
-      ArduinoOTA.begin();
-    
-          
-    }
-    
-    
-    if (initLIDAR(true)) { // Turn on LIDAR sensor
-      hwStatus+="   LIDAR: OK\n\n";
-    } else {
-      hwStatus+="   LIDAR: ERROR!\n\n";
-    }
-    
-    if (initRTC()) { // Check RTC is present
-      hwStatus+="   RTC  : OK\n";
-    }else{
-      hwStatus+="   RTC  : ERROR!\n";
-    }
-
-    #if USE_WIFI
-      if (wifiConnected){ // Attempt to synch ESP32 clock with NTP Server...
-        synchTimesToNTP();
-        //displayIPScreen(WiFi.localIP().toString());
-        //delay(5000);
-      }
-    #endif
-
-    debugUART.println();
-    
-    displayStatusScreen(hwStatus); // Show results of the configuration above
-    delay(5000);
-
-    count=0;
-    displayCountScreen(count);
-    showValue(count);
-    delay(1000);
-
-    mutex_v = xSemaphoreCreateMutex(); // The mutex we will use to protect variables 
-                                       // across tasks
-
-    // Create a task that will be executed in the messageManager() function, 
-    //   with priority 0 and executed on core 0
-    xTaskCreatePinnedToCore(
-      messageManager,      /* Task function. */
-      "Message Manager",   /* name of task. */
-      10000,               /* Stack size of task */
-      NULL,                /* parameter of the task */
-      0,                   /* priority of the task */
-      &messageManagerTask, /* Task handle to keep track of created task */
-      0);                  /* pin task to core 0 */ 
-
-    
-    // Create a task that will be executed in the CountDisplayManager() function, 
-    // with priority 0 and executed on core 0
-    xTaskCreatePinnedToCore(
-      countDisplayManager, /* Task function. */
-      "Display Manager",   /* name of task. */
-      10000,               /* Stack size of task */
-      NULL,                /* parameter of the task */
-      0,                   /* priority of the task */
-      &displayManagerTask, /* Task handle to keep track of created task */
-      0);
-
-  }    
+  
+  //**************************************************************************************   
+  // GO!
   currentTime = getRTCTime(); 
   bootMinute = getRTCMinute();
   debugUART.println();
@@ -552,127 +632,124 @@ void setup(){
   
 }
 
+
+//**************************************************************************************   
+  // Add a message to the queue for transmission.
 void pushMessage(String message){
   xSemaphoreTake(mutex_v, portMAX_DELAY);  
-    msgBuffer.push(message);
+  msgBuffer.push(message);
   xSemaphoreGive(mutex_v);  
 }
 
 //****************************************************************************************
 // Main Loop
 //****************************************************************************************
-
-long lastHistMS = 0; // Timer variable
-
 void loop(){ 
-   
-   // OTA kick
+
+  //**************************************************************************************   
+  // Let the Over the Air Programming process have some CPU
   if (useOTA){
     ArduinoOTA.handle();
   }
-   
+
+  //**************************************************************************************   
   // Grab the current time
   currentTime = getRTCTime();
     
   //**************************************************************************************
-  // Access Point (AP) Operation
-  //**************************************************************************************  
-  
-  if (accessPointMode){ 
-
-    WiFiClient client = server.available();        // Listen for incoming clients
-    
+  // WiFi is active -- Handle web server traffic.
+  if (usingWiFi){ 
+    WiFiClient client = server.available();        // Listen for incoming clients   
     if (client){  // Handle the web UI
       processWebClient("counter", client, config); // Tweak and save parameters
+      if (config.lidarZone1Count == "0"){
+        clearCountData();  
+      }
     } 
-    
+  }
+
+
   //**************************************************************************************
-  // Standard Operation  
-  //**************************************************************************************
-  } else { 
+  // Event management and notification
+  //**************************************************************************************       
+  
+  
+  //**************************************************************************************   
+  // Test if vehicle event has occured 
+  // TODO: Consider putting this in a separate RTOS Task. 
+    vehicleMessageNeeded = processLIDARSignal2(config); // Threshold Detection Algorithm
 
-    #if (USE_WIFI || STAND_ALONE_LORA)
-      WiFiClient client = server.available();        // Listen for incoming clients
-    
-      if (client){  // Handle the web UI
-        processWebClient("counter", client, config); // Tweak and save parameters
-       } 
-    #endif
+  //**************************************************************************************   
+  // Check for display mode button being pressed and switch display
+    handleModeButtonPress();
 
-         
-    // Test if vehicle event has occured 
-    // TODO: Consider putting this in a separate RTOS Task. 
-      vehicleMessageNeeded = processLIDARSignal(config); // Threshold Detection Algorithm
+  //**************************************************************************************   
+  // Boot messages are sent at startup.
+    if (bootMessageNeeded){
+      msgPayload = buildJSONHeader("b",count);
+      msgPayload = msgPayload + "}"; 
+      pushMessage(msgPayload);
+      bootMessageNeeded = false;
+    }
 
-    // Check for display mode button being pressed and switch display
-      handleModeButtonPress();
+  //**************************************************************************************   
+  // Issue a heartbeat message every hour.
+    heartbeatMinute = getRTCMinute();
+    if ((oldheartbeatMinute != bootMinute) && (heartbeatMinute == bootMinute)){heartbeatMessageNeeded = true;}  
+    if (heartbeatMessageNeeded){
+      msgPayload = buildJSONHeader("hb",count);
+      msgPayload = msgPayload + "}";
+      pushMessage(msgPayload);
+      heartbeatMessageNeeded = false; 
+    }
+    oldheartbeatMinute = heartbeatMinute;
 
-    //********************************************************************************
-    // Check if we need to send a message of some kind
-    //********************************************************************************
+  //**************************************************************************************   
+  // Issue a vehicle event message
+    if (vehicleMessageNeeded>0){ 
+      if (lidarBuffer.size()==lidarSamples){ // Fill up the buffer before processing so 
+                                             // we don't get false events at startup.      
+        count++;     
+        config.lidarZone1Count = String(count); // Update this so entities making use of config have access to the current count.
+                                                // e.g., digameWebServer.h
+                                                
+        #if !(SHOW_DATA_STREAM)
+          debugUART.print("Vehicle event! Counts: ");
+          debugUART.println(count);
+        #endif             
 
-    //********************************************************************************
-    // Boot messages are sent at startup.
-      if (bootMessageNeeded){
-        msgPayload = buildJSONHeader("b",count);
-        msgPayload = msgPayload + "}"; 
-        pushMessage(msgPayload);
-        bootMessageNeeded = false;
-      }
-
-    //********************************************************************************
-    // Issue a heartbeat message every hour.
-      heartbeatMinute = getRTCMinute();
-      if ((oldheartbeatMinute != bootMinute) && (heartbeatMinute == bootMinute)){heartbeatMessageNeeded = true;}  
-      if (heartbeatMessageNeeded){
-        msgPayload = buildJSONHeader("hb",count);
-        msgPayload = msgPayload + "}";
-        pushMessage(msgPayload);
-        heartbeatMessageNeeded = false; 
-      }
-      oldheartbeatMinute = heartbeatMinute;
-
-    //********************************************************************************
-    // Issue a vehicle event message
-      if (vehicleMessageNeeded>0){ 
-        if (lidarBuffer.size()==lidarSamples){ // Fill up the buffer before processing so 
-                                               // we don't get false events at startup.      
-          count++;     
+        if (vehicleMessageNeeded==1){
           #if !(SHOW_DATA_STREAM)
-            debugUART.print("Vehicle event! Counts: ");
-            debugUART.println(count);  
-          #endif             
-
-          if (vehicleMessageNeeded==1){
             debugUART.println("LANE 1 Event!");
-            msgPayload = buildJSONHeader("v",count,"1");
-          }
-
-          if (vehicleMessageNeeded==2){
-            debugUART.println("LANE 2 Event!");
-            msgPayload = buildJSONHeader("v",count,"2");
-          }
-          
-           
-          #if (USE_WIFI) && (APPEND_RAW_DATA_WIFI)
-            // Vehicle passing event messages may include raw data from the sensor.
-            // If so, tack the data buffer on the JSON message.
-            msgPayload = msgPayload + ",\"rawSignal\":[";
-            using index_t = decltype(lidarBuffer)::index_t;
-            for (index_t i = 0; i < lidarBuffer.size(); i++) {
-              msgPayload = msgPayload + lidarBuffer[i]; 
-              if (i<lidarBuffer.size()-1){ 
-                msgPayload = msgPayload + ",";
-              }
-            }
-            msgPayload = msgPayload + "]";
           #endif
-          
-          msgPayload = msgPayload + "}";   
-          pushMessage(msgPayload);
+          msgPayload = buildJSONHeader("v",count,"1");
         }
-        vehicleMessageNeeded = 0; 
+
+        if (vehicleMessageNeeded==2){
+          #if !(SHOW_DATA_STREAM)
+            debugUART.println("LANE 2 Event!");
+          #endif
+          msgPayload = buildJSONHeader("v",count,"2");
+        }
+        
+         
+        #if (USE_WIFI) && (APPEND_RAW_DATA_WIFI)
+          // Vehicle passing event messages may include raw data from the sensor.
+          // If so, tack the data buffer on the JSON message.
+          msgPayload = msgPayload + ",\"rawSignal\":[";
+          using index_t = decltype(lidarHistoryBuffer)::index_t;
+          for (index_t i = 0; i < lidarHistoryBuffer.size(); i++) {
+            msgPayload = msgPayload + lidarHistoryBuffer[i]; 
+            if (i<lidarHistoryBuffer.size()-1){ 
+              msgPayload = msgPayload + ",";
+            }
+          }
+          msgPayload = msgPayload + "]";
+        #endif
+        
+        msgPayload = msgPayload + "}";   
+        pushMessage(msgPayload);
       }
-    
-  } 
+      vehicleMessageNeeded = 0; 
+    }
 }

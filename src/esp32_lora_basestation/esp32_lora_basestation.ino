@@ -96,6 +96,7 @@ void initPorts(){
 
 
 //****************************************************************************************
+// A pretty(?) splash notification to debugUART
 void splash(){
   
   String compileDate = F(__DATE__);
@@ -194,10 +195,9 @@ String loraMsgToJSON(String msg){
   
   // Start and end of the JSON payload in the msg.
   idxstart = msg.indexOf('{');
-  
-  //idxstop = msg.indexOf('}')+1; // Changed the approach after we started nesting JSON structs. 
-    idxstop = msg.length() - 8;   // Now going from the end of the msg back 8 chars: 
-                                  // ",-XX,YY" (XX =RSSI, YY=SNR) 
+  idxstop = msg.lastIndexOf('}')+1; // The close of the JSON message payload.
+                                    // Using lastIndexOf since we are nesting JSON structs in some messages and 
+                                    // can have multiple {{}} situations. 
   
   char json[512] = {};
 
@@ -257,7 +257,7 @@ String loraMsgToJSON(String msg){
    
   // Count
   String strCount = doc["c"];
-  if (lastMessageCountValue.equals(strCount)) {
+  if ((et=="v") && (lastMessageCountValue.equals(strCount))) { //if we have a repeated vehicle message, don't send to server. 
     debugUART.println("We've seen this message before.");
     return "IGNORE";  
   }
@@ -320,7 +320,7 @@ String loraMsgToJSON(String msg){
 
   jsonPayload = "{\"deviceName\":\""       + strDeviceName + 
                  "\",\"deviceMAC\":\""     + strDeviceMAC  + 
-                 "\",\"firmwareVER\":\""   + strVersion  + 
+                 "\",\"firmwareVer\":\""   + strVersion  + 
                  "\",\"timeStamp\":\""     + strTime + 
                  "\",\"linkMode\":\""      + "LoRa" +
                  "\",\"eventType\":\""     + strEventType +
@@ -385,7 +385,7 @@ String buildJSONHeader(String eventType){
 
   jsonHeader = "{\"deviceName\":\""      + config.deviceName + 
                  "\",\"deviceMAC\":\""   + myMACAddress + // Read at boot
-                 "\",\"firmwareVER\":\"" + TERSE_SW_VERSION  + 
+                 "\",\"firmwareVer\":\"" + TERSE_SW_VERSION  + 
                  "\",\"timeStamp\":\""   + currentTime +  // Updated in main loop from RTC
                  "\",\"eventType\":\""   + eventType + 
                  "\""; 
@@ -435,7 +435,7 @@ void messageManager(void *parameter){
     //**********************************************      
     if (bootMessageNeeded){
 
-      jsonPayload = buildJSONHeader("boot");
+      jsonPayload = buildJSONHeader("Boot");
       jsonPayload = jsonPayload + "}";
 
       //debugUART.println(jsonPayload);
@@ -453,7 +453,7 @@ void messageManager(void *parameter){
     //**********************************************      
     if (heartbeatMessageNeeded){
 
-      jsonPayload = buildJSONHeader("heartbeat");
+      jsonPayload = buildJSONHeader("Heartbeat");
       jsonPayload = jsonPayload + "}";
 
       //debugUART.println(jsonPayload);
@@ -503,6 +503,8 @@ void eventDisplayManager(void *parameter){
 }
     
 
+//****************************************************************************************
+// Returns a string containing a summary of counts seen from each VC. 
 String getCounterSummary(){
   String retVal  = "";
   retVal += "   Ctr.   Count\n";
@@ -696,7 +698,7 @@ void loop() {
     // Check for display mode button being pressed and switch display
       handleModeButtonPress();
     
-    // Issue a heartbeat message every hour.
+    // Issue a message every hour.
       heartbeatMinute = getRTCMinute();
       if ((oldheartbeatMinute != bootMinute) && (heartbeatMinute == bootMinute)){ 
         xSemaphoreTake(mutex_v, portMAX_DELAY); 

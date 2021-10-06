@@ -146,6 +146,8 @@ bool postJSON(String jsonPayload, Config config)
     //http.begin("http://199.21.201.53/trailwaze/zion/lidar_sensor_import.php");
 
 #if !(SHOW_DATA_STREAM)
+    debugUART.print("JSON payload length: ");
+    debugUART.println(jsonPayload.length());
     debugUART.print("HTTP begin Time: ");
     debugUART.println(millis() - t1);
 #endif

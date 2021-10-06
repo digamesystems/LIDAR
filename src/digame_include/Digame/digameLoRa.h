@@ -80,6 +80,7 @@ bool sendReceiveLoRa(String msg)
   long timeout = 2000; // TODO: Make this part of the Config struct -- better yet,
                        // calculate from the LoRa RF parameters and payload...
   bool replyPending = true;
+ 
   String strRetryCount;
   long t2, t1;
 
@@ -138,10 +139,9 @@ bool sendReceiveLoRa(String msg)
 // For Testing, don't wait for an ACK from a basestation
           
 #if STAND_ALONE_LORA
-  replyPending = false;
-  return true;
+  //replyPending = false;
+  //return true;
 #endif
-
 
   while ((replyPending == true) && ((t2 - t1) < timeout))
   {
@@ -154,10 +154,9 @@ bool sendReceiveLoRa(String msg)
         if (inString.indexOf("ACK") >= 0)
         {
           replyPending = false;
-#if SHOW_DATA_STREAM
-#else
-          debugUART.println("ACK Received: " + inString);
-#endif
+          #if !SHOW_DATA_STREAM
+            debugUART.println("ACK Received: " + inString);
+          #endif
           LoRaRetryCount = 0; // Reset for the next message.
           return true;
         }
@@ -167,16 +166,20 @@ bool sendReceiveLoRa(String msg)
 
   if ((t2 - t1) >= timeout)
   {
-#if SHOW_DATA_STREAM
-#else
-    debugUART.println("Timeout!");
-    debugUART.println();
-#endif
+    #if SHOW_DATA_STREAM
+    #else
+        debugUART.println("Timeout!");
+        debugUART.println();
+    #endif
     LoRaRetryCount++;
     return false;
   }
 
-  vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+  vTaskDelay(2000 / portTICK_PERIOD_MS); // Two seconds between messages
+
+  return true;
+  
 }
 
 #endif // __DIGAME_LORA_H__

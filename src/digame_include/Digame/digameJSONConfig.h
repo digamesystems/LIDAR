@@ -49,6 +49,8 @@ struct Config
   String lidarZone1Max = "300";
   String lidarZone2Min = "400";
   String lidarZone2Max = "700";
+  String lidarZone1Count = "0";
+  String lidarZone2Count = "0";
 
   // Sensors:
   String sens1Addr = "10";
@@ -157,6 +159,10 @@ void loadConfiguration(const char *filename, Config &config)
   config.lidarZone2Min = (const char *)doc["lidar"]["zone2Min"];
   config.lidarZone2Max = (const char *)doc["lidar"]["zone2Max"];
 
+  config.lidarZone1Count = "0"; //(const char *)doc["lidar"]["zone1Count"];
+  config.lidarZone2Count = "0"; //(const char *)doc["lidar"]["zone2Count"];
+
+
   config.sens1Name = (const char *)doc["sensor"]["1"]["name"];
   config.sens1Addr = (const char *)doc["sensor"]["1"]["addr"];
   config.sens1MAC = (const char *)doc["sensor"]["1"]["mac"];
@@ -223,6 +229,8 @@ void saveConfiguration(const char *filename, Config &config)
   doc["lidar"]["zone1Max"] = config.lidarZone1Max;
   doc["lidar"]["zone2Min"] = config.lidarZone2Min;
   doc["lidar"]["zone2Max"] = config.lidarZone2Max;
+  doc["lidar"]["zone1Count"] = config.lidarZone1Count;
+  doc["lidar"]["zone2Count"] = config.lidarZone2Count;
 
   doc["sensor"]["1"]["name"] = config.sens1Name;
   doc["sensor"]["1"]["addr"] = config.sens1Addr;

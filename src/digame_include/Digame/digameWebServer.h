@@ -31,12 +31,44 @@ String getQueryParam(String header, String paramName){
 
   result = header.substring(strStart,strStop);
   result = result.substring(0,result.indexOf("&"));
+  debugUART.println(result);
 
   // Clean up the string by removing HTML replacements
   result.replace("+"," ");
-  result.replace("%3A",":");
-  result.replace("%2F","/");
+
   result.replace("%21","!");
+  result.replace("%22","\"");
+  result.replace("%23","#");
+  result.replace("%24","$");
+  result.replace("%25","%");
+  result.replace("%26","&");
+  result.replace("%27","\'");
+  result.replace("%28","(");
+  result.replace("%29",")");
+  result.replace("%2B","+");
+  result.replace("%2C",",");
+  result.replace("%2F","/");
+    
+  result.replace("%3A",":");
+  result.replace("%3B",";"); 
+  result.replace("%3C","<");   
+  result.replace("%3D","="); 
+  result.replace("%3E",">");  
+  result.replace("%3F","?");  
+  
+  result.replace("%40","@");
+
+  result.replace("%5B","[");  
+  result.replace("%5D","]");  
+  result.replace("%5E","^");
+  
+  result.replace("%60","`");  
+
+  result.replace("%7B","{");  
+  result.replace("%7D","}");  
+  result.replace("%7E","~");  
+  
+  
   
   //Serial.println(result);
   result.trim();
@@ -86,7 +118,12 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             client.println();
 
             // Handle any GET queries we know about.
-            if (header.indexOf("GET /general") >=0) {
+            if (header.indexOf("GET /counterreset") >=0) {
+              Serial.println("Resetting the Counter.");  
+              config.lidarZone1Count = "0";
+              //saveConfiguration(filename,config);
+              
+            } else if (header.indexOf("GET /general") >=0) {
               Serial.println("You are tweaking general parameters.");  
               config.deviceName = getQueryParam(header, "devname");
               saveConfiguration(filename,config);
@@ -192,7 +229,18 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
 
             }
             
-
+            // COUNTER DATA
+            if (deviceType == "counter"){
+              client.println("<form action=\"/counterreset\">\n");
+              client.println("<H3>Counter Value</H3>");
+              client.println("<input type=\"hidden\" id=\"counterval\" name=\"counterval\" value=\""+ config.lidarZone1Count + "\"><br><br>");
+              client.print("<H1>");
+              client.print(config.lidarZone1Count);
+              client.println("</H1>");
+              client.println("<input type=\"hidden\" id=\"counterval2\" name=\"counterval2\" value=\""+ config.lidarZone1Count + "\"><br><br>");
+              
+              client.println("<input type=\"submit\" value=\"Clear Counter\"></form>");
+            }
             // GENERAL PARAMETERS
             client.println("<form action=\"/generalparms\">\n");
             client.println("<H3>General</H3>");
@@ -202,14 +250,24 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             if (deviceType == "basestation"){
                 client.println("DS-VC-BASE-LOR-1<br></label><p><small>(Single-Channel, LoRa-WiFi Gateway)</small></p>");
             } else if (deviceType =="counter"){
+              #ifdef USE_WIFI
+                client.println("DS-VC-LIDAR-WIFI-1<br></label><p><small>(LIDAR Traffic Counter with WiFi Back Haul)</small></p>");
+              #else
                 client.println("DS-VC-LIDAR-LOR-1<br></label><p><small>(LIDAR Traffic Counter with LoRa Back Haul)</small></p>");
+              #endif
             }
+
+            client.print("<label>Software Version<br></label><p>");
+            client.print(SW_VERSION);
+            client.println("</p>");
+            
             client.println("<input type=\"submit\" value=\"Submit\"></form>");
+            
 
             // NETWORK PARAMETERS
             client.println("<form action=\"/networkparms\">\n");
             client.println("<H3>Network</H3>");
-            client.println("<p>NOTE: Changes to network settings will be applied after a reboot of the base station. </p>");
+            client.println("<p>NOTE: Changes to network settings will be applied after a reboot of the device. </p>");
             client.println("<label>MAC Address: " + getMACAddress() + "</label><br><br>");
             client.println("<label for=\"ssid\">SSID</label>");
             client.println("<input type=\"text\" id=\"ssid\" name=\"ssid\" value=\""+ config.ssid + "\"><br><br>\n");
