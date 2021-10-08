@@ -18,6 +18,8 @@
 // Globals
 bool wifiConnected = false;
 long msLastConnectionAttempt; // Timer value of the last time we tried to connect to the wifi.
+HTTPClient http;  // The class we use to POST messages
+
 
 //*****************************************************************************
 // Return the device's MAC address as a String
@@ -126,6 +128,8 @@ bool postJSON(String jsonPayload, Config config)
 #if !(SHOW_DATA_STREAM)
     debugUART.print("postJSON Running on Core #: ");
     debugUART.println(xPortGetCoreID());
+    debugUART.print("Free Heap: ");
+    debugUART.println(ESP.getFreeHeap());
 #endif
 
     if (WiFi.status() != WL_CONNECTED)
@@ -137,7 +141,6 @@ bool postJSON(String jsonPayload, Config config)
         };
     }
 
-    HTTPClient http;
 
     unsigned long t1 = millis();
 
@@ -162,13 +165,22 @@ bool postJSON(String jsonPayload, Config config)
     debugUART.println("POSTing to Server:");
     debugUART.println(jsonPayload);
     debugUART.print("HTTP response code: ");
+    if (!(httpResponseCode==200)){
+        debugUART.println("*****ERROR*****");
+    }
     debugUART.println(httpResponseCode);
     debugUART.println();
 #endif
 
     // Free resources
     http.end();
-    return true;
+
+    if (httpResponseCode==200){
+      return true;
+    } else { 
+      return false;
+    }
+    
 }
 
 #endif //__DIGAME_NETWORK_H__

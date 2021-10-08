@@ -31,7 +31,7 @@ String getQueryParam(String header, String paramName){
 
   result = header.substring(strStart,strStop);
   result = result.substring(0,result.indexOf("&"));
-  debugUART.println(result);
+  //debugUART.println(result);
 
   // Clean up the string by removing HTML replacements
   result.replace("+"," ");
@@ -76,6 +76,11 @@ String getQueryParam(String header, String paramName){
   return result;
 }
 
+void redirectHome(WiFiClient client){
+  client.print("<HEAD>");
+  client.print("<meta http-equiv=\"refresh\" content=\"0;url=/\">");
+  client.print("</head>");
+}
 
 //****************************************************************************************
 void processWebClient(String deviceType, WiFiClient client, Config& config){
@@ -94,13 +99,17 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
   if (client) {                             // If a new client connects,
     currentMillis = millis();
     previousMillis = currentMillis;
-    Serial.println("New Client.");          // print a message out in the serial port
+    #if !SHOW_DATA_STREAM
+      Serial.println("New Client.");          // print a message out in the serial port
+    #endif  
     String currentLine = "";                // make a String to hold incoming data from the client
     while (client.connected() && currentMillis - previousMillis <= timeoutMillis) {  // loop while the client's connected
       currentMillis = millis();
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
-        Serial.write(c);                    // print it out the serial monitor
+        #if !SHOW_DATA_STREAM
+          Serial.write(c);                    // print it out the serial monitor
+        #endif
         header += c;
         if (c == '\n') {                    // if the byte is a newline character
           // if the current line is blank, you got two newline characters in a row.
@@ -119,24 +128,28 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
 
             // Handle any GET queries we know about.
             if (header.indexOf("GET /counterreset") >=0) {
-              Serial.println("Resetting the Counter.");  
+              //Serial.println("Resetting the Counter.");  
               config.lidarZone1Count = "0";
               //saveConfiguration(filename,config);
+              redirectHome(client);
               
             } else if (header.indexOf("GET /general") >=0) {
-              Serial.println("You are tweaking general parameters.");  
+
+              //Serial.println("You are tweaking general parameters.");  
               config.deviceName = getQueryParam(header, "devname");
               saveConfiguration(filename,config);
+              redirectHome(client);
               
             } else if (header.indexOf("GET /network") >=0) {
-              Serial.println("You are tweaking network parameters.");  
+              //Serial.println("You are tweaking network parameters.");  
               config.ssid = getQueryParam(header,"ssid");
               config.password  = getQueryParam(header,"password");
               config.serverURL = getQueryParam(header,"serverurl");
               saveConfiguration(filename,config);
-              
+              redirectHome(client);
+
             } else if (header.indexOf("GET /lora") >=0) {
-              Serial.println("You are tweaking LoRa parameters."); 
+              //Serial.println("You are tweaking LoRa parameters."); 
               config.loraAddress   = getQueryParam(header,"address");
               config.loraNetworkID = getQueryParam(header,"networkid");
               config.loraBand      = getQueryParam(header,"band");
@@ -149,9 +162,10 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
               initLoRa();
               configureLoRa(config);
               #endif
-            
+              redirectHome(client);
+
             } else if (header.indexOf("GET /sensors") >=0){
-              Serial.println("You are tweaking Sensor parameters.");
+              //Serial.println("You are tweaking Sensor parameters.");
               config.sens1Name  = getQueryParam(header,"sens1name");
               config.sens1Addr  = getQueryParam(header,"sens1addr");
               config.sens1MAC   = getQueryParam(header,"sens1mac");             
@@ -165,9 +179,10 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
               config.sens4Addr  = getQueryParam(header,"sens4addr");
               config.sens4MAC   = getQueryParam(header,"sens4mac"); 
               saveConfiguration(filename,config);  
+              redirectHome(client);
 
             } else if (header.indexOf("GET /lidar") >=0) {
-              Serial.println("You are tweaking LIDAR parameters."); 
+              //Serial.println("You are tweaking LIDAR parameters."); 
 
               config.lidarZone1Min        = getQueryParam(header,"zone1min");
               config.lidarZone1Max        = getQueryParam(header,"zone1max");
@@ -177,7 +192,8 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
               config.lidarResidenceTime   = getQueryParam(header,"residencetime");
 
               saveConfiguration(filename,config);
-            
+              redirectHome(client);
+
             } else if (header.indexOf("GET /histo")>=0){
             client.println(getDistanceHistogramString());
             break;
@@ -198,20 +214,30 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             client.println("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">");
             client.println("<link rel=\"icon\" href=\"data:,\">");
             
-            client.println("<style>");
-            client.println(" html { font-family: Helvetica; display: inline-block; margin: 0px auto;}");// text-align: center;}");
-            client.println(" form { margin:10px auto; width: 300px; background-color: #eeeeee; border: solid; padding: 5px 15px;}");
-            client.println(" h1 { background-color: #ac0014; border: none; color: white; padding: 16px 40px;");  
-            client.println("    text-decoration: none; text-align: center; margin: 2px;}");
-            client.println(" h2 { margin: auto; text-align: center;}");
-            client.println(" h3 { margin: auto; text-align: center;}");
-            client.println(" label {width: 250px; text-align: left;clear: both;float:left; margin-right:15px;}");
-            client.println(" img { display:block; width:175px; margin-left:auto; margin-right:auto; }");
-            client.println(" input {width: 250px;}");
-            client.println(" table input {width: 110px;}");
-            client.println(" .narrow { width: 50px;)");
-            client.println("</style>");
+            client.println(" <style>");
 
+            client.println("  html { font-family: Helvetica; display: inline-block; margin: 0px auto; }");
+            client.println("  form { margin:10px auto; width: 300px; background-color: #eeeeee; border: solid; padding: 5px 15px; }");
+            client.println("  h1 { background-color: #ac0014; border: none; color: white; padding: 16px 40px;");  
+            client.println("      text-decoration: none; text-align: center; margin: 2px; }");
+            client.println("  h2 { margin: auto; text-align: center; }");
+            client.println("  h3 { margin: auto; text-align: center; }");
+            client.println("  label { width: 250px; text-align: left; clear: both; float:left; margin-right:15px; }");
+            client.println("  img { display:block; width:175px; margin-left:auto; margin-right:auto; }");
+            client.println("  input[type=\"text\"] { width: 280px; }");
+            client.println("  input[type=\"submit\"] { width: 100px; }");
+            client.println("  table input { width: 110px; }");
+
+            client.println("  .narrow { width: 50px; }");
+
+            client.println("  .center {");
+            client.println("    position: absolute;");
+            client.println("    left: 50%;");
+            client.println("    -ms-transform: translate(-50%, -100%);");
+            client.println("    transform: translate(-50%, -100%);");
+            client.println("  }");
+
+            client.println(" </style>");
             client.println("</head>");
             
             // Web Page Heading
@@ -219,6 +245,7 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             client.println("<h3><em>A Next-Generation Traffic Counting Platform</em></h3>");
             client.println("<h3><em>from D&#237game Systems</em></h3>");
             client.println("<hr>");
+
             if (deviceType == "basestation"){
                 client.println("<br><H2>BASE STATION <br><em>"+ config.deviceName +"</em></H2>");
                 client.println("<p>Welcome. You can use these forms to update system parameters for this LoRa-WiFi base station.</p>");
@@ -233,19 +260,21 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             if (deviceType == "counter"){
               client.println("<form action=\"/counterreset\">\n");
               client.println("<H3>Counter Value</H3>");
-              client.println("<input type=\"hidden\" id=\"counterval\" name=\"counterval\" value=\""+ config.lidarZone1Count + "\"><br><br>");
+              client.println("<input type=\"hidden\" id=\"counterval\" name=\"counterval\" value=\""+ config.lidarZone1Count + "\"><br>");
               client.print("<H1>");
               client.print(config.lidarZone1Count);
               client.println("</H1>");
               client.println("<input type=\"hidden\" id=\"counterval2\" name=\"counterval2\" value=\""+ config.lidarZone1Count + "\"><br><br>");
-              
-              client.println("<input type=\"submit\" value=\"Clear Counter\"></form>");
+              client.println("<div class=\"center\">");
+              client.println("  <input type=\"submit\" value=\"Clear Counter\"></form>");
+              client.println("</div>");
             }
             // GENERAL PARAMETERS
             client.println("<form action=\"/generalparms\">\n");
             client.println("<H3>General</H3>");
             client.println("<label for=\"devname\">Device Name</label>");
             client.println("<input type=\"text\" id=\"devname\" name=\"devname\" value=\""+ config.deviceName + "\"><br><br>");
+
             client.println("<label>Model<br>");
             if (deviceType == "basestation"){
                 client.println("DS-VC-BASE-LOR-1<br></label><p><small>(Single-Channel, LoRa-WiFi Gateway)</small></p>");
@@ -259,9 +288,11 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
 
             client.print("<label>Software Version<br></label><p>");
             client.print(SW_VERSION);
-            client.println("</p>");
+            client.println("</p><br>");
             
+            client.println("<div class=\"center\">");
             client.println("<input type=\"submit\" value=\"Submit\"></form>");
+            client.println("</div>");
             
 
             // NETWORK PARAMETERS
@@ -274,9 +305,13 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             client.println("<label for=\"password\">Password</label>");
             client.println("<input type=\"text\" id=\"password\" name=\"password\" value=\""+ config.password +"\"><br><br>");
             client.println("<label for=\"serverurl\">Server URL</label>");
-            client.println("<input type=\"text\" id=\"serverurl\" name=\"serverurl\" value=\""+ config.serverURL + "\"</input><br><br>");
+            client.println("<input type=\"text\" id=\"serverurl\" name=\"serverurl\" size=\"40\" value=\""+ config.serverURL + "\"</input><br><br>");
+            client.println("<br>");
+            client.println("<div class=\"center\">");
             client.println("<input type=\"submit\" value=\"Submit\"></form>");
+            client.println("</div>");
 
+#if USE_LORA
             // LORA PARAMETERS
             client.println("<form action=\"/loraparms\">\n");
             client.println("<H3>LoRa (Low-Power Long-Range Wireless Link)</H3>");
@@ -295,7 +330,11 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             client.println("<input type=\"text\" id=\"codingrate\" name=\"codingrate\" value=\"" + config.loraCR + "\"><br><br>");
             client.println("<label for=\"preamble\">Preamble</label>");
             client.println("<input type=\"text\" id=\"preamble\" name=\"preamble\" value=\""+ config.loraPreamble +"\"</input><br><br>");
+            client.println("<br>");
+            client.println("<div class=\"center\">");
             client.println("<input type=\"submit\" value=\"Submit\"></form>");
+            client.println("</div>");
+#endif 
 
             if (deviceType == "counter"){
                 // LIDAR PARAMETERS
@@ -318,8 +357,11 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
                 client.println("<input type=\"text\" id=\"zone2min\" name=\"zone2min\" value=\""+ config.lidarZone2Min + "\"><br><br>");
                 client.println("<label for=\"address\">Lane 2 Max</label>");
                 client.println("<input type=\"text\" id=\"zone2max\" name=\"zone2max\" value=\""+ config.lidarZone2Max + "\"><br><br>");
-                              
+                client.println("<br>");
+                
+                client.println("<div class=\"center\">");
                 client.println("<input type=\"submit\" value=\"Submit\"></form>");
+                client.println("</div>");
             }
 
             if (deviceType == "basestation"){
@@ -359,7 +401,11 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
                 client.println("</tbody>");
             
                 client.println("</table><br>");
+                client.println("<br>");
+
+                client.println("<div class=\"center\">");
                 client.println("<input type=\"submit\" value=\"Submit\"></form>");
+                client.println("</div>");
             }
             
             //client.println("<div style=\"text-align: center;\"");
@@ -386,8 +432,8 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
     header = "";
     // Close the connection
     client.stop();
-    Serial.println("Client disconnected.");
-    Serial.println("");
+    //Serial.println("Client disconnected.");
+    //Serial.println("");
   }  
 
 }

@@ -16,7 +16,7 @@ const int lidarSamples = 50;
 CircularBuffer<int, lidarSamples> lidarBuffer; // We're going to hang onto the last 100 raw data
                                                //   points to visualize what the sensor sees
 
-CircularBuffer<int, 175> lidarHistoryBuffer; // A longer buffer for visualization of the history
+CircularBuffer<int, 150> lidarHistoryBuffer; // A longer buffer for visualization of the history
                                              // before the algorithm makes a decision.
 
 const int histogramSize = 121; // Playing with a histogram of distances to see if we can learn

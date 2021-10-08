@@ -1,4 +1,4 @@
-/* HEIMDALL VCS - Vehicle Counting Systems 
+ /* HEIMDALL VCS - Vehicle Counting Systems 
  * A traffic counting system that uses LIDAR to track pedestrians and vehicles.
  * 
  * Copyright 2021, Digame Systems. All rights reserved.
@@ -15,12 +15,12 @@
 #define APPEND_RAW_DATA_WIFI true // In USE_WIFI mode, add 100 points of raw LIDAR data to the wifi 
                                   // JSON msg for analysis at the server.
 
-#define STAND_ALONE_LORA true // In USE_LORA mode, this flag enables the AP web server and 
+#define STAND_ALONE_LORA true // In USE_LORA mode, this flag enables the AP web server and    
                                // disables the ACK requirement on LoRa messages, allowing you 
                                // to run without a base station and configure parameters through
                                // the web page. 
 
-#define SHOW_DATA_STREAM true   // A debugging flag to show raw LIDAR values on the 
+#define SHOW_DATA_STREAM false   // A debugging flag to show raw LIDAR values on the 
                                 // serial monitor. -- This mode disables other output to the 
                                 // serial monitor after bootup.
 
@@ -30,6 +30,7 @@
 
 #include <CircularBuffer.h>   // Adafruit library for handling circular buffers of data. 
 
+#include <digameDebug.h> 
 #include <digameJSONConfig.h> // Program parameters from config file on SD card
 #include <digameTime.h>       // Time Functions - RTC, NTP Synch etc
 #include <digameNetwork.h>    // Network Functions - Login, MAC addr
@@ -44,8 +45,10 @@
 
 const int samples = 200;
 
-CircularBuffer<String, samples> msgBuffer; // A buffer containing JSON messages to be 
-                                           // sent to the LoRa basestation.
+CircularBuffer<String *, samples> msgBuffer; // A buffer containing pointers JSON messages to be 
+                                             // sent to the LoRa basestation or server.
+
+
 
 String msgPayload;                         // The message being sent to the base station. 
                                            // (JSON format depends on Link LoRa or WiFi)
@@ -69,7 +72,7 @@ bool   heartbeatMessageNeeded = true;
 int    vehicleMessageNeeded   = 0;    // 0=false, 1=lane 1, 2=lane 2 messages
 
 // Over the Air Updates work when we have WiFi or are in Access Point Mode...
-bool useOTA = false;
+bool useOTA = true;
 
 // DIO
 int    LED_DIAG  = 12;     // Indicator LED
@@ -109,6 +112,9 @@ void splash(){
   debugUART.println();
   debugUART.println("HARDWARE INITIALIZATION");
   debugUART.println();
+  
+  debugUART.print("Free Heap: ");
+  debugUART.println(ESP.getFreeHeap());
     
 }
 
@@ -256,7 +262,6 @@ String buildJSONHeader(String eventType, double count, String lane = "1"){
 // Current version keeps retrying forever if an ACK isn't received. TODO: Fix.
 void messageManager(void *parameter){
   
-  String activeMessage; 
   bool messageACKed=false; 
   
   debugUART.print("Message Manager Running on Core #: ");
@@ -270,8 +275,10 @@ void messageManager(void *parameter){
     //*******************************
     if (msgBuffer.size()>0){ 
 
-
-      activeMessage = msgBuffer.first(); // Read from the buffer without removing the data from it.
+      debugUART.print("Buffer Size: ");
+      debugUART.println(msgBuffer.size());
+     
+      String activeMessage = String(msgBuffer.first()->c_str()); // Read from the buffer without removing the data from it.
           
       // Send the data to the LoRa-WiFi base station that re-formats and routes it to the 
       // ParkData server.
@@ -285,13 +292,16 @@ void messageManager(void *parameter){
 
       // Send the data directly to the ParkData server via http(s) POST
       #if USE_WIFI
-        messageACKed = postJSON(activeMessage, config);       
+        messageACKed = postJSON(activeMessage, config);  
+
+        //messageACKed = true;
       #endif   
 
       if (messageACKed) {
         // Message sent and received. Take it off of the queue. 
         xSemaphoreTake(mutex_v, portMAX_DELAY); 
-          activeMessage=msgBuffer.shift();
+            String  * entry = msgBuffer.shift();
+            delete entry;
         xSemaphoreGive(mutex_v);
         
         #if !(SHOW_DATA_STREAM)
@@ -301,7 +311,12 @@ void messageManager(void *parameter){
       } 
       
     }
-    
+
+  //**************************************************************************************   
+  // Let the Over the Air Programming process have some CPU
+  if (useOTA){
+    ArduinoOTA.handle();
+  }
     vTaskDelay(100 / portTICK_PERIOD_MS);   
   }   
   
@@ -311,7 +326,7 @@ void messageManager(void *parameter){
 //****************************************************************************************
 // A task that runs on Core0 to update the display when the count changes. 
 void countDisplayManager(void *parameter){
-  int countDisplayUpdateRate = 20;
+  int countDisplayUpdateRate = 500;
   unsigned int myCount;
   static unsigned int oldCount=0;
   
@@ -336,6 +351,11 @@ void countDisplayManager(void *parameter){
       showValue(myCount);  
       oldCount = myCount;
     }
+
+    //debugUART.print("Free Heap: ");
+    //debugUART.println(ESP.getFreeHeap());
+
+    
     vTaskDelay(countDisplayUpdateRate / portTICK_PERIOD_MS);
 
   }
@@ -454,8 +474,12 @@ void setup(){
   //**************************************************************************************   
   // Show the splash screen
   initDisplay();
-  displaySplashScreen("(LIDAR Counter)",SW_VERSION); 
+
   
+  displaySplashScreen("(LIDAR Counter)",SW_VERSION); 
+
+ 
+
   
   //**************************************************************************************   
   // If the unit is unconfigured or is booted with the RESET button held down, enter AP mode.
@@ -507,11 +531,12 @@ void setup(){
     //esp_wifi_stop();
     esp_bt_controller_disable();
   
-    useOTA = true;   
+    useOTA = false;   
     usingWiFi = true;
     myMACAddress = getMACAddress();        
     if (accessPointMode){
       setupAPMode(ssid);  
+      //useOTA = true;
     }else{
       enableWiFi(config);
       server.begin();
@@ -519,6 +544,9 @@ void setup(){
       delay(3000);
       hwStatus += "   WiFi:  OK\n\n";
     }  
+
+    // allow reuse on HTTPClient that does the POSTs (if server supports it)
+    http.setReuse(true); // See digameNetwork.h for this guy.
 
 
     
@@ -637,7 +665,8 @@ void setup(){
   // Add a message to the queue for transmission.
 void pushMessage(String message){
   xSemaphoreTake(mutex_v, portMAX_DELAY);  
-  msgBuffer.push(message);
+    String * msgPtr = new String(message);
+    msgBuffer.push(msgPtr);
   xSemaphoreGive(mutex_v);  
 }
 
@@ -645,12 +674,6 @@ void pushMessage(String message){
 // Main Loop
 //****************************************************************************************
 void loop(){ 
-
-  //**************************************************************************************   
-  // Let the Over the Air Programming process have some CPU
-  if (useOTA){
-    ArduinoOTA.handle();
-  }
 
   //**************************************************************************************   
   // Grab the current time
@@ -747,8 +770,11 @@ void loop(){
           msgPayload = msgPayload + "]";
         #endif
         
-        msgPayload = msgPayload + "}";   
+        msgPayload = msgPayload + "}";  
+         
         pushMessage(msgPayload);
+
+        
       }
       vehicleMessageNeeded = 0; 
     }
