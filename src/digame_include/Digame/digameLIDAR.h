@@ -225,7 +225,7 @@ int processLIDARSignal(Config config)
       carEvent2 = 0;
     }
 
-#if SHOW_DATA_STREAM
+if (showDataStream == true){
     debugUART.print(tfDist);
     debugUART.print(",");
     debugUART.print(smoothed);
@@ -241,7 +241,7 @@ int processLIDARSignal(Config config)
     debugUART.print(carEvent1);
     debugUART.print(",");
     debugUART.println(carEvent2);
-#endif
+}
 
     previousCarPresentLane1 = carPresentLane1;
     previousCarPresentLane2 = carPresentLane2;
@@ -382,7 +382,7 @@ int processLIDARSignal2(Config config){
     }
 
 
-    #if SHOW_DATA_STREAM
+     if (showDataStream == true){
         debugUART.print(tfDist);
         debugUART.print(",");
         //debugUART.print(smoothed);
@@ -402,7 +402,7 @@ int processLIDARSignal2(Config config){
         debugUART.print(zone1Strength);
         debugUART.print(",");
         debugUART.println(zone2Strength);
-    #endif
+     }
 
   }
   else

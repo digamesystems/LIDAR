@@ -53,10 +53,10 @@ GxEPD2_GFX &getDisplay()
 
 void initDisplay()
 {
-  #if !SHOW_DATA_STREAM
+  if (showDataStream == false){
   debugUART.println("  Initializing eInk Display...");
   debugUART.println("    Reading EEPROM");
-  #endif
+  }
 
   EEPROM.begin(10);
   delay(1000);
@@ -87,18 +87,18 @@ void initDisplay()
     }
   } 
 
-  #if !SHOW_DATA_STREAM
+ if (showDataStream == false){
   debugUART.print("    Display Type: ");
   debugUART.print(EEPROM.read(0));
-  #endif 
+ } 
 
   if (EEPROM.read(0)==1){displayType="SSD1608";}
   if (EEPROM.read(0)==2){displayType="SSD1681";}
 
-  #if !SHOW_DATA_STREAM
+ if (showDataStream == false){
   debugUART.print(" = ");
   debugUART.println(displayType);
-  #endif
+ }
 
   GxEPD2_GFX &display = getDisplay();
 

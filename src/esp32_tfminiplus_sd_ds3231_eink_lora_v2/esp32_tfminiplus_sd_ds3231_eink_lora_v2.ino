@@ -20,9 +20,12 @@
                                // to run without a base station and configure parameters through
                                // the web page. 
 
-#define SHOW_DATA_STREAM false   // A debugging flag to show raw LIDAR values on the 
+//#define SHOW_DATA_STREAM false   // A debugging flag to show raw LIDAR values on the 
                                 // serial monitor. -- This mode disables other output to the 
                                 // serial monitor after bootup.
+
+bool showDataStream = true;
+
 
 #include <digameVersion.h>    // Global SW version constants
 
@@ -108,14 +111,14 @@ void splash(){
   debugUART.print(compileDate);
   debugUART.print(" at ");
   debugUART.println(compileTime); 
+  debugUART.print("Free Heap: ");
+  debugUART.println(ESP.getFreeHeap());
   debugUART.println("*****************************************************");
   debugUART.println();
   debugUART.println("HARDWARE INITIALIZATION");
   debugUART.println();
   
-  debugUART.print("Free Heap: ");
-  debugUART.println(ESP.getFreeHeap());
-    
+      
 }
 
 
@@ -275,9 +278,11 @@ void messageManager(void *parameter){
     //*******************************
     if (msgBuffer.size()>0){ 
 
-      debugUART.print("Buffer Size: ");
-      debugUART.println(msgBuffer.size());
-     
+      if (showDataStream == false){
+        debugUART.print("Buffer Size: ");
+        debugUART.println(msgBuffer.size());
+      }
+      
       String activeMessage = String(msgBuffer.first()->c_str()); // Read from the buffer without removing the data from it.
           
       // Send the data to the LoRa-WiFi base station that re-formats and routes it to the 
@@ -304,10 +309,12 @@ void messageManager(void *parameter){
             delete entry;
         xSemaphoreGive(mutex_v);
         
-        #if !(SHOW_DATA_STREAM)
+        
+        if (showDataStream==false){
           debugUART.println("Success!");
           debugUART.println();
-        #endif
+        }
+        
       } 
       
     }
@@ -330,11 +337,11 @@ void countDisplayManager(void *parameter){
   unsigned int myCount;
   static unsigned int oldCount=0;
   
-  #if !(SHOW_DATA_STREAM)
-  debugUART.print("Display Manager Running on Core #: ");
-  debugUART.println(xPortGetCoreID());
-  debugUART.println();
-  #endif 
+  if (showDataStream == false){
+    debugUART.print("Display Manager Running on Core #: ");
+    debugUART.println(xPortGetCoreID());
+    debugUART.println();
+  }
   
   for(;;){  
       
@@ -377,10 +384,10 @@ void handleModeButtonPress(){
   // Check for RESET button being pressed. If it has been, reset the counter to zero.
   if (digitalRead(CTR_RESET)== LOW) { 
     clearCountData();
-    #if !(SHOW_DATA_STREAM)
+    if (showDataStream == false){
        debugUART.print("Loop: RESET button pressed. Count: ");
-       debugUART.println(count);  
-    #endif
+       debugUART.println(count); 
+    }
   }  
 }
 
@@ -526,17 +533,16 @@ void setup(){
   // Data reporting over the WiFi link
   #if USE_WIFI
 
-    btStop();
-    adc_power_off();
-    //esp_wifi_stop();
+    btStop();  // Turn off bluetooth to save power.
+    adc_power_off(); // We're not using ADCs. Save a little power here, too.
     esp_bt_controller_disable();
   
-    useOTA = false;   
+    useOTA = true;   
     usingWiFi = true;
+    
     myMACAddress = getMACAddress();        
     if (accessPointMode){
       setupAPMode(ssid);  
-      //useOTA = true;
     }else{
       enableWiFi(config);
       server.begin();
@@ -736,22 +742,23 @@ void loop(){
         config.lidarZone1Count = String(count); // Update this so entities making use of config have access to the current count.
                                                 // e.g., digameWebServer.h
                                                 
-        #if !(SHOW_DATA_STREAM)
+        if (showDataStream == false){
           debugUART.print("Vehicle event! Counts: ");
           debugUART.println(count);
-        #endif             
-
+        }
+        
         if (vehicleMessageNeeded==1){
-          #if !(SHOW_DATA_STREAM)
+          if (showDataStream == false){
             debugUART.println("LANE 1 Event!");
-          #endif
+          }
+          
           msgPayload = buildJSONHeader("v",count,"1");
         }
 
         if (vehicleMessageNeeded==2){
-          #if !(SHOW_DATA_STREAM)
+          if (showDataStream == false){
             debugUART.println("LANE 2 Event!");
-          #endif
+          }
           msgPayload = buildJSONHeader("v",count,"2");
         }
         

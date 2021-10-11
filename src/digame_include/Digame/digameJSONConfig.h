@@ -187,19 +187,19 @@ void loadConfiguration(const char *filename, Config &config)
 // Saves the configuration to a file
 void saveConfiguration(const char *filename, Config &config)
 {
-  #if !SHOW_DATA_STREAM
-  debugUART.println("    Saving parameters...");
-  // Delete existing file, otherwise the configuration is appended to the file
+  if (showDataStream == false){
+    debugUART.println("    Saving parameters...");
+    // Delete existing file, otherwise the configuration is appended to the file
 
-  debugUART.println("    Erasing old file...");
-  #endif 
+    debugUART.println("    Erasing old file...");
+  }
 
   SD.remove(filename);
 
   // Open file for writing
-  #if !SHOW_DATA_STREAM
+  if (showDataStream == false){
   debugUART.println("    Opening file for write...");
-  #endif
+  }
 
   File file = SD.open(filename, FILE_WRITE);
   if (!file)
@@ -254,9 +254,9 @@ void saveConfiguration(const char *filename, Config &config)
   doc["displayType"] = config.displayType;
 
   // Serialize JSON to file
-  #if !SHOW_DATA_STREAM
-  debugUART.println("Writing file...");
-  #endif 
+  if (showDataStream == false){
+    debugUART.println("Writing file...");
+  }
 
   if (serializeJson(doc, file) == 0)
   {
@@ -264,10 +264,10 @@ void saveConfiguration(const char *filename, Config &config)
   }
 
   // Close the file
-  #if !SHOW_DATA_STREAM
-  debugUART.println("Done saving parameters.");
-  #endif
-  
+  if (showDataStream == false){
+    debugUART.println("Done saving parameters.");
+  }
+
   file.close();
 }
 

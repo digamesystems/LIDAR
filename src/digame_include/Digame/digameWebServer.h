@@ -99,17 +99,17 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
   if (client) {                             // If a new client connects,
     currentMillis = millis();
     previousMillis = currentMillis;
-    #if !SHOW_DATA_STREAM
+    if (showDataStream == false){
       Serial.println("New Client.");          // print a message out in the serial port
-    #endif  
+    } 
     String currentLine = "";                // make a String to hold incoming data from the client
     while (client.connected() && currentMillis - previousMillis <= timeoutMillis) {  // loop while the client's connected
       currentMillis = millis();
       if (client.available()) {             // if there's bytes to read from the client,
         char c = client.read();             // read a byte, then
-        #if !SHOW_DATA_STREAM
+        if (showDataStream == false){
           Serial.write(c);                    // print it out the serial monitor
-        #endif
+        }
         header += c;
         if (c == '\n') {                    // if the byte is a newline character
           // if the current line is blank, you got two newline characters in a row.
@@ -138,6 +138,13 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
               //Serial.println("You are tweaking general parameters.");  
               config.deviceName = getQueryParam(header, "devname");
               saveConfiguration(filename,config);
+
+              if (getQueryParam(header, "streaming" ) == "ON") { 
+                showDataStream = true;
+              } else {
+                showDataStream = false;
+              }
+
               redirectHome(client);
               
             } else if (header.indexOf("GET /network") >=0) {
@@ -275,20 +282,40 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             client.println("<label for=\"devname\">Device Name</label>");
             client.println("<input type=\"text\" id=\"devname\" name=\"devname\" value=\""+ config.deviceName + "\"><br><br>");
 
+
+            client.println("<label for=\"streaming\">Raw LIDAR Streaming<br></label>");
+
+            if (showDataStream){
+              client.println("<div><br><input type=\"radio\" id=\"true\" name=\"streaming\" value=\"ON\" checked>");            
+              client.println("<small><label for=\"true\">ON</label></small><br>");
+              
+              client.println("<input type=\"radio\" id=\"false\" name=\"streaming\" value=\"OFF\">");
+              client.println("<small><label for=\"false\">OFF</label></small></div><br>");
+
+            } else {
+              client.println("<div><br><input type=\"radio\" id=\"true\" name=\"streaming\" value=\"ON\">");            
+              client.println("<small><label for=\"true\">ON</label></small><br>");
+            
+              client.println("<input type=\"radio\" id=\"false\" name=\"streaming\" value=\"OFF\" checked>");
+              client.println("<small><label for=\"false\">OFF</label></small></div><br>");
+
+            }
+            
+            
             client.println("<label>Model<br>");
             if (deviceType == "basestation"){
-                client.println("DS-VC-BASE-LOR-1<br></label><p><small>(Single-Channel, LoRa-WiFi Gateway)</small></p>");
+                client.println("<small>DS-VC-BASE-LOR-1<br></label><p>(Single-Channel, LoRa-WiFi Gateway)</small></p>");
             } else if (deviceType =="counter"){
               #ifdef USE_WIFI
-                client.println("DS-VC-LIDAR-WIFI-1<br></label><p><small>(LIDAR Traffic Counter with WiFi Back Haul)</small></p>");
+                client.println("<small>DS-VC-LIDAR-WIFI-1<br></label><p>(LIDAR Traffic Counter with WiFi Back Haul)</small></p>");
               #else
-                client.println("DS-VC-LIDAR-LOR-1<br></label><p><small>(LIDAR Traffic Counter with LoRa Back Haul)</small></p>");
+                client.println("<small>DS-VC-LIDAR-LOR-1<br></label><p>(LIDAR Traffic Counter with LoRa Back Haul)</small></p>");
               #endif
             }
 
-            client.print("<label>Software Version<br></label><p>");
+            client.print("<label>Software Version<br></label><p><small>");
             client.print(SW_VERSION);
-            client.println("</p><br>");
+            client.println("</small></p><br>");
             
             client.println("<div class=\"center\">");
             client.println("<input type=\"submit\" value=\"Submit\"></form>");
@@ -299,7 +326,7 @@ void processWebClient(String deviceType, WiFiClient client, Config& config){
             client.println("<form action=\"/networkparms\">\n");
             client.println("<H3>Network</H3>");
             client.println("<p>NOTE: Changes to network settings will be applied after a reboot of the device. </p>");
-            client.println("<label>MAC Address: " + getMACAddress() + "</label><br><br>");
+            client.println("<label>MAC Address</label><p><small>" + getMACAddress() + "</small></p>");
             client.println("<label for=\"ssid\">SSID</label>");
             client.println("<input type=\"text\" id=\"ssid\" name=\"ssid\" value=\""+ config.ssid + "\"><br><br>\n");
             client.println("<label for=\"password\">Password</label>");

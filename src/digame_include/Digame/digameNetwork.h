@@ -125,12 +125,12 @@ void disableWiFi()
 bool postJSON(String jsonPayload, Config config)
 {
 
-#if !(SHOW_DATA_STREAM)
-    debugUART.print("postJSON Running on Core #: ");
-    debugUART.println(xPortGetCoreID());
-    debugUART.print("Free Heap: ");
-    debugUART.println(ESP.getFreeHeap());
-#endif
+    if (showDataStream == false){
+        debugUART.print("postJSON Running on Core #: ");
+        debugUART.println(xPortGetCoreID());
+        //debugUART.print("Free Heap: ");
+        //debugUART.println(ESP.getFreeHeap());
+    }
 
     if (WiFi.status() != WL_CONNECTED)
     {
@@ -141,25 +141,26 @@ bool postJSON(String jsonPayload, Config config)
         };
     }
 
-
     unsigned long t1 = millis();
 
     // Your Domain name with URL path or IP address with path
     http.begin(config.serverURL);
     //http.begin("http://199.21.201.53/trailwaze/zion/lidar_sensor_import.php");
 
-#if !(SHOW_DATA_STREAM)
-    debugUART.print("JSON payload length: ");
-    debugUART.println(jsonPayload.length());
-    debugUART.print("HTTP begin Time: ");
-    debugUART.println(millis() - t1);
-#endif
+    if (showDataStream == false){
+        debugUART.print("JSON payload length: ");
+        debugUART.println(jsonPayload.length());
+        debugUART.print("HTTP begin Time: ");
+        debugUART.println(millis() - t1);
+    }
+    
     // If you need an HTTP request with a content type: application/json, use the following:
     http.addHeader("Content-Type", "application/json");
 
     t1 = millis();
     int httpResponseCode = http.POST(jsonPayload);
-#if !(SHOW_DATA_STREAM)
+
+if (showDataStream == false){
     debugUART.print("POST Time: ");
     debugUART.println(millis() - t1);
     debugUART.println("POSTing to Server:");
@@ -170,7 +171,7 @@ bool postJSON(String jsonPayload, Config config)
     }
     debugUART.println(httpResponseCode);
     debugUART.println();
-#endif
+}
 
     // Free resources
     http.end();

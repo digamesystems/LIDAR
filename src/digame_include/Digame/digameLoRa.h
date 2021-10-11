@@ -126,11 +126,10 @@ bool sendReceiveLoRa(String msg)
   // Send the message. - Base stations use address 1.
   String reyaxMsg = "AT+SEND=1," + String(msg.length()) + "," + msg;
 
-#if SHOW_DATA_STREAM
-#else
+if (showDataStream == false){
   debugUART.print("Sending LoRa Message: ");
   debugUART.println(reyaxMsg);
-#endif
+}
 
   LoRaUART.println(reyaxMsg);
 
@@ -154,9 +153,9 @@ bool sendReceiveLoRa(String msg)
         if (inString.indexOf("ACK") >= 0)
         {
           replyPending = false;
-          #if !SHOW_DATA_STREAM
+          if (showDataStream == false){
             debugUART.println("ACK Received: " + inString);
-          #endif
+          }
           LoRaRetryCount = 0; // Reset for the next message.
           return true;
         }
@@ -166,11 +165,10 @@ bool sendReceiveLoRa(String msg)
 
   if ((t2 - t1) >= timeout)
   {
-    #if SHOW_DATA_STREAM
-    #else
+    if (showDataStream == false){
         debugUART.println("Timeout!");
         debugUART.println();
-    #endif
+    }
     LoRaRetryCount++;
     return false;
   }
