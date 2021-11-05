@@ -1,0 +1,50 @@
+  html { font-family: Helvetica; display: inline-block; margin: 0px auto; }
+  
+  form { margin:10px auto; 
+         width: 300px; 
+         background-color: #eeeeee; 
+         border: solid; 
+         padding: 5px 15px; }
+  
+  h1 { background-color: #ac0014; 
+       border: none; 
+       color:white; 
+       padding: 16px 40px;
+       text-decoration: none; 
+       text-align: center; 
+       margin: 2px; }
+
+  h2 { margin: auto; text-align: center; }
+
+  h3 { margin: auto; text-align: center; font-size: 1.25em; }
+  
+  label { width: 150px; 
+          font-weight:bold; 
+          font-style:italic; 
+          text-align: left; 
+          clear: both; 
+          float:left; 
+          margin-right:15px; }
+  
+  small { font-weight:normal;}
+
+  img { display:block; width:175px; margin-left:auto; margin-right:auto; }
+
+  input[type="text"] { width: 280px; }
+  input[type="password"] { width: 280px; }
+  input[type="submit"] { width: 100px; }
+
+  table {border-spacing: 0 5px; border: 1px solid black;}
+  /*td,th {border: 1px solid blue;}*/
+  td { text-align: center;}
+  table input[type="text"] { width: 120px; }
+  table label { width: 150px; }
+  table input[type="number"].narrow { width: 30px; }
+
+  .center {
+    position: absolute;
+    left: 50%;
+    -ms-transform: translate(-50%, -100%);
+    transform: translate(-50%, -100%);
+  }
+

@@ -15,14 +15,26 @@
 
 #include <ArduinoJson.h>
 
+
+// Counter values for each counter TODO:add to config.
+String str1Count = "0";
+String str2Count = "0"; 
+String str3Count = "0"; 
+String str4Count = "0"; 
+String strTotal  = "0";
+
 // Our configuration structure.
 //
 struct Config
 {
-  // Parameters found in PARAMETERS.TXT on the SD card.
+  String configured = "false"; // Factory configuration flag. Set to "true" after cal/test.
+                               // Used to branch the UI for testing at MFG time.
+
+
+  // Parameters found in PARAMS.TXT on the SD card.
   // Fails over to these values if not found.
 
-  String deviceName = "Digame Test Counter"; //"YOUR_DEVICE_NAME"; //
+  String deviceName = "Digame Systems"; //"YOUR_DEVICE_NAME"; //
 
   // Network:
   String ssid = "Bighead";       // "YOUR_SSID";     // Wireless network name.
@@ -31,6 +43,16 @@ struct Config
   //String serverURL           = "https://trailwaze.info/zion/lidar_sensor_import.php"; // The ParkData server URL
   String serverURL = "http://199.21.201.53/trailwaze/zion/lidar_sensor_import.php"; // http server. Faster!
 
+  //Debugging
+  String showDataStream = "false";
+
+  //Logging to SD card
+  String logBootEvents = "";
+  String logHeartBeatEvents = "";
+  String logVehicleEvents = "";
+  String logRawData = "";
+  
+  
   // LoRa:
   String loraAddress = "10";
   String loraNetworkID = "7";
@@ -72,6 +94,8 @@ struct Config
   String displayType = "SSD1608"; // so we can switch displays at run time based on the config file.
 };
 
+Config config;
+
 const char *filename = "/params.txt"; // <- SD library uses 8.3 filenames
 const char *histoFilename = "/histo.csv";
 
@@ -87,14 +111,34 @@ bool initJSONConfig(const char *filename, const Config &config);
 // See if the card is present and can be initialized.
 bool initSDCard()
 {
-  if (!SD.begin(SD_CS))
-  {
+
+  Serial.println("  Initializing SD Card...");
+
+  if(!SD.begin(SD_CS)){
+    Serial.println("    Card Mount Failed");
     return false;
   }
-  else
-  {
-    return true;
+  uint8_t cardType = SD.cardType();
+
+  if(cardType == CARD_NONE){
+    Serial.println("    No SD card attached");
+    return false;
   }
+
+  Serial.print("    SD Card Type: ");
+  if(cardType == CARD_MMC){
+    Serial.println("MMC");
+  } else if(cardType == CARD_SD){
+    Serial.println("SDSC");
+  } else if(cardType == CARD_SDHC){
+    Serial.println("SDHC");
+  } else {
+    Serial.println("UNKNOWN");
+  }
+  uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+  Serial.printf("    SD Card Size: %lluMB\n", cardSize);
+  return true;
+
 }
 
 //****************************************************************************************
@@ -162,6 +206,21 @@ void loadConfiguration(const char *filename, Config &config)
   config.lidarZone1Count = "0"; //(const char *)doc["lidar"]["zone1Count"];
   config.lidarZone2Count = "0"; //(const char *)doc["lidar"]["zone2Count"];
 
+  
+  config.logBootEvents = (const char *)doc["log"]["bootEvents"];
+  config.logHeartBeatEvents = (const char *)doc["log"]["heartBeatEvents"];
+  config.logVehicleEvents = (const char *)doc["log"]["vehicleEvents"];
+  config.logRawData = (const char *)doc["log"]["rawData"];
+  
+
+/*
+  debugUART.println("Logging Params: ");
+  debugUART.println(config.logBootEvents);
+  debugUART.println(config.logHeartBeatEvents);
+  debugUART.println(config.logVehicleEvents);
+  debugUART.println(config.logRawData);
+*/  
+
 
   config.sens1Name = (const char *)doc["sensor"]["1"]["name"];
   config.sens1Addr = (const char *)doc["sensor"]["1"]["addr"];
@@ -187,8 +246,8 @@ void loadConfiguration(const char *filename, Config &config)
 // Saves the configuration to a file
 void saveConfiguration(const char *filename, Config &config)
 {
-  if (showDataStream == false){
-    debugUART.println("    Saving parameters...");
+  if (config.showDataStream == "false"){
+    debugUART.println("*   Saving parameters...");
     // Delete existing file, otherwise the configuration is appended to the file
 
     debugUART.println("    Erasing old file...");
@@ -197,7 +256,7 @@ void saveConfiguration(const char *filename, Config &config)
   SD.remove(filename);
 
   // Open file for writing
-  if (showDataStream == false){
+  if (config.showDataStream == "false"){
   debugUART.println("    Opening file for write...");
   }
 
@@ -238,6 +297,12 @@ void saveConfiguration(const char *filename, Config &config)
   doc["lidar"]["zone1Count"] = config.lidarZone1Count;
   doc["lidar"]["zone2Count"] = config.lidarZone2Count;
 
+  doc["log"]["bootEvents"] = config.logBootEvents;
+  doc["log"]["heartBeatEvents"] = config.logHeartBeatEvents;
+  doc["log"]["vehicleEvents"] = config.logVehicleEvents;
+  doc["log"]["rawData"] = config.logRawData;
+
+
   doc["sensor"]["1"]["name"] = config.sens1Name;
   doc["sensor"]["1"]["addr"] = config.sens1Addr;
   doc["sensor"]["1"]["mac"] = config.sens1MAC;
@@ -254,22 +319,30 @@ void saveConfiguration(const char *filename, Config &config)
   doc["displayType"] = config.displayType;
 
   // Serialize JSON to file
-  if (showDataStream == false){
-    debugUART.println("Writing file...");
+  if (config.showDataStream == "false"){
+    debugUART.println("    Writing file...");
   }
 
   if (serializeJson(doc, file) == 0)
   {
-    Serial.println(F("Failed to write to file!"));
+    Serial.println(F("    Failed to write to file!"));
   }
 
   // Close the file
-  if (showDataStream == false){
-    debugUART.println("Done saving parameters.");
+  if (config.showDataStream == "false"){
+    debugUART.println("*   Done saving parameters.");
   }
 
   file.close();
 }
+
+//****************************************************************************************
+void deleteFile(const char *filename){
+  // Delete existing file, otherwise the information is appended to the file
+  debugUART.println("    Erasing old file...");
+  SD.remove(filename);
+}
+
 
 //****************************************************************************************
 // Save some text to a file
@@ -280,13 +353,38 @@ void saveTextFile(const char *filename, String contents)
   debugUART.print("  Saving data to: ");
   debugUART.println(filename);
 
-  // Delete existing file, otherwise the information is appended to the file
-  debugUART.println("    Erasing old file...");
-  SD.remove(filename);
+  deleteFile(filename);
 
   // Open file for writing
   debugUART.println("    Opening file for write...");
   File file = SD.open(filename, FILE_WRITE);
+
+  if (!file)
+  {
+    debugUART.println(F("    Failed to create file!"));
+    return;
+  }
+
+  debugUART.println("    Writing file...");
+  file.println(contents);
+
+  // Close the file
+  debugUART.println("  Done.");
+  file.close();
+}
+
+//****************************************************************************************
+// Save some text to a file
+void appendTextFile(const char *filename, String contents)
+{
+
+  //debugUART.println(initSDCard());
+  debugUART.print("  Saving data to: ");
+  debugUART.println(filename);
+
+  // Open file for writing
+  debugUART.println("    Opening file for write...");
+  File file = SD.open(filename, FILE_APPEND);
 
   if (!file)
   {
@@ -336,13 +434,13 @@ bool initJSONConfig(const char *filename, Config &config)
   sdCardPresent = initSDCard();
   if (sdCardPresent)
   {
-    debugUART.println("Module found. (Reading parameters from SD Card.)");
+    debugUART.println("  Module found. (Reading parameters from SD Card.)");
     loadConfiguration(filename, config);
     return true;
   }
   else
   {
-    debugUART.println("ERROR! Module NOT found. (Parameters set to default values.)");
+    debugUART.println("  ERROR! Module NOT found. (Parameters set to default values.)");
     return false;
   }
 }

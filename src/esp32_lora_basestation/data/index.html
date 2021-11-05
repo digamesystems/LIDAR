@@ -1,0 +1,213 @@
+<!DOCTYPE HTML><html>
+<head> 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="shortcut icon" href="favicon.ico"/>
+  <link rel="icon"  type="image/ico" href="favicon.ico">
+  <title>%config.deviceName% - (base station)</title>
+</head>
+
+<body>
+
+    <h1>HEIMDALL VCS</h1><br>
+    <h3><em>A Next-Generation Traffic Counting Platform</em></h3>
+    <h3><em>from D&#237game Systems</em></h3> 
+    <hr>
+    <br>
+
+    <h2>LoRa-WiFi Base Station<br><em> %config.deviceName% </em></h2>
+    <p>Welcome. You can use these forms to update system parameters for this LoRa-WiFi base station.</p>
+
+    <form>
+      <H3>Sensor Data</H3>
+      <br>
+      <table >      
+        <thead><th style="width:180px">Name</th><th style="width:150px">Events</th></thead>
+        <tbody>    
+          <tr>
+            <td><em>%config.sens1Name%</em></td>
+            <td><span id="sens1count">%str1Count%</span></td>
+          </tr>
+          <tr>
+            <td><em>%config.sens2Name%</em></td>
+            <td><span id="sens2count">%str2Count%</span></td>
+          </tr>
+          <tr>
+            <td><em>%config.sens3Name%</em></td>
+            <td><span id="sens3count">%str3Count%</span></td>
+          </tr>
+          <tr>
+            <td><em>%config.sens4Name%</em></td>
+            <td><span id="sens4count">%str4Count%</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <br>
+  
+    </form>
+
+
+    <form action="/generalparams">
+        <H3>General</H3><br>
+        <label for="devname">Device Name</label>
+        <input type="text" id="devname" name="devname" value="%config.deviceName%"><br>
+
+        <br><label>Model</label>
+        <br><small><em>%MODEL%</em><br>%MODEL_DESCRIPTION%</small><br>
+        
+        <br><label>Software Version<br></label><br>
+        <small>%SW_VERSION%</small><br>
+
+        <br><label>Uptime (sec)<br></label><br>
+        <small><span id="uptime">%UPTIME%</span></small>
+        <br>
+
+        <br><label for="reboot">Reboot</label>
+        <input type="checkbox" id="reboot" name="reboot" value="true"><p><br></p>
+
+        <div class="center">
+        <input type="submit" value="Submit"></form>
+        </div>
+    </form>
+
+
+    <form action="/networkparams">
+        <H3>Network</H3>
+        <p><em>NOTE: Changes to network settings will be applied after a reboot of the device.</em></p>
+        <label>MAC Address</label><p><em>%MAC_ADDRESS%</em></p>
+        <label for="ssid">SSID</label>
+        <input type="text" id="ssid" name="ssid" value="%config.ssid%"><br><br>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" value="%config.password%"><br><br>
+
+        <label for="serverurl">Server URL</label>
+        <input type="text" id="serverurl" name="serverurl" size="40" value="%config.serverURL%"><br><br>
+        
+        <br>
+        <div class="center">
+          <input type="submit" value="Submit">
+        </div>
+    </form>
+
+    <form action="/loraparams">
+        <H3>LoRa<br><small>(Low-Power Long-Range Wireless Link)</small></H3>
+        <p><em>Strategies for optimizing the parameters for LoRa communication may be found in the product manual. Both the counters and the base station must use the same RF parameters for communication to be successful.</em></p>
+        <label for="address">LoRa Address</label>
+        
+        <input type="number" min="1" max="9" id="address" name="address" value=%config.loraAddress%><br><br>            
+        <label for="networkid">Network ID</label>
+        <input type="number" min="0" max="16" id="networkid" name="networkid" value=%config.loraNetworkID%><br><br>
+        <label for="band">Band</label>
+        <input type="number" min="850000000" max="950000000" id="band" name="band" value=%config.loraBand%><br><br>
+        <label for="spreadingfactor">Spreading Factor</label>
+        <input type="number" min="7" max="12" id="spreadingfactor" name="spreadingfactor" value=%config.loraSF%><br><br>
+        <label for="bandwidth">Bandwidth</label>
+        <input type="number" min="0" max="9" id="bandwidth" name="bandwidth" value=%config.loraBW% ><br><br>
+        <label for="codingrate">Coding Rate</label>
+        <input type="number" min="1" max="4" id="codingrate" name="codingrate" value=%config.loraCR% ><br><br>
+        <label for="preamble">Preamble</label>
+        <input type="number" min="4" max="7" id="preamble" name="preamble" value=%config.loraPreamble% ><br><br>
+        <br>
+        <div class="center">
+            <input type="submit" value="Submit">
+        </div>
+    </form>
+
+  
+    <form action="/sensors">
+      <H3>Sensor Definitions</H3>
+      <p><em>A base station can support up to four (4) traffic counters. Each counter needs a unique LoRa address to communicate. The MAC address for the counter can be found on the label on the back of the sensor.</em></p>
+      
+      <table>      
+      <thead><th>Name</th><th>Adr</th><th>MAC Address</th></thead>
+      <tbody>
+      
+      <tr>
+      <td><input type="text" id="sens1name" name="sens1name" value="%config.sens1Name%"></td>
+      <td><input class="narrow" type="number" min="10" max="99" id="sens1addr" name="sens1addr" value=%config.sens1Addr%></td>
+      <td><input type="text" id="sens1mac" name="sens1mac" value="%config.sens1MAC%"></td>
+      </tr>
+
+      <tr>
+      <td><input type="text" id="sens2name" name="sens2name" value="%config.sens2Name%"></td>
+      <td><input class="narrow" type="number" min="10" max="99" id="sens2addr" name="sens2addr" value="%config.sens2Addr%"></td>
+      <td><input type="text" id="sens2mac" name="sens2mac" value="%config.sens2MAC%"></td>
+      </tr>
+
+      <tr>
+      <td><input type="text" id="sens3name" name="sens3name" value="%config.sens3Name%"></td>
+      <td><input class="narrow" type="number" min="10" max="99" id="sens3addr" name="sens3addr" value="%config.sens3Addr%"></td>
+      <td><input type="text" id="sens3mac" name="sens3mac" value="%config.sens3MAC%"></td>
+      </tr>
+
+      <tr>
+      <td><input type="text" id="sens4name" name="sens4name" value="%config.sens4Name%"></td>
+      <td><input class="narrow" type="number" min="10" max="99" id="sens4addr" name="sens4addr" value="%config.sens4Addr%"></td>
+      <td><input type="text" id="sens4mac" name="sens4mac" value="%config.sens4MAC%"></td>
+      </tr>          
+
+      </tbody>
+  
+      </table>
+      <br>
+      <br>
+
+      <div class="center"><input type="submit" value="Submit"></div>
+  </form>
+
+    <hr>
+    <!--img src=http://static1.squarespace.com/static/554a673ae4b0d7d5128155bb/t/5ef63fdf6b62f234d82610a2/1595258253753/?format=150w alt="Digame Logo" --->
+    <img src="Digame_Logo_Full_Color.png" alt="Digame Logo">
+    <p style="text-align:center; font-style:italic ">Copyright 2021, D&#237game Systems. All rights reserved.</p>
+  
+    
+    
+  <script>
+
+    setInterval(myTimer, 1000);
+    setInterval(mySecTimer, 1000);
+
+
+    function myTimer() {
+      const d = new Date();
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          items = this.responseText.split(','); 
+          c1 = parseFloat(items[0]);
+          c2 = parseFloat(items[1]);
+          c3 = parseFloat(items[2]);
+          c4 = parseFloat(items[3]);
+          
+          document.getElementById("sens1count").innerHTML = c1;
+          document.getElementById("sens2count").innerHTML = c2;
+          document.getElementById("sens3count").innerHTML = c3;
+          document.getElementById("sens4count").innerHTML = c4;
+            
+        };}
+      xhttp.open("GET", "/counters", true);
+      xhttp.send();
+    }
+
+    function mySecTimer(){
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          items = this.responseText.split(','); 
+          uptime = parseFloat(items[0]);
+          document.getElementById("uptime").innerHTML = uptime;  
+        };}
+      xhttp.open("GET", "/uptime", true);
+      xhttp.send();
+    }
+    
+  </script>
+
+
+
+</body>
+
+</html>

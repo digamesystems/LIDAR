@@ -110,6 +110,10 @@ bool enableWiFi(Config config)
     }
 }
 
+bool initWiFi(Config config){
+    return enableWiFi(config);
+}
+
 //*****************************************************************************
 void disableWiFi()
 {
@@ -121,11 +125,12 @@ void disableWiFi()
 }
 
 //*****************************************************************************
-// Save a single JSON message to the server. TODO: Deal with retries, etc.
+// Save a single JSON message to the server. TODO: Deal with retries, etc. 
+// in a smart way. 
 bool postJSON(String jsonPayload, Config config)
 {
 
-    if (showDataStream == false){
+    if (config.showDataStream == "false"){
         debugUART.print("postJSON Running on Core #: ");
         debugUART.println(xPortGetCoreID());
         //debugUART.print("Free Heap: ");
@@ -147,7 +152,7 @@ bool postJSON(String jsonPayload, Config config)
     http.begin(config.serverURL);
     //http.begin("http://199.21.201.53/trailwaze/zion/lidar_sensor_import.php");
 
-    if (showDataStream == false){
+    if (config.showDataStream == "false"){
         debugUART.print("JSON payload length: ");
         debugUART.println(jsonPayload.length());
         debugUART.print("HTTP begin Time: ");
@@ -160,16 +165,18 @@ bool postJSON(String jsonPayload, Config config)
     t1 = millis();
     int httpResponseCode = http.POST(jsonPayload);
 
-if (showDataStream == false){
+if (config.showDataStream == "false"){
     debugUART.print("POST Time: ");
     debugUART.println(millis() - t1);
     debugUART.println("POSTing to Server:");
     debugUART.println(jsonPayload);
     debugUART.print("HTTP response code: ");
+    debugUART.println(httpResponseCode);
     if (!(httpResponseCode==200)){
         debugUART.println("*****ERROR*****");
+        debugUART.println(http.errorToString(httpResponseCode));
     }
-    debugUART.println(httpResponseCode);
+    
     debugUART.println();
 }
 

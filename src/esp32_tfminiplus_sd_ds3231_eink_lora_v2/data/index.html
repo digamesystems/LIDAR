@@ -1,0 +1,306 @@
+<!DOCTYPE HTML><html>
+<head> 
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!--script src="https://code.highcharts.com/highcharts.js"></script--> 
+  <!--script src="/highcharts.js"></script--> 
+  
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <link rel="shortcut icon" href="favicon.ico"/>
+  <link rel="icon"  type="image/ico" href="favicon.ico">
+  <title>%config.deviceName% - (counter)</title>
+</head>
+
+<body>
+
+    <h1>HEIMDALL VCS</h1><br>
+    <h3><em>A Next-Generation Traffic Counting Platform</em></h3>
+    <h3><em>from D&#237game Systems</em></h3> 
+    <hr>
+    <br>
+
+    <h2>VEHICLE COUNTER <br><em> %config.deviceName% </em></h2>
+    <p>Welcome. You can use these forms to update system parameters for this LIDAR vehicle counter.</p>
+
+    <form action="/counterreset">
+      <h3>Counter Value</h3>
+
+      <input type="hidden" id="counterval" name="counterval" value=%config.lidarZone1Count%><br>
+      <h1><span id="vehiclecount">%config.lidarZone1Count% </span> </h1>
+      <input type="hidden" id="counterval2" name="counterval2" value=%config.lidarZone1Count%><br><br>
+      <div class="center">
+        <input type="submit" value="Clear Counter">
+      </div>
+    </form>
+
+    <form>
+      <h3>Measured Distance (cm)</h3>
+      <br>
+      <h1><span id="distance">%DISTANCE%</span></h1>
+      <br>
+      <div id="chart-distance" class="container"></div>
+    </form>
+
+  <form action="/lidarparams">
+    <H3>Lane Detection Parameters</H3><br>
+    <label >Det. Thresh. (1-100&#37;)</label>
+    <input type="number" min="1" max="100" id="residencetime" name="residencetime" value=%config.lidarResidenceTime%><br><br>
+    <label >Lane 1 Min (cm)</label>
+    <input type="number" min="0" max="999" id="zone1min" name="zone1min" value=%config.lidarZone1Min%><br><br>
+    <label >Lane 1 Max (cm)</label>
+    <input type="number" min="0" max="999" id="zone1max" name="zone1max" value=%config.lidarZone1Max%><br><br>
+    <label >Lane 2 Min (cm)</label>
+    <input type="number" min="0" max="999" id="zone2min" name="zone2min" value=%config.lidarZone2Min%><br><br>
+    <label >Lane 2 Max (cm)</label>
+    <input type="number" min="0" max="999" id="zone2max" name="zone2max" value=%config.lidarZone2Max%><br><br>
+    <br>
+    
+    <div class="center">
+        <input type="submit" value="Submit">
+    </div>    
+  </form>
+
+    <form action="/generalparams">
+        <H3>General</H3><br>
+        <label for="devname">Device Name</label>
+        <input type="text" id="devname" name="devname" value="%config.deviceName%"><br>
+
+        <br><label>Model</label>
+        <br><small><em>%MODEL%</em><br>%MODEL_DESCRIPTION%</small><br>
+        
+        <br><label>Software Version<br></label><br>
+        <small>%SW_VERSION%</small><br>
+
+        
+        <br><label>Uptime (sec)<br></label><br>
+        <small><span id="uptime">%UPTIME%</span></small>
+        <br>
+        
+
+        <br><label for="streaming">USB Streaming</label>
+        <div><br>
+          <input type="radio" id="true" name="streaming" value="ON" %STREAMING_ON%>            
+          <label for="true"><small>ON</small></label><br>
+        
+          <input type="radio" id="false" name="streaming" value="OFF" %STREAMING_OFF%>
+          <label for="false"><small>OFF</small></label><br>
+        </div>
+
+        <br><label>Logging to SD Card</label>
+        <div><br>
+          <label for="logbootevents"><small>Reboot Events</small></label>
+          <input type="checkbox" id="logbootevents" name="logbootevents" value="checked" %config.logBootEvents%><br>
+          
+          <label for="logheartbeatevents"><small>Heartbeat Events</small></label>
+          <input type="checkbox" id="logheartbeatevents" name="logheartbeatevents" value="checked" %config.logHeartBeatEvents%><br>
+          
+          <label for="logvehicleevents"><small>Vehicle Events</small></label>
+          <input type="checkbox" id="logvehicleevents" name="logvehicleevents" value="checked" %config.logVehicleEvents%><br>
+          
+          <!--label for="lograwdata"><small>Raw LIDAR Data</small></label-->
+          <!--input type="checkbox" id="lograwdata" name="lograwdata" value="checked" %config.logRawData%--><br>
+          
+        </div>
+
+        <br><br>
+        <div class="center">
+          <a href='/eventlog' class="button">Download Log File</a>
+        </div> 
+        <br>
+        <br>
+        <div class="center">
+          <a href='/cleareventlog' class="button" onclick="myFunction()">Clear Log File</a>
+        </div>
+        <!--button onclick="myFunction()">Log File Cleared</button-->
+
+        <script>
+          function myFunction() {
+            alert("Log File Cleared.");
+          }
+        </script>
+
+        <br><label for="reboot">Reboot</label>
+        <input type="checkbox" id="reboot" name="reboot" value="true"><p><br></p>
+
+        <div class="center">
+        <input type="submit" value="Submit"></form>
+        </div>
+    </form>
+
+
+    <form action="/networkparams">
+        <H3>Network</H3>
+        <p><em>NOTE: Changes to network settings will be applied after a reboot of the device.</em></p>
+        <label>MAC Address</label><p><small><em>%MAC_ADDRESS%</em></small></p>
+        <label for="ssid">SSID</label>
+        <input type="text" id="ssid" name="ssid" value="%config.ssid%"><br><br>
+
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" value="%config.password%"><br><br>
+
+        <label for="serverurl">Server URL</label>
+        <input type="text" id="serverurl" name="serverurl" size="40" value="%config.serverURL%"><br><br>
+        
+        <br>
+        <div class="center">
+          <input type="submit" value="Submit">
+        </div>
+    </form>
+
+    <form action="/loraparams">
+        <H3>LoRa<br><small>(Low-Power Long-Range Wireless Link)</small></H3>
+        <p><em>Strategies for optimizing the parameters for LoRa communication may be found in the product manual. Both the counters and the base station must use the same RF parameters for communication to be successful.</em></p>
+        <label for="address">LoRa Address</label>
+        
+        <input type="number" min="10" max="65534" id="address" name="address" value=%config.loraAddress%><br><br>            
+        <label for="networkid">Network ID</label>
+        <input type="number" min="0" max="16" id="networkid" name="networkid" value=%config.loraNetworkID%><br><br>
+        <label for="band">Band</label>
+        <input type="number" min="850000000" max="950000000" id="band" name="band" value=%config.loraBand%><br><br>
+        <label for="spreadingfactor">Spreading Factor</label>
+        <input type="number" min="7" max="12" id="spreadingfactor" name="spreadingfactor" value=%config.loraSF%><br><br>
+        <label for="bandwidth">Bandwidth</label>
+        <input type="number" min="0" max="9" id="bandwidth" name="bandwidth" value=%config.loraBW% ><br><br>
+        <label for="codingrate">Coding Rate</label>
+        <input type="number" min="1" max="4" id="codingrate" name="codingrate" value=%config.loraCR% ><br><br>
+        <label for="preamble">Preamble</label>
+        <input type="number" min="4" max="7" id="preamble" name="preamble" value=%config.loraPreamble% ><br><br>
+        <br>
+        <div class="center">
+            <input type="submit" value="Submit">
+        </div>
+    </form>
+
+    <hr>
+    <!--img src=http://static1.squarespace.com/static/554a673ae4b0d7d5128155bb/t/5ef63fdf6b62f234d82610a2/1595258253753/?format=150w alt="Digame Logo" --->
+    <img src="/Digame_Logo_Full_Color.png" alt="Digame Logo">
+    <p style="text-align:center; font-style:italic ">Copyright 2021, D&#237game Systems. All rights reserved.</p>
+  
+    
+    
+  <script>
+
+    setInterval(myTimer, 100);
+    setInterval(mySecTimer, 500);
+
+    function myTimer() {
+      const d = new Date();
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          items = this.responseText.split(','); 
+          dist = parseFloat(items[0]);
+          count = parseFloat(items[1]);
+          document.getElementById("distance").innerHTML = dist;
+          document.getElementById("vehiclecount").innerHTML = count;  
+        };}
+      xhttp.open("GET", "/distance", true);
+      xhttp.send();
+    }
+
+    function mySecTimer(){
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          items = this.responseText.split(','); 
+          uptime = parseFloat(items[0]);
+          document.getElementById("uptime").innerHTML = uptime;  
+        };}
+      xhttp.open("GET", "/uptime", true);
+      xhttp.send();
+    }
+
+    /*
+    var chartT = new Highcharts.Chart({
+      chart:{ renderTo : 'chart-distance' },
+      title: { text: 'LIDAR Distance (cm)' },
+      series: [
+        {
+          name: 'Distance',
+          color: '#ac0014',
+          showInLegend: false,
+          data: []
+        },
+        {
+          name: 'L1_Min',
+          color: '#00FF00',
+          showInLegend: false,
+          data: []
+        },
+        {
+          name: 'L1_Max',
+          color: '#00FF00',
+          showInLegend: false,
+          data: []
+        },
+        {
+          name: 'L2_Min',
+          color: '#0000FF',
+          showInLegend: false,
+          data: []
+        },
+        {
+          name: 'L2_Max',
+          color: '#0000FF',
+          showInLegend: false,
+          data: []
+        },
+      ],
+      plotOptions: {
+        line: { animation: false,
+          dataLabels: { enabled: false },
+          marker: { enabled: false }
+        },
+        series: { color: '#ac0014' }
+      },
+      xAxis: { 
+        type: 'datetime',
+        title: { text: 'Time (UTC)'} //,
+        //dateTimeLabelFormats: { second: '%H:%M:%S' }
+      },
+      yAxis: {
+        title: { text: 'Distance (cm)' }
+        //title: { text: 'Temperature (Fahrenheit)' }
+      },
+      credits: { enabled: false }
+    });
+    
+    setInterval(function ( ) {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          document.getElementById("distance").innerHTML = this.responseText;  
+          var x = (new Date()).getTime(),
+              items = this.responseText.split(','); 
+              y1 = parseFloat(items[0]);
+              y2 = parseFloat(items[1]);
+              y3 = parseFloat(items[2]);
+              y4 = parseFloat(items[3]);
+              y5 = parseFloat(items[4]);
+              
+          //console.log(this.responseText);
+          if(chartT.series[0].data.length > 50) {
+            chartT.series[0].addPoint([x, y1], true, true, false);
+            chartT.series[1].addPoint([x, y2], true, true, false);
+            chartT.series[2].addPoint([x, y3], true, true, false);
+            chartT.series[3].addPoint([x, y4], true, true, false);
+            chartT.series[4].addPoint([x, y5], true, true, false);
+          } else {
+            chartT.series[0].addPoint([x, y1], true, false, false);
+            chartT.series[1].addPoint([x, y2], true, false, false);
+            chartT.series[2].addPoint([x, y3], true, false, false);
+            chartT.series[3].addPoint([x, y4], true, false, false);
+            chartT.series[4].addPoint([x, y5], true, false, false);
+          }
+        }
+      };
+      xhttp.open("GET", "/distance", true);
+      xhttp.send();
+    }, 100 ) ;*/
+    
+  </script>
+
+
+
+</body>
+
+</html>

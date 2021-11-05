@@ -53,7 +53,7 @@ GxEPD2_GFX &getDisplay()
 
 void initDisplay()
 {
-  if (showDataStream == false){
+  if (config.showDataStream == "false"){
   debugUART.println("  Initializing eInk Display...");
   debugUART.println("    Reading EEPROM");
   }
@@ -87,7 +87,7 @@ void initDisplay()
     }
   } 
 
- if (showDataStream == false){
+ if (config.showDataStream == "false"){
   debugUART.print("    Display Type: ");
   debugUART.print(EEPROM.read(0));
  } 
@@ -95,7 +95,7 @@ void initDisplay()
   if (EEPROM.read(0)==1){displayType="SSD1608";}
   if (EEPROM.read(0)==2){displayType="SSD1681";}
 
- if (showDataStream == false){
+ if (config.showDataStream == "false"){
   debugUART.print(" = ");
   debugUART.println(displayType);
  }
@@ -230,6 +230,17 @@ void displayCountersSummaryScreen(String total, String summary)
   display.print(summary);
   displayCopyright();
 }
+
+//******************************************************************************************
+void displayBarcodeScreen()
+{
+  initDisplay();
+
+  GxEPD2_GFX &display = getDisplay();  
+  
+  
+}
+
 
 //******************************************************************************************
 void showValue(double v)

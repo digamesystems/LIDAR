@@ -3,6 +3,7 @@
 
 #define debugUART Serial
 #define tfMiniUART Serial2
+
 #define LOG_RAW_DATA_TO_SD false // Log the Raw data to the SD Card for analysis.
 
 
@@ -12,7 +13,11 @@ TFMPlus tfmP;                 // Create a TFMini Plus object
 
 #include <CircularBuffer.h> // Adafruit library. Pretty small!
 
+int16_t initLIDARDist = 999; // The initial distance measured by the lidar when it wakes up.
+
 const int lidarSamples = 50;
+String lastDistanceMeasured ="0";
+
 CircularBuffer<int, lidarSamples> lidarBuffer; // We're going to hang onto the last 100 raw data
                                                //   points to visualize what the sensor sees
 
@@ -61,6 +66,31 @@ bool initLIDAR(bool triggeredMode = false)
       }
     }
 
+    //GRAB an initial Value to test: 
+    debugUART.print("    Initial LIDAR Reading: ");
+    bool result; 
+    int16_t dist;
+    
+    tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
+    delay(100);                 // Wait a bit...
+    result = tfmP.getData(dist); // Grab the results
+
+    
+    
+    if ((result) || (tfmP.status == TFMP_WEAK)) // Process good measurements and treat weak ones as 'infinity'
+    {
+      // When very close, or looking off into empty space, the sensor reports zero or a negative value.
+      // The short range isn't an issue for us.
+      // Any Zeros we see will be due to no reflective target in range.
+      if ((dist < 0) || (dist >= 1000)) // Added the second check in case we pick up a long-range target. 
+      {
+        dist = 999;
+      }
+      initLIDARDist = dist;
+      debugUART.println(dist);
+    }
+
+    
     return true;
   }
   else
@@ -89,7 +119,7 @@ void clearLIDARDistanceHistogram()
 }
 
 //*****************************************************************************
-// Save histogram data to SD card.
+// return the histogram as a table
 String getDistanceHistogramString()
 {
   String retValue = "D (cm), Counts\n";
@@ -99,6 +129,55 @@ String getDistanceHistogramString()
   }
   return retValue;
 }
+
+
+
+String getDistanceHistogramChartString(Config config)
+{
+  String retValue =     "LIDAR DISTANCE HISTOGRAM \nD (cm)\t|  Counts\n";
+  retValue = retValue + "--------------------------\n";
+
+  unsigned long minValue = 0;
+  unsigned long maxValue = 0;
+  int maxIndex = 0;
+
+  if ((config.lidarZone2Max.toInt()/10) < histogramSize){
+    maxIndex = config.lidarZone2Max.toInt()/10;
+  } else {
+    maxIndex = histogramSize;
+  }
+  
+  for (int i = 0; i < maxIndex; i++){
+    if (lidarDistanceHistogram[i] < minValue) minValue = lidarDistanceHistogram[i];
+    if (lidarDistanceHistogram[i] > maxValue) maxValue = lidarDistanceHistogram[i];
+  }
+
+  if (maxValue > 0){
+    for (int i = 0; i < maxIndex; i++){
+      if ((i % 5 )==0){  //Put a tic on the axis every 50 cm.
+        retValue = retValue + String (i * 10) + "\t+";
+      }else{
+        retValue = retValue + String (i * 10) + "\t|"; 
+      }
+
+      // Our charting routine. Welcome back to 1972!
+      for (int j = 0; j < ((100 * lidarDistanceHistogram[i]) / maxValue); j++){
+        retValue = retValue + "*"; 
+      }  
+      retValue = retValue + "\n";
+
+    }
+   
+   return retValue;
+    
+  } else {
+
+    return "No data, yet.";
+  }
+
+
+}
+
 
 //*****************************************************************************
 // A pretty simple zone-based scheme for detecting vehicles. A vehicle must be 
@@ -225,7 +304,7 @@ int processLIDARSignal(Config config)
       carEvent2 = 0;
     }
 
-if (showDataStream == true){
+if (config.showDataStream == "true"){
     debugUART.print(tfDist);
     debugUART.print(",");
     debugUART.print(smoothed);
@@ -254,6 +333,26 @@ if (showDataStream == true){
   }
 
   return retValue;
+}
+
+void logToSDCard(){
+    #if LOG_RAW_DATA_TO_SD
+
+      if (!logFile)
+        {
+          debugUART.println(F("    Failed to create file!"));
+        } else {
+          //debugUART.println("    Writing file...");
+          logFile.print(String(millis()));
+          logFile.print(",");
+          logFile.println(String(tfDist));
+          // Close the file
+          //debugUART.println(String(millis())+","+String(tfDist));
+          logFile.flush(); // Opening the file in setup and flushing for speed. 
+        }
+    #endif
+
+
 }
 
 /****************************************************************************************
@@ -301,31 +400,16 @@ int processLIDARSignal2(Config config){
     {
       tfDist = 999;
     }
+    
+    lastDistanceMeasured = String(tfDist);
 
     lidarDistanceHistogram[(unsigned int)(tfDist / 10)]++; // Grabbing a histogram of distances
                                                            // to explore automatic lane determination...
                                                            // The check for >= 1000 above is to avoid
-                                                           // running off randomly iinto memory.
+                                                           // exceeding the limits of the histogram array.
 
     lidarBuffer.push(tfDist); // The circular buffer of LIDAR data for analysis
     lidarHistoryBuffer.push((tfDist)); // A longer history for display.
-
-
-    #if LOG_RAW_DATA_TO_SD
-
-      if (!logFile)
-        {
-          debugUART.println(F("    Failed to create file!"));
-        } else {
-          //debugUART.println("    Writing file...");
-          logFile.print(String(millis()));
-          logFile.print(",");
-          logFile.println(String(tfDist));
-          // Close the file
-          //debugUART.println(String(millis())+","+String(tfDist));
-          logFile.flush(); // Opening the file in setup and flushing for speed. 
-        }
-    #endif
 
     long zone1Strength = 0;  // A measure of how 'present' a car is in each lane over an interval of time
     long zone2Strength = 0;
@@ -335,25 +419,25 @@ int processLIDARSignal2(Config config){
       if ((lidarBuffer[i] < config.lidarZone1Max.toInt()) &&
           (lidarBuffer[i] > config.lidarZone1Min.toInt()))
       {
-        zone1Strength = zone1Strength + 2; 
+        zone1Strength = zone1Strength + 1; // Add 'car-ness' to Zone 2
       }
 
       if ((lidarBuffer[i] < config.lidarZone2Max.toInt()) &&
           (lidarBuffer[i] > config.lidarZone2Min.toInt()))
       {
-        zone2Strength = zone2Strength + 2;       
+        zone2Strength = zone2Strength + 1; // Add 'car-ness' to Zone 2       
       }
         
     }
 
     // Normalize to 100%
-    zone1Strength = (100* zone1Strength / lidarBuffer.size());
-    zone2Strength = (100* zone2Strength / lidarBuffer.size());
+    zone1Strength = (100 * zone1Strength / lidarBuffer.size());
+    zone2Strength = (100 * zone2Strength / lidarBuffer.size());
 
     //if (zone1Strength > 100) zone1Strength= 100;
     //if (zone2Strength > 100) zone2Strength= 100;
     
-    int threshold = 5; 
+    int threshold = config.lidarResidenceTime.toInt(); // Minimum 'car-ness' to count as 'car' TODO: Make tweakable
 
     previousCarPresentLane1 = carPresentLane1;
     previousCarPresentLane2 = carPresentLane2;
@@ -362,7 +446,7 @@ int processLIDARSignal2(Config config){
     carPresentLane2 = (zone2Strength > threshold);
 
     if ((previousCarPresentLane1 == true) && (carPresentLane1 == false)) 
-    { // The car has left the field of view.
+    { // The car was here and now has left the field of view.
       carEvent1 = 300;
       retValue = 1;
     }
@@ -372,7 +456,7 @@ int processLIDARSignal2(Config config){
     }
 
     if ((previousCarPresentLane2 == true) && (carPresentLane2 == false))    
-    { // The car has left the field of view.
+    { // The car was here and now has left the field of view.
       carEvent2 = 300;
       retValue = 2;
     }
@@ -381,12 +465,10 @@ int processLIDARSignal2(Config config){
       carEvent2 = 0;
     }
 
-
-     if (showDataStream == true){
+// For the serial plotter.
+     if (config.showDataStream == "true"){
         debugUART.print(tfDist);
         debugUART.print(",");
-        //debugUART.print(smoothed);
-        //debugUART.print(",");
         debugUART.print(config.lidarZone1Max.toFloat());
         debugUART.print(",");
         debugUART.print(config.lidarZone1Min.toFloat());

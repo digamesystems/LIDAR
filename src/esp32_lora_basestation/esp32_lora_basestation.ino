@@ -12,10 +12,15 @@
  
 
 #define USE_LORA true
+String model = "DS-STN-LoRa-WiFi-1";
+String model_description= "(LoRa-WiFi Base Station)";  
+
+
+bool showDataStream = false;
+long count = 0;
 
 //for Over-the-Air updates...
 #include <WiFi.h>
-#include <ArduinoOTA.h>
 
 #include <digameVersion.h>
 
@@ -25,19 +30,21 @@
 #include <digameJSONConfig.h> // Program parameters from config file on SD card
 #include <digameTime.h>       // Time Functions - RTC, NTP Synch etc
 #include <digameNetwork.h>    // Network Functions - Login, MAC addr
-#include <digameWebServer.h>  // Handles parmater tweaks through a web page
 #include <digamePowerMgt.h>   // Power management modes 
 #include <digameDisplay.h>    // eInk Display Functions
 #include <digameLoRa.h>       // Reyax LoRa module control functions
+
+#include <digameCounterWebServer.h>  // Handles parmater tweaks through a web page
 
 #define debugUART Serial
 #define CTR_RESET 32          // Reset Button Input
 
 
-// GLOBALS
 
-Config config; // Program configuration variables. See: digameJSONConfig.h
-               // This variable is used all over the place. 
+
+
+
+// GLOBALS
 
 int displayMode = 1; // Which eInk screen we are showing: 1=Title, 2=Network, 3=Last Message
 
@@ -51,7 +58,9 @@ int    oldheartbeatMinute; // Value the last time we looked.
 int    bootMinute;         // The minute (0-59) within the hour we woke up at boot. 
 bool   heartbeatMessageNeeded = true;
 bool   bootMessageNeeded = true;
+float  baseStationTemperature = 0.0;
 
+unsigned long bootMillis=0;
 String currentTime;  // Update in Main Loop
 String myMACAddress; // Grab at boot time
 
@@ -62,13 +71,7 @@ TaskHandle_t eventDisplayManagerTask;
 
 String strDisplay=""; // contents of the event screen.
 
-// Counter values for each counter
-String str1Count = "0";
-String str2Count = "0"; 
-String str3Count = "0"; 
-String str4Count = "0"; 
-String strTotal  = "0";
-    
+ 
 const int samples = 200;
 CircularBuffer<String, samples> loraMsgBuffer; // A buffer containing JSON messages to be 
                                                // sent to the Server
@@ -249,6 +252,7 @@ String loraMsgToJSON(String msg){
       
   } else { 
       strEventType = "Unknown";
+      debugUART.println("ERROR: Unknown Message Type!");
       return "IGNORE";  // If we don't know what this is, don't bother the server with it.
   } 
 
@@ -387,7 +391,8 @@ String buildJSONHeader(String eventType){
                  "\",\"deviceMAC\":\""   + myMACAddress + // Read at boot
                  "\",\"firmwareVer\":\"" + TERSE_SW_VERSION  + 
                  "\",\"timeStamp\":\""   + currentTime +  // Updated in main loop from RTC
-                 "\",\"eventType\":\""   + eventType + 
+                 "\",\"eventType\":\""   + eventType +
+                 "\",\"temp\":\""        + String(baseStationTemperature,1) + 
                  "\""; 
                    
   return jsonHeader;
@@ -477,6 +482,7 @@ void messageManager(void *parameter){
       processLoRaMessage(activeMessage);
     }
 
+    upTimeMillis = millis() - bootMillis; 
     vTaskDelay(100 / portTICK_PERIOD_MS);   
   }   
 }
@@ -507,12 +513,12 @@ void eventDisplayManager(void *parameter){
 // Returns a string containing a summary of counts seen from each VC. 
 String getCounterSummary(){
   String retVal  = "";
-  retVal += "   Ctr.   Count\n";
+  retVal += " Ctr.   Count\n";
   retVal += " ---------------\n";
-  retVal += "    1      " + str1Count + "\n";
-  retVal += "    2      " + str2Count + "\n";
-  retVal += "    3      " + str3Count + "\n";
-  retVal += "    4      " + str4Count + "\n";
+  retVal += " 1      " + str1Count + "\n";
+  retVal += " 2      " + str2Count + "\n";
+  retVal += " 3      " + str3Count + "\n";
+  retVal += " 4      " + str4Count + "\n";
   return retVal;
 }
 
@@ -543,7 +549,6 @@ void setup() {
     IPAddress IP = WiFi.softAPIP();
     Serial.print("  AP IP address: ");
     Serial.println(IP);
-    server.begin();
     displayAPScreen(ssid, WiFi.softAPIP().toString());  
    
   }else{
@@ -577,14 +582,7 @@ void setup() {
     heartbeatMinute = bootMinute;
     oldheartbeatMinute = heartbeatMinute; 
     currentTime = getRTCTime();
-
-
-  //WiFi.mode(WIFI_AP);
-  //WiFi.softAP("esp32");
-  
-  //Serial.print("local IP address: ");
-  //Serial.println(WiFi.softAPIP());
-
+    baseStationTemperature = getRTCTemperature();
        
     mutex_v = xSemaphoreCreateMutex();  //The mutex we will use to protect the jsonMsgBuffer
     
@@ -615,49 +613,10 @@ void setup() {
     displayCountersSummaryScreen(strTotal,getCounterSummary());
   }
 
-  // Port defaults to 3232
-  // ArduinoOTA.setPort(3232);
-  // Hostname defaults to esp3232-[MAC]
-  ArduinoOTA.setHostname(String(String("Digame-STN-") + getMACAddress()).c_str());
+  upTimeMillis = millis() - bootMillis; 
+  initWebServer();
 
-  // No authentication by default
-  // ArduinoOTA.setPassword("admin");
-
-  // Password can be set with it's md5 value as well
-  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
-  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
-
-  ArduinoOTA
-    .onStart([]() {
-      String type;
-      if (ArduinoOTA.getCommand() == U_FLASH)
-        type = "sketch";
-      else // U_SPIFFS
-        type = "filesystem";
-
-      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
-      Serial.println("Start updating " + type);
-    })
-    .onEnd([]() {
-      Serial.println("\nEnd");
-    })
-    .onProgress([](unsigned int progress, unsigned int total) {
-      Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-    })
-    .onError([](ota_error_t error) {
-      Serial.printf("Error[%u]: ", error);
-      if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-      else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-      else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-      else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-      else if (error == OTA_END_ERROR) Serial.println("End Failed");
-    });
-
-  ArduinoOTA.begin();
-
-
-  server.begin(); // Start the web server
-
+      
   debugUART.println();
   debugUART.println("RUNNING\n");
   
@@ -670,15 +629,19 @@ void setup() {
 void loop() {
   String loraMsg;
 
-  // OTA kick
-   ArduinoOTA.handle();
-  
-  // For base stations, we always have a web server available.
+  /*/ For base stations, we always have a web server available.
     WiFiClient client = server.available();   // Listen for incoming clients
     if (client){ 
       processWebClient("basestation", client, config); // Web interface to tweak params and save
       initJSONConfig(filename, config); // Load the program config parameters 
     }
+    */
+
+  if (resetFlag){
+    debugUART.println("Reset flag has been flipped. Rebooting the processor.");
+    delay(2000);  
+    ESP.restart();
+  }
   
   //**************************************************************************************
   //Access Point Operation
@@ -694,6 +657,8 @@ void loop() {
     
     // Grab the current time
       currentTime = getRTCTime();
+      baseStationTemperature = getRTCTemperature();
+      
     
     // Check for display mode button being pressed and switch display
       handleModeButtonPress();
