@@ -13,6 +13,7 @@
 
 
 //*****************************************************************************
+// Disable Bluetooth, the ADC sub-system, WiFi and drop the CPU down to 40Mhz.
 void setLowPowerMode() {
     debugUART.print("  Switching to Low Power Mode... ");
     WiFi.disconnect(true);
@@ -22,16 +23,26 @@ void setLowPowerMode() {
     esp_wifi_stop();
     esp_bt_controller_disable();
     setCpuFrequencyMhz(40); // Slow down the CPU
-    debugUART.println("Done. Low Power Mode Enabled.");
+    debugUART.println("    Done. Low Power Mode Enabled.");
 }
 
+//*****************************************************************************
+// Disable Bluetooth, the ADC sub-system, and drop the CPU down to 80MHz.
+// Leave WiFi active. 
+void setMediumPowerMode() {
+    debugUART.print("  Switching to Medium Power Mode... ");
+    btStop();
+    adc_power_off();
+    esp_bt_controller_disable();
+    setCpuFrequencyMhz(80); // Slow down the CPU
+    debugUART.println("    Done. Medium Power Mode Enabled.");
+}
 
 //***************************************************************************** 
+// Run the CPU Flat out at 240MHz w/ WiFi active. Turn off ADC and Bluetooth.
 void setFullPowerMode() {
     debugUART.println("  Switching to Full Power Mode... ");
     setCpuFrequencyMhz(240); // Speed up the CPU
-    //btStart();               // Turn on Bluetooth
-    //Experiment with not using bluetooth to reduce power consumption 
     btStop();
     esp_bt_controller_disable();
     adc_power_on();          // Turn on the ADCs

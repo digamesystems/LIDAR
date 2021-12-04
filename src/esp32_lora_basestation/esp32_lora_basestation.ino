@@ -15,7 +15,7 @@
 String model = "DS-STN-LoRa-WiFi-1";
 String model_description= "(LoRa-WiFi Base Station)";  
 
-
+  
 bool showDataStream = false;
 long count = 0;
 
@@ -59,6 +59,10 @@ int    bootMinute;         // The minute (0-59) within the hour we woke up at bo
 bool   heartbeatMessageNeeded = true;
 bool   bootMessageNeeded = true;
 float  baseStationTemperature = 0.0;
+
+// Instead of limiting heartbeats to an hourly schedule, make more flexible, based on a variable
+unsigned long lastHeartbeatMillis = 0; 
+
 
 unsigned long bootMillis=0;
 String currentTime;  // Update in Main Loop
@@ -194,7 +198,6 @@ String loraMsgToJSON(String msg){
   int idxstart = msg.indexOf('=')+1;
   int idxstop  = msg.indexOf(','); 
   String strAddress = msg.substring(idxstart,idxstop);
-  //debugUART.println(strAddress);
   
   // Start and end of the JSON payload in the msg.
   idxstart = msg.indexOf('{');
@@ -248,8 +251,7 @@ String loraMsgToJSON(String msg){
   } else if (et == "hb"){
       strEventType = "Heartbeat";
   } else if (et == "v"){
-      strEventType = "Vehicle";
-      
+      strEventType = "Vehicle";     
   } else { 
       strEventType = "Unknown";
       debugUART.println("ERROR: Unknown Message Type!");
@@ -309,8 +311,6 @@ String loraMsgToJSON(String msg){
 
   strTotal = String( str1Count.toInt() + str2Count.toInt() + str3Count.toInt() + str4Count.toInt());
 
-  
-
   String strRetries = doc["r"];
   
   if (displayMode ==3) { // Update the eInk display with the latest information
@@ -335,16 +335,16 @@ String loraMsgToJSON(String msg){
                  "\",\"temp\":\""          + strTemperature +  
                  "\",\"retries\":\""       + strRetries; 
 
- if (et=="v"){
-  jsonPayload = jsonPayload + "\",\"lane\":\"" + strLane;
- }
+  if (et=="v"){
+    jsonPayload = jsonPayload + "\",\"lane\":\"" + strLane;
+  }
                  
- if ((et=="b")||("et"=="hb")){
-  jsonPayload = jsonPayload + "\",\"settings\":" + strSettings;                  
+  if ((et=="b")||(et=="hb")){
+    jsonPayload = jsonPayload + "\",\"settings\":" + strSettings;                  
+  }
+  
   jsonPayload = jsonPayload + "}";
- } else {       
-  jsonPayload = jsonPayload + "\"}";
- }
+  
   return jsonPayload;
   
 }
@@ -455,20 +455,33 @@ void messageManager(void *parameter){
 
     //**********************************************
     // Check if we need to send a heartbeat message
-    //**********************************************      
+    //**********************************************
+    unsigned long deltaT = (millis() - lastHeartbeatMillis);
+    unsigned long slippedMilliSeconds; 
+    if ( (deltaT) >= config.heartbeatInterval.toInt() * 1000 ){
+      debugUART.println(deltaT);
+      slippedMilliSeconds = deltaT - config.heartbeatInterval.toInt() *1000; // Since this Task is on a 100 msec schedule, we'll always be a little late...
+      debugUART.println(slippedMilliSeconds);
+      heartbeatMessageNeeded = true;
+    }  
+    
     if (heartbeatMessageNeeded){
-
+      debugUART.println("Heartbeat needed.");
+      
+      xSemaphoreTake(mutex_v, portMAX_DELAY); 
+        lastHeartbeatMillis = millis() - slippedMilliSeconds; // Small tweak to time to reflect when we should have fired the event. 
+        heartbeatMessageNeeded = false;
+      xSemaphoreGive(mutex_v);
+      
       jsonPayload = buildJSONHeader("Heartbeat");
       jsonPayload = jsonPayload + "}";
 
       //debugUART.println(jsonPayload);
       postJSON(jsonPayload, config);
-
-      xSemaphoreTake(mutex_v, portMAX_DELAY); 
-        heartbeatMessageNeeded = false;
-      xSemaphoreGive(mutex_v);
       
     }
+    
+    
     
     //********************************************
     // Check for Messages on the Queue and Process
@@ -483,7 +496,7 @@ void messageManager(void *parameter){
     }
 
     upTimeMillis = millis() - bootMillis; 
-    vTaskDelay(100 / portTICK_PERIOD_MS);   
+    vTaskDelay(10 / portTICK_PERIOD_MS);   
   }   
 }
 
@@ -659,20 +672,9 @@ void loop() {
       currentTime = getRTCTime();
       baseStationTemperature = getRTCTemperature();
       
-    
     // Check for display mode button being pressed and switch display
       handleModeButtonPress();
     
-    // Issue a message every hour.
-      heartbeatMinute = getRTCMinute();
-      if ((oldheartbeatMinute != bootMinute) && (heartbeatMinute == bootMinute)){ 
-        xSemaphoreTake(mutex_v, portMAX_DELAY); 
-          heartbeatMessageNeeded = true;
-        xSemaphoreGive(mutex_v);
-      }  
-      oldheartbeatMinute = heartbeatMinute;
-
-
     // Handle what the LoRa module has to say. 
     // If it's a message from another module, add it to the queue so the manager  
     // function can handle it.
@@ -681,11 +683,12 @@ void loop() {
       if (LoRaUART.available()) {
         
         loraMsg = LoRaUART.readStringUntil('\n');
-           
+        
+        debugUART.println("LoRa Message Received: ");  
+        debugUART.println(loraMsg);
+             
         //Messages received by the Module start with '+RCV'
         if (loraMsg.indexOf("+RCV")>=0){
-          debugUART.println("LoRa Message Received: ");  
-          debugUART.println(loraMsg);
           
           // Send an acknowlegement to the sender.
           // Messages are of the form: "+RCV=2,2,16,-64,36" -- where the first number 

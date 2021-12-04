@@ -60,7 +60,7 @@
         <br><label>Software Version<br></label><br>
         <small>%SW_VERSION%</small><br>
 
-        <br><label>Uptime (sec)<br></label><br>
+        <br><label>Uptime (DDD:HH:MM:SS)<br></label><br>
         <small><span id="uptime">%UPTIME%</span></small>
         <br>
 
@@ -76,7 +76,11 @@
     <form action="/networkparams">
         <H3>Network</H3>
         <p><em>NOTE: Changes to network settings will be applied after a reboot of the device.</em></p>
-        <label>MAC Address</label><p><em>%MAC_ADDRESS%</em></p>
+        <label>MAC Address</label><p><small><em>%MAC_ADDRESS%</em></small></p><br>
+        
+        <label for="ssid">Heartbeat Int'val (sec)</label>
+        <input type="number" min="10" max="65534" id="heartbeatinterval" name="heartbeatinterval" value=%config.heartbeatInterval%><br><br>            
+
         <label for="ssid">SSID</label>
         <input type="text" id="ssid" name="ssid" value="%config.ssid%"><br><br>
 
@@ -196,8 +200,8 @@
       var xhttp = new XMLHttpRequest();
       xhttp.onreadystatechange = function() {
         if (this.readyState == 4 && this.status == 200) {
-          items = this.responseText.split(','); 
-          uptime = parseFloat(items[0]);
+          uptime = this.responseText;//.split(','); 
+          //uptime = parseFloat(items[0]);
           document.getElementById("uptime").innerHTML = uptime;  
         };}
       xhttp.open("GET", "/uptime", true);

@@ -70,6 +70,9 @@ bool enableWiFi(Config config)
     debugUART.print("  Starting WiFi");
     WiFi.mode(WIFI_STA); // Station mode
     delay(250);
+    String hostName = config.deviceName;
+    hostName.replace(" ","_");
+    WiFi.setHostname(hostName.c_str()); //define hostname
     WiFi.begin(ssid.c_str(), password.c_str()); // Log in
 
 

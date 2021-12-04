@@ -20,8 +20,10 @@
 
 #define debugUART Serial
 
+#include <Wire.h> 
 #include "time.h"   // UTC functions
 #include <DS3231.h> // Real Time Clock Library
+
 
 // Globals
 const char* ntpServer          = "pool.ntp.org"; // Time server.
@@ -48,8 +50,30 @@ String twoDigits(byte); // Utility function to format integers as two-
                         // digit strings
 
 
+// t is time in seconds = millis()/1000;
+String TimeToString(unsigned long t)
+{
+  static char str[12];
+  
+  long d = (t / 3600) / 24;
+  
+  long h = (t / 3600) - (d * 24);
+
+  t = t % 3600;
+  
+  int m = t / 60;
+  int s = t % 60;
+
+  sprintf(str, "%03ld:%02d:%02d:%02d", d, h, m, s);
+  //debugUART.print(" Uptime: ");
+  String ret = String(str);
+  //debugUART.println(ret);
+  return ret;
+}
+
 //****************************************************************************************
 bool initRTC(){
+  Wire.begin();
   debugUART.println("  Testing for Real-Time-Clock module... ");
   if (rtcPresent()){
     debugUART.println("    RTC found. (Program will use time from RTC.)");
@@ -188,9 +212,11 @@ bool setRTCTime(){
 
   // Set the external RTC
   DS3231 clock;
+  clock.setClockMode(false); // 24 hour time
   clock.setYear(timeinfo.tm_year-100);
   clock.setMonth(timeinfo.tm_mon+1);
   clock.setDate(timeinfo.tm_mday);
+
   clock.setHour(timeinfo.tm_hour);
   clock.setMinute(timeinfo.tm_min);
   clock.setSecond(timeinfo.tm_sec);

@@ -36,6 +36,8 @@
 #include <digameLIDAR.h>
 #include <digameLoRa.h>
 #include <digameNetwork.h>
+#include <digameTime.h>
+
 
 
 
@@ -44,6 +46,8 @@ AsyncWebServer server(80);
 
 bool resetFlag = false;
 unsigned long upTimeMillis=0;
+const char* http_username = "admin";
+const char* http_password = "admin";
 
 
 
@@ -64,7 +68,7 @@ String processor(const String& var){
   if(var == "SW_VERSION")        return F(SW_VERSION.c_str()); 
   if(var == "MAC_ADDRESS")        return F(getMACAddress().c_str()); 
   
-  
+  if(var == "config.heartbeatInterval")  return F(String(config.heartbeatInterval).c_str());
   if(var == "config.ssid")      return F(String(config.ssid).c_str());
   if(var == "config.password")  return F(String(config.password).c_str());
   if(var == "config.serverURL") return F(String(config.serverURL).c_str());
@@ -87,6 +91,9 @@ String processor(const String& var){
   if(var == "config.logHeartBeatEvents") return F(String(config.logHeartBeatEvents).c_str());  
   if(var == "config.logVehicleEvents") return F(String(config.logVehicleEvents).c_str());
   if(var == "config.logRawData") return F(String(config.logRawData).c_str());
+  if(var == "config.counterPopulation") return F(String(config.counterPopulation).c_str());
+  if(var == "config.counterID") return F(String(config.counterID).c_str());
+  
 
   if(var == "config.sens1Addr") return F(String(config.sens1Addr).c_str());
   if(var == "config.sens2Addr") return F(String(config.sens2Addr).c_str());
@@ -133,11 +140,22 @@ void processQueryParam(AsyncWebServerRequest *request, String qParam, String *ta
     if(request->hasParam(qParam)){
       //debugUART.println("found");
       AsyncWebParameter* p = request->getParam(qParam);
-      *targetParam = String(p->value().c_str());
+
+      debugUART.print(p->value());
+      debugUART.print(" ");
+      debugUART.println(String(p->value()).length());
+
+
+      if (String(p->value()).length() == 0) {
+        //debugUART.println("*******BLANK ENTRY!*******");
+        //debgugUART.println("...ignoring...");
       
-      targetParam->replace("%","_"); // Replace the template character. 
+      } else{
+        *targetParam = String(p->value().c_str());
+        targetParam->replace("%","_"); // Replace the template character. 
                                      // 'Might cause problems w/ some Passwords...
                                      // TODO: Think on this. Make '%' illegal in PW? 
+      }
     }
 }
 
@@ -159,6 +177,8 @@ void initWebServer() {
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     //request->send(SD, "/index.html", String(), false, processor);
+    if(!request->authenticate(http_username, http_password))
+      return request->requestAuthentication();
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
@@ -213,7 +233,6 @@ void initWebServer() {
     processQueryParam(request, "logvehicleevents", &config.logVehicleEvents);
     processQueryParam(request, "lograwdata", &config.logRawData);
 
-
     String strReboot;
     processQueryParam(request, "reboot", &strReboot);
     debugUART.println(strReboot);
@@ -228,6 +247,7 @@ void initWebServer() {
   });
 
   server.on("/networkparams",HTTP_GET, [](AsyncWebServerRequest *request){
+    processQueryParam(request, "heartbeatinterval", &config.heartbeatInterval);
     processQueryParam(request, "ssid", &config.ssid);
     processQueryParam(request, "password", &config.password);
     processQueryParam(request, "serverurl", &config.serverURL);  
@@ -242,12 +262,16 @@ void initWebServer() {
     processQueryParam(request, "bandwidth", &config.loraBW);
     processQueryParam(request, "codingrate", &config.loraCR);
     processQueryParam(request, "preamble", &config.loraPreamble); 
+
     //initLoRa();
     //configureLoRa(config);
     redirectHome(request);
   });
 
   server.on("/lidarparams",HTTP_GET, [](AsyncWebServerRequest *request){
+
+    processQueryParam(request, "counterid", &config.counterID);
+    processQueryParam(request, "counterpopulation", &config.counterPopulation);
     processQueryParam(request, "residencetime", &config.lidarResidenceTime);
     processQueryParam(request, "zone1min", &config.lidarZone1Min);
     processQueryParam(request, "zone1max", &config.lidarZone1Max);
@@ -290,7 +314,11 @@ void initWebServer() {
   });
 
   server.on("/uptime", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(200, "text/plain", String(upTimeMillis/1000));  // Report in seconds
+    String s = TimeToString(upTimeMillis/1000);
+    //s = TimeToString(312847); // Testing. = (3 days 14 hours 54 min 7 seconds)
+    //debugUART.print("/uptime: ");
+    //debugUART.println(s);
+    request->send(200, "text/plain", s);  // Report in seconds
   });
 
 

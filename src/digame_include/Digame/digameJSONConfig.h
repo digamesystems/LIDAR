@@ -30,13 +30,13 @@ struct Config
   String configured = "false"; // Factory configuration flag. Set to "true" after cal/test.
                                // Used to branch the UI for testing at MFG time.
 
-
   // Parameters found in PARAMS.TXT on the SD card.
   // Fails over to these values if not found.
 
   String deviceName = "Digame Systems"; //"YOUR_DEVICE_NAME"; //
 
   // Network:
+  String heartbeatInterval = "3600"; // Once an hour by default
   String ssid = "Bighead";       // "YOUR_SSID";     // Wireless network name.
   String password = "billgates"; // "YOUR_PASSWORD"; // Network PW
 
@@ -51,6 +51,11 @@ struct Config
   String logHeartBeatEvents = "";
   String logVehicleEvents = "";
   String logRawData = "";
+
+  //Counters
+  String counterPopulation = "1";
+  String counterID = "1";
+
   
   
   // LoRa:
@@ -66,13 +71,15 @@ struct Config
   String lidarDetectionAlgorithm = "Threshold";
   String lidarUpdateInterval = "10";
   String lidarSmoothingFactor = "0.6";
-  String lidarResidenceTime = "200";
+  String lidarResidenceTime = "5";
   String lidarZone1Min = "0";
   String lidarZone1Max = "300";
   String lidarZone2Min = "400";
   String lidarZone2Max = "700";
   String lidarZone1Count = "0";
   String lidarZone2Count = "0";
+
+  
 
   // Sensors:
   String sens1Addr = "10";
@@ -141,6 +148,23 @@ bool initSDCard()
 
 }
 
+
+//****************************************************************************************
+// If we add parameters to the config struct, the params.txt may not have an entry for new
+// fields. - In those cases, just use the default values from the config struct.
+void initConfigEntry(String *target, String value){
+
+  if (value.length() > 0){
+   //debugUART.print("Entry has length! Setting value to... ");
+   //debugUART.println(value);
+   *target = value;
+   }
+  else{
+    //debugUART.print("Entry has NO length. Using default value of... ");
+    //debugUART.println(*target);
+  }
+}
+
 //****************************************************************************************
 // Loads the configuration from a file
 void loadConfiguration(const char *filename, Config &config)
@@ -179,39 +203,47 @@ void loadConfiguration(const char *filename, Config &config)
     return;
   }
 
+  //initConfigEntry((const char *)doc["flubart"], &config.flubart);
+  //initConfigEntry((const char *)doc["name"], &config.deviceName);
+
   // Copy values from the JsonDocument to the Config
-  config.deviceName = (const char *)doc["name"];
+  initConfigEntry(&config.deviceName , (const char *)doc["name"]);
+  initConfigEntry(&config.heartbeatInterval , (const char *)doc["network"]["heartbeatInterval"]);
 
-  config.ssid = (const char *)doc["network"]["ssid"];
-  config.password = (const char *)doc["network"]["password"];
-  config.serverURL = (const char *)doc["network"]["serverURL"];
+  initConfigEntry(&config.ssid , (const char *)doc["network"]["ssid"]);
+  initConfigEntry(&config.password , (const char *)doc["network"]["password"]);
+  initConfigEntry(&config.serverURL , (const char *)doc["network"]["serverURL"]);
 
-  config.loraAddress = (const char *)doc["lora"]["address"];
-  config.loraNetworkID = (const char *)doc["lora"]["networkID"];
-  config.loraBand = (const char *)doc["lora"]["band"];
-  config.loraSF = (const char *)doc["lora"]["spreadingFactor"];
-  config.loraBW = (const char *)doc["lora"]["bandwidth"];
-  config.loraCR = (const char *)doc["lora"]["codingRate"];
-  config.loraPreamble = (const char *)doc["lora"]["preamble"];
+  initConfigEntry(&config.loraAddress , (const char *)doc["lora"]["address"]);
+  initConfigEntry(&config.loraNetworkID , (const char *)doc["lora"]["networkID"]);
+  initConfigEntry(&config.loraBand , (const char *)doc["lora"]["band"]);
+  initConfigEntry(&config.loraSF , (const char *)doc["lora"]["spreadingFactor"]);
 
-  config.lidarDetectionAlgorithm = (const char *)doc["lidar"]["detectionAlgorithm"];
-  config.lidarUpdateInterval = (const char *)doc["lidar"]["updateInterval"];
-  config.lidarSmoothingFactor = (const char *)doc["lidar"]["smoothingFactor"];
-  config.lidarResidenceTime = (const char *)doc["lidar"]["residenceTime"];
-  config.lidarZone1Min = (const char *)doc["lidar"]["zone1Min"];
-  config.lidarZone1Max = (const char *)doc["lidar"]["zone1Max"];
-  config.lidarZone2Min = (const char *)doc["lidar"]["zone2Min"];
-  config.lidarZone2Max = (const char *)doc["lidar"]["zone2Max"];
+  initConfigEntry(&config.loraBW , (const char *)doc["lora"]["bandwidth"]);
+  initConfigEntry(&config.loraCR , (const char *)doc["lora"]["codingRate"]);
+  initConfigEntry(&config.loraPreamble , (const char *)doc["lora"]["preamble"]);
 
-  config.lidarZone1Count = "0"; //(const char *)doc["lidar"]["zone1Count"];
-  config.lidarZone2Count = "0"; //(const char *)doc["lidar"]["zone2Count"];
+  initConfigEntry(&config.lidarDetectionAlgorithm , (const char *)doc["lidar"]["detectionAlgorithm"]);
+  initConfigEntry(&config.lidarUpdateInterval , (const char *)doc["lidar"]["updateInterval"]);
+  initConfigEntry(&config.lidarSmoothingFactor , (const char *)doc["lidar"]["smoothingFactor"]);
+  initConfigEntry(&config.lidarResidenceTime , (const char *)doc["lidar"]["residenceTime"]);
+  initConfigEntry(&config.lidarZone1Min , (const char *)doc["lidar"]["zone1Min"]);
+  initConfigEntry(&config.lidarZone1Max , (const char *)doc["lidar"]["zone1Max"]);
+  initConfigEntry(&config.lidarZone2Min , (const char *)doc["lidar"]["zone2Min"]);
+  initConfigEntry(&config.lidarZone2Max , (const char *)doc["lidar"]["zone2Max"]);
+
+  initConfigEntry(&config.lidarZone1Count , "0"); //(const char *)doc["lidar"]["zone1Count"]);
+  initConfigEntry(&config.lidarZone2Count , "0"); //(const char *)doc["lidar"]["zone2Count"]);
 
   
-  config.logBootEvents = (const char *)doc["log"]["bootEvents"];
-  config.logHeartBeatEvents = (const char *)doc["log"]["heartBeatEvents"];
-  config.logVehicleEvents = (const char *)doc["log"]["vehicleEvents"];
-  config.logRawData = (const char *)doc["log"]["rawData"];
+  initConfigEntry(&config.logBootEvents , (const char *)doc["log"]["bootEvents"]);
+  initConfigEntry(&config.logHeartBeatEvents , (const char *)doc["log"]["heartBeatEvents"]);
+  initConfigEntry(&config.logVehicleEvents , (const char *)doc["log"]["vehicleEvents"]);
+  initConfigEntry(&config.logRawData , (const char *)doc["log"]["rawData"]);
   
+  initConfigEntry(&config.counterPopulation , (const char *)doc["counter"]["population"]);
+  initConfigEntry(&config.counterID , (const char *)doc["counter"]["id"]);
+
 
 /*
   debugUART.println("Logging Params: ");
@@ -222,20 +254,20 @@ void loadConfiguration(const char *filename, Config &config)
 */  
 
 
-  config.sens1Name = (const char *)doc["sensor"]["1"]["name"];
-  config.sens1Addr = (const char *)doc["sensor"]["1"]["addr"];
-  config.sens1MAC = (const char *)doc["sensor"]["1"]["mac"];
-  config.sens2Name = (const char *)doc["sensor"]["2"]["name"];
-  config.sens2Addr = (const char *)doc["sensor"]["2"]["addr"];
-  config.sens2MAC = (const char *)doc["sensor"]["2"]["mac"];
-  config.sens3Name = (const char *)doc["sensor"]["3"]["name"];
-  config.sens3Addr = (const char *)doc["sensor"]["3"]["addr"];
-  config.sens3MAC = (const char *)doc["sensor"]["3"]["mac"];
-  config.sens4Name = (const char *)doc["sensor"]["4"]["name"];
-  config.sens4Addr = (const char *)doc["sensor"]["4"]["addr"];
-  config.sens4MAC = (const char *)doc["sensor"]["4"]["mac"];
+  initConfigEntry(&config.sens1Name , (const char *)doc["sensor"]["1"]["name"]);
+  initConfigEntry(&config.sens1Addr , (const char *)doc["sensor"]["1"]["addr"]);
+  initConfigEntry(&config.sens1MAC , (const char *)doc["sensor"]["1"]["mac"]);
+  initConfigEntry(&config.sens2Name , (const char *)doc["sensor"]["2"]["name"]);
+  initConfigEntry(&config.sens2Addr , (const char *)doc["sensor"]["2"]["addr"]);
+  initConfigEntry(&config.sens2MAC , (const char *)doc["sensor"]["2"]["mac"]);
+  initConfigEntry(&config.sens3Name , (const char *)doc["sensor"]["3"]["name"]);
+  initConfigEntry(&config.sens3Addr , (const char *)doc["sensor"]["3"]["addr"]);
+  initConfigEntry(&config.sens3MAC , (const char *)doc["sensor"]["3"]["mac"]);
+  initConfigEntry(&config.sens4Name , (const char *)doc["sensor"]["4"]["name"]);
+  initConfigEntry(&config.sens4Addr , (const char *)doc["sensor"]["4"]["addr"]);
+  initConfigEntry(&config.sens4MAC , (const char *)doc["sensor"]["4"]["mac"]);
 
-  config.displayType = (const char *)doc["displayType"];
+  initConfigEntry(&config.displayType , (const char *)doc["displayType"]);
 
   // Close the file (Curiously, File's destructor doesn't close the file)
   file.close();
@@ -247,17 +279,17 @@ void loadConfiguration(const char *filename, Config &config)
 void saveConfiguration(const char *filename, Config &config)
 {
   if (config.showDataStream == "false"){
-    debugUART.println("*   Saving parameters...");
+    //debugUART.println("*   Saving parameters...");
     // Delete existing file, otherwise the configuration is appended to the file
 
-    debugUART.println("    Erasing old file...");
+    //debugUART.println("    Erasing old file...");
   }
 
   SD.remove(filename);
 
   // Open file for writing
   if (config.showDataStream == "false"){
-  debugUART.println("    Opening file for write...");
+  //debugUART.println("    Opening file for write...");
   }
 
   File file = SD.open(filename, FILE_WRITE);
@@ -274,6 +306,7 @@ void saveConfiguration(const char *filename, Config &config)
 
   // Copy values from the Config struct to the JsonDocument
   doc["name"] = config.deviceName;
+  doc["network"]["heartbeatInterval"] = config.heartbeatInterval;
   doc["network"]["ssid"] = config.ssid;
   doc["network"]["password"] = config.password;
   doc["network"]["serverURL"] = config.serverURL;
@@ -302,6 +335,10 @@ void saveConfiguration(const char *filename, Config &config)
   doc["log"]["vehicleEvents"] = config.logVehicleEvents;
   doc["log"]["rawData"] = config.logRawData;
 
+  doc["counter"]["population"] = config.counterPopulation;
+  doc["counter"]["id"] = config.counterID;
+
+
 
   doc["sensor"]["1"]["name"] = config.sens1Name;
   doc["sensor"]["1"]["addr"] = config.sens1Addr;
@@ -320,17 +357,17 @@ void saveConfiguration(const char *filename, Config &config)
 
   // Serialize JSON to file
   if (config.showDataStream == "false"){
-    debugUART.println("    Writing file...");
+   // debugUART.println("    Writing file...");
   }
 
   if (serializeJson(doc, file) == 0)
   {
-    Serial.println(F("    Failed to write to file!"));
+    //Serial.println(F("    Failed to write to file!"));
   }
 
   // Close the file
   if (config.showDataStream == "false"){
-    debugUART.println("*   Done saving parameters.");
+   // debugUART.println("*   Done saving parameters.");
   }
 
   file.close();
@@ -379,11 +416,14 @@ void appendTextFile(const char *filename, String contents)
 {
 
   //debugUART.println(initSDCard());
-  debugUART.print("  Saving data to: ");
-  debugUART.println(filename);
+  if (config.showDataStream == "false"){       
+    debugUART.print("Saving data to: ");
+    debugUART.print(filename);
+    debugUART.print("... ");
+  }
 
   // Open file for writing
-  debugUART.println("    Opening file for write...");
+  //debugUART.println("    Opening file for write...");
   File file = SD.open(filename, FILE_APPEND);
 
   if (!file)
@@ -392,11 +432,13 @@ void appendTextFile(const char *filename, String contents)
     return;
   }
 
-  debugUART.println("    Writing file...");
+  //debugUART.println("    Writing file...");
   file.println(contents);
 
   // Close the file
-  debugUART.println("  Done.");
+  if (config.showDataStream == "false"){  
+    debugUART.println("  Done.");
+  }
   file.close();
 }
 

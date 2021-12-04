@@ -16,7 +16,7 @@ TFMPlus tfmP;                 // Create a TFMini Plus object
 int16_t initLIDARDist = 999; // The initial distance measured by the lidar when it wakes up.
 
 const int lidarSamples = 50;
-String lastDistanceMeasured ="0";
+String lastDistanceMeasured = "0";
 
 CircularBuffer<int, lidarSamples> lidarBuffer; // We're going to hang onto the last 100 raw data
                                                //   points to visualize what the sensor sees
@@ -391,8 +391,16 @@ int processLIDARSignal2(Config config){
   lidarResult = tfmP.getData(tfDist, tfFlux, tfTemp); // Grab the results
 
 
-  if ((lidarResult) || (tfmP.status == TFMP_WEAK)) // Process good measurements and treat weak ones as 'infinity'
+  if ( (lidarResult) || (tfmP.status == TFMP_WEAK) ) // Process good measurements 
+                                                   // or weak ones 
   {
+    // Check the status code if not "ready" one of several errors has occured.
+    // Looking at the source in TFMPlus.cpp, lidarResult should only be true
+    // if everything is ok. Processing weak signals to avoid lockup looking off
+    // into infinity. 
+
+    if (tfmP.status !=TFMP_READY) {tfDist = 1001;} // "something" is weird.
+
     // When very close, or looking off into empty space, the sensor reports zero or a negative value.
     // The short range isn't an issue for us.
     // Any Zeros we see will be due to no reflective target in range.
@@ -419,7 +427,7 @@ int processLIDARSignal2(Config config){
       if ((lidarBuffer[i] < config.lidarZone1Max.toInt()) &&
           (lidarBuffer[i] > config.lidarZone1Min.toInt()))
       {
-        zone1Strength = zone1Strength + 1; // Add 'car-ness' to Zone 2
+        zone1Strength = zone1Strength + 1; // Add 'car-ness' to Zone 1
       }
 
       if ((lidarBuffer[i] < config.lidarZone2Max.toInt()) &&
@@ -434,9 +442,6 @@ int processLIDARSignal2(Config config){
     zone1Strength = (100 * zone1Strength / lidarBuffer.size());
     zone2Strength = (100 * zone2Strength / lidarBuffer.size());
 
-    //if (zone1Strength > 100) zone1Strength= 100;
-    //if (zone2Strength > 100) zone2Strength= 100;
-    
     int threshold = config.lidarResidenceTime.toInt(); // Minimum 'car-ness' to count as 'car' TODO: Make tweakable
 
     previousCarPresentLane1 = carPresentLane1;
@@ -444,6 +449,183 @@ int processLIDARSignal2(Config config){
 
     carPresentLane1 = (zone1Strength > threshold);
     carPresentLane2 = (zone2Strength > threshold);
+
+    if ((previousCarPresentLane1 == true) && (carPresentLane1 == false)) 
+    { // The car was here and now has left the field of view.
+      carEvent1 = 300;
+      retValue = 1;
+    }
+    else
+    {
+      carEvent1 = 0;
+    }
+
+    if ((previousCarPresentLane2 == true) && (carPresentLane2 == false))    
+    { // The car was here and now has left the field of view.
+      carEvent2 = 300;
+      retValue = 2;
+    }
+    else
+    {
+      carEvent2 = 0;
+    }
+
+// For the serial plotter.
+     if (config.showDataStream == "true"){
+        debugUART.print(tfDist);
+        debugUART.print(",");
+        debugUART.print(config.lidarZone1Max.toFloat());
+        debugUART.print(",");
+        debugUART.print(config.lidarZone1Min.toFloat());
+        debugUART.print(",");
+        //debugUART.print(config.lidarZone2Max.toFloat());
+        //debugUART.print(",");
+        //debugUART.print(config.lidarZone2Min.toFloat());
+        //debugUART.print(",");
+        debugUART.print(carEvent1);
+        debugUART.print(",");
+        debugUART.print(carEvent2);
+        debugUART.print(",");
+        debugUART.print(zone1Strength);
+        debugUART.print(",");
+        debugUART.println(zone2Strength);
+     }
+
+  }
+  else
+  {
+    // Report the error
+    // tfmP.printStatus();
+    // Other than TFMP_WEAK, the other error I see occassionaly is 'CHECKSUM'
+    // Why would serial com have a problem?...
+    // TODO: Investigate.
+  }
+
+  return retValue;
+
+}
+
+/****************************************************************************************
+22 Nov 2021 
+ This is a variation on processLIDARSignal2. 
+
+ Here, we're trying to mitigate false counts due to shadowing by closer vehicles.  
+ zoneStrength gets added when a car is present in the lane. 
+ 
+ It gets subtracted when the signal is farther than the outer limit of the lane. 
+ 
+ Signals closer than the lower limit of the lane are ignored so cars in closer lanes 
+ don't generate false events in farther lanes as they pass. 
+ 
+ ****************************************************************************************/
+int processLIDARSignal3(Config config){
+  // LIDAR signal analysis parameters
+
+  int16_t tfDist = 0;          // Distance to object in centimeters
+  int16_t tfFlux = 0;          // Strength or quality of return signal
+  int16_t tfTemp = 0;          // Internal temperature of Lidar sensor chip
+  
+  static float zone1Strength = 0;  // A measure of how 'present' a car is in each lane over an interval of time
+  static float zone2Strength = 0;
+
+  static bool carPresentLane1 = false;         // Do we see a car now?
+  static bool previousCarPresentLane1 = false; // Had we seen a car last time?
+
+  static bool carPresentLane2 = false;         // Do we see a car now?
+  static bool previousCarPresentLane2 = false; // Had we seen a car last time?
+
+  unsigned int carEvent1 = 0;                  // A variable for the serial plotter.
+  unsigned int carEvent2 = 0;                  // A variable for the serial plotter.
+  
+  unsigned int lidarUpdateRate = 10;           // Time in ms between readings
+  
+  int retValue = 0;          // Return value for the routine. Do we have a vehicle event? 
+                             //  Which lane?
+
+  bool lidarResult = false;  // Return value from reading the LIDAR sensor
+
+  int threshold = config.lidarResidenceTime.toInt(); // Level of signal to count as present.
+
+  tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
+  delay(lidarUpdateRate);                 // Wait a bit...
+
+  lidarResult = tfmP.getData(tfDist, tfFlux, tfTemp); // Grab the results
+
+  if ( (lidarResult) || (tfmP.status == TFMP_WEAK) ) // Process good measurements 
+                                                     // or weak ones 
+  {
+    // Check the status code. If not "ready" one of several errors has occurred.
+    // Looking at the source in TFMPlus.cpp, lidarResult should only be true
+    // if everything is OK. Processing weak signals to avoid lockup looking off
+    // into infinity. 
+
+    if (tfmP.status !=TFMP_READY) {tfDist = 1001;} // "something" is weird.
+
+    // When very close, or looking off into empty space, the sensor reports zero or a 
+    // negative value. The short range isn't an issue for us.
+    // Any Zeros we see will be due to no reflective target in range.
+    if ((tfDist <= 0) || (tfDist >= 1000)) // Added the second check in case we pick up 
+                                           // a long-range target. 
+    {
+      tfDist = 999; // Limiting to 999 saves a digit in the messages to the server.
+    }
+    
+    lastDistanceMeasured = String(tfDist);
+
+    lidarDistanceHistogram[(unsigned int)(tfDist / 10)]++; // Grabbing a histogram of distances
+                                                           // to explore automatic lane determination...
+                                                           // The check for >= 1000 above is to avoid
+                                                           // exceeding the limits of the histogram array.
+
+    lidarBuffer.push(tfDist); // The circular buffer of LIDAR data for analysis
+    lidarHistoryBuffer.push((tfDist)); // A longer history for display.
+
+    // TODO: Trying out a pre-filter here to look at the lidar history buffer 
+    // and do a disposition of whether we should take this data seriously...
+    // There is a difference between 'glimpsing' something and 'seeing' it. I'm 
+    // thinking of how snow can cause short little events around 1-2 meters...
+
+    // PRE-FILTER: Do we have enough signal to count as car-ness?
+    float bufferInteg1 = 0; // Integral of in-zone data in the buffer
+    float bufferInteg2 = 0;
+    
+    for (int i = 0; i < lidarBuffer.size(); i++)
+    {
+      if ((lidarBuffer[i] < config.lidarZone1Max.toInt()) &&
+          (lidarBuffer[i] > config.lidarZone1Min.toInt()))
+      {
+        bufferInteg1 += 100 / lidarBuffer.size();  // Scale to buffer size
+      }
+      if ((lidarBuffer[i] < config.lidarZone2Max.toInt()) &&
+          (lidarBuffer[i] > config.lidarZone2Min.toInt()))
+      {
+        bufferInteg2 += 100 / lidarBuffer.size();
+      }
+    }
+
+    // Test for car-ness
+    if ( bufferInteg1 > threshold) { zone1Strength = 100; } // We have Car!
+    if ( bufferInteg2 > threshold) { zone2Strength = 100; }
+
+    // Cars at longer distances than the zoneMax take away zoneStrength
+    // Experimenting with an exponential decay. 
+    // Hardcoded decay constant. TODO: If this works well, make adjustable.
+    if (tfDist > config.lidarZone1Max.toInt())
+    {
+      zone1Strength = zone1Strength -  zone1Strength * 0.05; // Subtract 'car-ness' from Zone 1
+    }
+
+    if (tfDist > config.lidarZone2Max.toInt()) 
+    {
+      zone2Strength = zone2Strength - zone2Strength *0.05; // Subtract 'car-ness' from Zone 2
+    }
+    
+    previousCarPresentLane1 = carPresentLane1;
+    previousCarPresentLane2 = carPresentLane2;
+
+    // Hardcoded cutoff for the exponential decay. Report once car-ness decays to 10%
+    carPresentLane1 = (zone1Strength > 10);
+    carPresentLane2 = (zone2Strength > 10);
 
     if ((previousCarPresentLane1 == true) && (carPresentLane1 == false)) 
     { // The car was here and now has left the field of view.
@@ -489,9 +671,11 @@ int processLIDARSignal2(Config config){
   }
   else
   {
-
     // Report the error
     // tfmP.printStatus();
+    // Other than TFMP_WEAK, the other error I see occassionaly is 'CHECKSUM'
+    // Why would serial com have a problem?...
+    // TODO: Investigate.
   }
 
   return retValue;
