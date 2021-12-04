@@ -365,7 +365,7 @@ void saveConfiguration(const char *filename, Config &config)
     //Serial.println(F("    Failed to write to file!"));
   }
 
-  // Close the file
+  // Clos e the file
   if (config.showDataStream == "false"){
    // debugUART.println("*   Done saving parameters.");
   }
@@ -376,7 +376,7 @@ void saveConfiguration(const char *filename, Config &config)
 //****************************************************************************************
 void deleteFile(const char *filename){
   // Delete existing file, otherwise the information is appended to the file
-  debugUART.println("    Erasing old file...");
+  // debugUART.println("    Erasing old file...");
   SD.remove(filename);
 }
 

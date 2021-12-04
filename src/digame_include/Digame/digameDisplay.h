@@ -11,6 +11,7 @@
 // enable or disable GxEPD2_GFX base class
 #define ENABLE_GxEPD2_GFX 1 // Took me a longer than it should have to find this! --
 
+#include <digameDebug.h>
 #include <GxEPD2_BW.h>
 #include <EEPROM.h>
 
@@ -40,7 +41,6 @@ String displayType = "SSD1681";
 //******************************************************************************************
 GxEPD2_GFX &getDisplay()
 { // So we can use different displays.
-
   if (displayType == "SSD1608")
   {
     return display1;
@@ -53,17 +53,15 @@ GxEPD2_GFX &getDisplay()
 
 void initDisplay()
 {
-  if (config.showDataStream == "false"){
-  debugUART.println("  Initializing eInk Display...");
-  debugUART.println("    Reading EEPROM");
-  }
+  DEBUG_PRINTLN(" Initializing eInk Display...");
+  DEBUG_PRINTLN("  Reading EEPROM");
 
   EEPROM.begin(10);
   delay(1000);
 
   if (EEPROM.read(0)==255){
-    debugUART.println("    ****Display Uninitialized****");
-    debugUART.println("    Enter Display Type 1=SSD1608, 2=SSD1681: ");
+    DEBUG_PRINTLN("   ****Display Uninitialized****");
+    DEBUG_PRINTLN("   Enter Display Type 1=SSD1608, 2=SSD1681: ");
     
     while (!(debugUART.available())){
       delay(10); // wait for data from the user... 
@@ -71,8 +69,8 @@ void initDisplay()
 
     String inString = debugUART.readStringUntil('\n');
     inString.trim();
-    debugUART.print("    You entered: ");
-    debugUART.println(inString);
+    DEBUG_PRINT("   You entered: ");
+    DEBUG_PRINTLN(inString);
 
     if (inString =="1"){
        displayType = "SSD1608";
@@ -87,18 +85,15 @@ void initDisplay()
     }
   } 
 
- if (config.showDataStream == "false"){
-  debugUART.print("    Display Type: ");
-  debugUART.print(EEPROM.read(0));
- } 
+  DEBUG_PRINT("   Display Type: ");
+  DEBUG_PRINT(EEPROM.read(0));
+
 
   if (EEPROM.read(0)==1){displayType="SSD1608";}
   if (EEPROM.read(0)==2){displayType="SSD1681";}
 
- if (config.showDataStream == "false"){
-  debugUART.print(" = ");
-  debugUART.println(displayType);
- }
+  DEBUG_PRINT(" = ");
+  DEBUG_PRINTLN(displayType);
 
   GxEPD2_GFX &display = getDisplay();
 
@@ -112,17 +107,17 @@ void initDisplay()
 
 //******************************************************************************************
 #if defined(ESP8266) || defined(ESP32)
-#include <StreamString.h>
-#define PrintString StreamString
+  #include <StreamString.h>
+  #define PrintString StreamString
 #else
-class PrintString : public Print, public String
-{
-public:
-  size_t write(uint8_t data) override
+  class PrintString : public Print, public String
   {
-    return concat(char(data));
+  public:
+    size_t write(uint8_t data) override
+    {
+      return concat(char(data));
+    };
   };
-};
 #endif
 
 //******************************************************************************************
@@ -155,7 +150,7 @@ void displayCopyright()
 {
   GxEPD2_GFX &display = getDisplay();
   display.setTextSize(1);
-  centerPrint("HEIMDALL VCS", 170);
+  centerPrint("HEIMDALL VCS Family", 170);
   centerPrint("Copyright 2021, Digame Systems.", 180);
   centerPrint("All rights reserved.", 190);
   display.display();
@@ -196,7 +191,9 @@ void displayAPScreen(String ssid, String ip)
 void displayTextScreen(String title, String s)
 {
   GxEPD2_GFX &display = getDisplay();
-  displayTitles(title, "");
+  display.fillScreen(GxEPD_WHITE);
+  display.setTextSize(2);
+  centerPrint(title, 15);
   display.setCursor(0, 50);
   display.print(s);
   displayCopyright();
@@ -235,10 +232,7 @@ void displayCountersSummaryScreen(String total, String summary)
 void displayBarcodeScreen()
 {
   initDisplay();
-
   GxEPD2_GFX &display = getDisplay();  
-  
-  
 }
 
 

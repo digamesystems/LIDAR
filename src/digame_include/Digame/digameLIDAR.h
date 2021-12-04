@@ -526,7 +526,7 @@ int processLIDARSignal3(Config config){
   int16_t tfTemp = 0;          // Internal temperature of Lidar sensor chip
   
   static float zone1Strength = 0;  // A measure of how 'present' a car is in each lane over an interval of time
-  static float zone2Strength = 0;
+  static float zone2Strength = 0;  // Now static and doesn't reset on every call
 
   static bool carPresentLane1 = false;         // Do we see a car now?
   static bool previousCarPresentLane1 = false; // Had we seen a car last time?
