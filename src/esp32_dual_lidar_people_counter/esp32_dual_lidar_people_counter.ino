@@ -79,11 +79,13 @@ String deviceName = "Front Door";
 
 TaskHandle_t userInputManagerTask;  // A task for updating the EInk display
 
-
-
-
 String jsonPayload; 
 
+
+
+//****************************************************************************************
+// Simultaneous Print functions. TODO: find a better way to do this with #define macro... 
+//****************************************************************************************
 void dualPrintln(String s=""){
   DEBUG_PRINTLN(s);
   btUART.println(s);  
@@ -289,7 +291,8 @@ String getUserInput(){
   String inString;
 
   while (!(debugUART.available()) && !(btUART.available())){
-    vTaskDelay(10 / portTICK_PERIOD_MS);
+    delay(10);
+    //vTaskDelay(10 / portTICK_PERIOD_MS);
   }  
 
   if ( debugUART.available() ) inString = debugUART.readStringUntil('\n');
@@ -358,15 +361,17 @@ void setup()
 
   // Create a task that will be executed in the userInputManager() function, 
   //   with priority 0 and executed on core 0
-  xTaskCreatePinnedToCore(
-    userInputManager,      /* Task function. */
-    "User Input Manager",   /* name of task. */
-    10000,               /* Stack size of task */
-    NULL,                /* parameter of the task */
-    0,                   /* priority of the task */
-    &userInputManagerTask, /* Task handle to keep track of created task */
-    0);                  /* pin task to core 0 */ 
 
+  
+  //xTaskCreatePinnedToCore(
+  //  userInputManager,       /* Task function. */
+  //  "User Input Manager",   /* name of task. */
+  //  10000,                  /* Stack size of task */
+ //   NULL,                   /* parameter of the task */
+  //  0,                      /* priority of the task */
+  //  &userInputManagerTask,  /* Task handle to keep track of created task */
+  //  0);                     /* pin task to core 0 */ 
+  
 
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("RUNNING!");
@@ -378,15 +383,17 @@ void setup()
 //****************************************************************************************
 // A task that runs on Core0 to update the display when the count changes. 
 void userInputManager(void *parameter){
+}
 
+void checkForUserInput(){
   String inString;
   bool inputReceived=false;
 
-  DEBUG_PRINT("Display Manager Running on Core #: ");
-  DEBUG_PRINTLN(xPortGetCoreID());
-  DEBUG_PRINTLN();
+  //DEBUG_PRINT("Display Manager Running on Core #: ");
+ // DEBUG_PRINTLN(xPortGetCoreID());
+ // DEBUG_PRINTLN();
   
-  for(;;){  
+  //for(;;){  
     
     inputReceived = false;
     
@@ -398,7 +405,6 @@ void userInputManager(void *parameter){
     if (btUART.available()){
       inString = btUART.readStringUntil('\n');
       inputReceived = true;
-
     }
     
     if (inputReceived) {  
@@ -444,9 +450,9 @@ void userInputManager(void *parameter){
     //DEBUG_PRINT("Free Heap: ");
     //DEBUG_PRINTLN(ESP.getFreeHeap());
 
-    vTaskDelay(25 / portTICK_PERIOD_MS);
+    //vTaskDelay(25 / portTICK_PERIOD_MS);
 
-  }
+  //}
     
 }
 
@@ -457,9 +463,10 @@ void userInputManager(void *parameter){
 //****************************************************************************************
 void loop(){
   state = 0;
-  String inString;
-  bool inputReceived = false;
 
+  checkForUserInput();
+
+  
   if (clearDataFlag){
     inCount = 0; 
     outCount = 0;
@@ -480,7 +487,6 @@ void loop(){
 
 
     if (showRawData) dualPrintln(distanceThreshold);
-    //dualPrintln(state);
 
     jsonPayload = "{\"deviceName\":\"" + deviceName +
                   "\",\"deviceMAC\":\"" + WiFi.macAddress();
