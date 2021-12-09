@@ -437,7 +437,8 @@ void userInputManager(void *parameter){
       if(inString == "r"){
         showRawData = (!showRawData);
       } 
-      showMenu(); 
+      
+      if (!showRawData) showMenu(); 
     }
     
     //DEBUG_PRINT("Free Heap: ");
