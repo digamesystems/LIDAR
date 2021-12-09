@@ -172,7 +172,8 @@ int process_LIDAR(TFMPlus &tfmP, float &smoothed, int offset){
   if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 
 
     //Filter the measured distance
-    smoothed = smoothed * smoothingFactor + (float)tfDist * (1-smoothingFactor); // TODO: don't hardcode this.
+    smoothed = smoothed * smoothingFactor + (float)tfDist * (1-smoothingFactor); 
+
 
     targetVisible = (smoothed < distanceThreshold);  
 
@@ -361,8 +362,6 @@ void setup()
 
   // Create a task that will be executed in the userInputManager() function, 
   //   with priority 0 and executed on core 0
-
-  
   //xTaskCreatePinnedToCore(
   //  userInputManager,       /* Task function. */
   //  "User Input Manager",   /* name of task. */
@@ -382,78 +381,73 @@ void setup()
 
 //****************************************************************************************
 // A task that runs on Core0 to update the display when the count changes. 
-void userInputManager(void *parameter){
-}
-
-void checkForUserInput(){
-  String inString;
-  bool inputReceived=false;
-
+//void userInputManager(void *parameter){
   //DEBUG_PRINT("Display Manager Running on Core #: ");
  // DEBUG_PRINTLN(xPortGetCoreID());
  // DEBUG_PRINTLN();
   
   //for(;;){  
-    
-    inputReceived = false;
-    
-    if (debugUART.available()){
-      inString = debugUART.readStringUntil('\n');
-      inputReceived = true;
-    }  
-  
-    if (btUART.available()){
-      inString = btUART.readStringUntil('\n');
-      inputReceived = true;
-    }
-    
-    if (inputReceived) {  
-      inString.trim();
-      dualPrintln(inString); 
-      
-      if (inString == "n") {
-        dualPrintln(" Enter New Device Name. (" + deviceName +")");
-        deviceName = getUserInput();
-        dualPrint(" New Device Name: ");
-        dualPrintln(deviceName);
-        writeFile(SPIFFS, "/name.txt", deviceName.c_str());
-      } 
-      
-      if(inString == "d"){
-        dualPrintln(" Enter New Distance Threshold. (" + String(distanceThreshold) +")");
-        distanceThreshold = getUserInput().toFloat();
-        dualPrint(" New distanceThreshold: ");
-        dualPrintln(distanceThreshold);
-        writeFile(SPIFFS, "/threshold.txt", String(distanceThreshold).c_str());
-      } 
-      
-      if(inString == "s"){
-        dualPrintln(" Enter New Smoothing Factor. (" + String(smoothingFactor) + ")");
-        smoothingFactor = getUserInput().toFloat();
-        dualPrint(" New Smoothing Factor: ");
-        dualPrintln(smoothingFactor);
-        writeFile(SPIFFS, "/smooth.txt", String(smoothingFactor).c_str());
-      } 
-
-      if(inString == "c"){
-        dualPrint(" Data flagged for clear.");
-        clearDataFlag = true;
-      }      
-  
-      if(inString == "r"){
-        showRawData = (!showRawData);
-      } 
-      
-      if (!showRawData) showMenu(); 
-    }
-    
     //DEBUG_PRINT("Free Heap: ");
     //DEBUG_PRINTLN(ESP.getFreeHeap());
-
     //vTaskDelay(25 / portTICK_PERIOD_MS);
-
   //}
+//}
+
+void checkForUserInput(){
+  String inString;
+  bool inputReceived=false;
+ 
+  inputReceived = false;
+  
+  if (debugUART.available()){
+    inString = debugUART.readStringUntil('\n');
+    inputReceived = true;
+  }  
+
+  if (btUART.available()){
+    inString = btUART.readStringUntil('\n');
+    inputReceived = true;
+  }
+  
+  if (inputReceived) {  
+    inString.trim();
+    dualPrintln(inString); 
     
+    if (inString == "n") {
+      dualPrintln(" Enter New Device Name. (" + deviceName +")");
+      deviceName = getUserInput();
+      dualPrint(" New Device Name: ");
+      dualPrintln(deviceName);
+      writeFile(SPIFFS, "/name.txt", deviceName.c_str());
+    } 
+    
+    if(inString == "d"){
+      dualPrintln(" Enter New Distance Threshold. (" + String(distanceThreshold) +")");
+      distanceThreshold = getUserInput().toFloat();
+      dualPrint(" New distanceThreshold: ");
+      dualPrintln(distanceThreshold);
+      writeFile(SPIFFS, "/threshold.txt", String(distanceThreshold).c_str());
+    } 
+    
+    if(inString == "s"){
+      dualPrintln(" Enter New Smoothing Factor. (" + String(smoothingFactor) + ")");
+      smoothingFactor = getUserInput().toFloat();
+      dualPrint(" New Smoothing Factor: ");
+      dualPrintln(smoothingFactor);
+      writeFile(SPIFFS, "/smooth.txt", String(smoothingFactor).c_str());
+    } 
+
+    if(inString == "c"){
+      dualPrint(" Data flagged for clear.");
+      clearDataFlag = true;
+    }      
+
+    if(inString == "r"){
+      showRawData = (!showRawData);
+    } 
+    
+    if (!showRawData) showMenu(); 
+  }   
 }
 
 
@@ -465,7 +459,6 @@ void loop(){
   state = 0;
 
   checkForUserInput();
-
   
   if (clearDataFlag){
     inCount = 0; 
