@@ -73,12 +73,46 @@ unsigned int outCount = 0;
 float distanceThreshold = 160;
 float smoothingFactor = 0.95;
 bool showRawData = false; 
+bool clearDataFlag = false; 
 
 String deviceName = "Front Door";
+
+TaskHandle_t userInputManagerTask;  // A task for updating the EInk display
+
+
 
 
 String jsonPayload; 
 
+void dualPrintln(String s=""){
+  DEBUG_PRINTLN(s);
+  btUART.println(s);  
+}
+
+void dualPrint(String s=""){
+  DEBUG_PRINT(s);
+  btUART.print(s);  
+}
+
+void dualPrintln(float f){
+  DEBUG_PRINTLN(f);
+  btUART.println(f);  
+}
+
+void dualPrint(float f){
+  DEBUG_PRINT(f);
+  btUART.print(f);  
+}
+
+void dualPrintln(int i){
+  DEBUG_PRINTLN(i);
+  btUART.println(i);  
+}
+
+void dualPrint(int i){
+  DEBUG_PRINT(i);
+  btUART.print(i);  
+}
 //****************************************************************************************
 // Initialize a LIDAR sensor on a serial port. 
 //****************************************************************************************
@@ -141,16 +175,16 @@ int process_LIDAR(TFMPlus &tfmP, float &smoothed, int offset){
     targetVisible = (smoothed < distanceThreshold);  
 
     if (showRawData) {  
-      //DEBUG_PRINT(tfDist + offset);
-      //DEBUG_PRINT(" ");
-      DEBUG_PRINT(smoothed);
-      DEBUG_PRINT(" ");
+      //dualPrint(tfDist + offset);
+      //dualPrint(" ");
+      dualPrint(smoothed);
+      dualPrint(" ");
       if (targetVisible){
-         DEBUG_PRINT(300 + offset);
+         dualPrint(300 + offset);
       } else {
-        DEBUG_PRINT(200 + offset);
+        dualPrint(200 + offset);
       }
-      DEBUG_PRINT(" ");
+      dualPrint(" ");
     }
 
     if (targetVisible) {
@@ -211,16 +245,40 @@ void writeFile(fs::FS &fs, const char * path, const char * message){
 }
 
 
+
+void showSplashScreen(){
+  String compileDate = F(__DATE__);
+  String compileTime = F(__TIME__);
+
+  dualPrintln();
+  dualPrintln("*****************************************************");
+  dualPrintln("ParkData Directional LIDAR Sensor");
+  dualPrintln("Version 1.0");
+  dualPrintln("Compiled: " + compileDate + " at " + compileTime); 
+  dualPrintln("Copyright 2021, Digame Systems. All rights reserved.");
+  dualPrint("Device Name: ");
+  dualPrintln(deviceName);
+  dualPrint("Bluetooth Address: ShuttleCounter_");
+  dualPrintln(String(getShortMACAddress()));
+  dualPrintln();
+  dualPrintln("*****************************************************");
+  dualPrintln();   
+}
+
 //****************************************************************************************
 // A little menu routine so users can set paramters
 //****************************************************************************************
 void showMenu(){
-  DEBUG_PRINTLN("MENU: ");
-  DEBUG_PRINTLN("  [N]ame               (" + deviceName +")");
-  DEBUG_PRINTLN("  [D]istance threshold (" + String(distanceThreshold) + ")");
-  DEBUG_PRINTLN("  [S]moothing factor   (" + String(smoothingFactor) + ")");
-  DEBUG_PRINTLN();
-  //DEBUG_PRINTLN("  Toggle [r]aw data stream ");
+  showSplashScreen();
+  
+  dualPrintln("MENU: ");
+  dualPrintln("  [N]ame               (" + deviceName +")");
+  dualPrintln("  [D]istance threshold (" + String(distanceThreshold) + ")");
+  dualPrintln("  [S]moothing factor   (" + String(smoothingFactor) + ")");
+  dualPrintln("  [C]Clear count data");
+  dualPrintln("  [R]aw Data Stream    (" + String(showRawData) + ")");
+  dualPrintln();
+  //dualPrintln("  Toggle [r]aw data stream ");
 }
 
 
@@ -229,14 +287,17 @@ void showMenu(){
 //****************************************************************************************
 String getUserInput(){
   String inString;
-  
-  while (!(debugUART.available())){
-    delay(10);  
+
+  while (!(debugUART.available()) && !(btUART.available())){
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }  
-  inString = debugUART.readStringUntil('\n');
+
+  if ( debugUART.available() ) inString = debugUART.readStringUntil('\n');
+  if ( btUART.available() ) inString = btUART.readStringUntil('\n');
+  
   inString.trim();
-  DEBUG_PRINT(" You entered: ");
-  DEBUG_PRINTLN(inString);
+  dualPrint(" You entered: ");
+  dualPrintln(inString);
   return inString;  
 
 }
@@ -251,7 +312,7 @@ void setup()
   Serial.begin(115200);   // Intialize terminal serial port
   delay(1000);            // Give port time to initalize
 
-  //DEBUG_PRINTLN("  Initializing SPIFFS...");
+  //dualPrintln("  Initializing SPIFFS...");
 
 
   if(!SPIFFS.begin()){
@@ -270,17 +331,7 @@ void setup()
     if (temp.length() > 0) distanceThreshold = temp.toFloat();
   }
   
-  DEBUG_PRINTLN();
-  DEBUG_PRINTLN("*****************************************************");
-  DEBUG_PRINTLN("ParkData Directional LIDAR Sensor");
-  DEBUG_PRINTLN("Version 1.0");
-  DEBUG_PRINTLN("Copyright 2021, Digame Systems. All rights reserved.");
-  DEBUG_PRINT("Device Name: ");
-  DEBUG_PRINTLN(deviceName);
-  DEBUG_PRINTLN();
-  DEBUG_PRINTLN("               Hit <ENTER> for Menu");
-  DEBUG_PRINTLN("*****************************************************");
-  DEBUG_PRINTLN(); 
+  showSplashScreen();
 
   DEBUG_PRINTLN("INITIALIZING HARDWARE");
   DEBUG_PRINTLN();
@@ -301,9 +352,21 @@ void setup()
   init_TFMPlus(tfmP_1, 1);
    
   DEBUG_PRINTLN(" LIDAR 2...");
-  tfMiniUART_2.begin(115200,SERIAL_8N1,16,17);  // Initialize TFMPLus device serial port.
+  tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
   delay(1000);
   init_TFMPlus(tfmP_2, 2);
+
+  // Create a task that will be executed in the userInputManager() function, 
+  //   with priority 0 and executed on core 0
+  xTaskCreatePinnedToCore(
+    userInputManager,      /* Task function. */
+    "User Input Manager",   /* name of task. */
+    10000,               /* Stack size of task */
+    NULL,                /* parameter of the task */
+    0,                   /* priority of the task */
+    &userInputManagerTask, /* Task handle to keep track of created task */
+    0);                  /* pin task to core 0 */ 
+
 
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("RUNNING!");
@@ -313,49 +376,96 @@ void setup()
 }
 
 //****************************************************************************************
+// A task that runs on Core0 to update the display when the count changes. 
+void userInputManager(void *parameter){
+
+  String inString;
+  bool inputReceived=false;
+
+  DEBUG_PRINT("Display Manager Running on Core #: ");
+  DEBUG_PRINTLN(xPortGetCoreID());
+  DEBUG_PRINTLN();
+  
+  for(;;){  
+    
+    inputReceived = false;
+    
+    if (debugUART.available()){
+      inString = debugUART.readStringUntil('\n');
+      inputReceived = true;
+    }  
+  
+    if (btUART.available()){
+      inString = btUART.readStringUntil('\n');
+      inputReceived = true;
+
+    }
+    
+    if (inputReceived) {  
+      inString.trim();
+      dualPrintln(inString); 
+      
+      if (inString == "n") {
+        dualPrintln(" Enter New Device Name. (" + deviceName +")");
+        deviceName = getUserInput();
+        dualPrint(" New Device Name: ");
+        dualPrintln(deviceName);
+        writeFile(SPIFFS, "/name.txt", deviceName.c_str());
+      } 
+      
+      if(inString == "d"){
+        dualPrintln(" Enter New Distance Threshold. (" + String(distanceThreshold) +")");
+        distanceThreshold = getUserInput().toFloat();
+        dualPrint(" New distanceThreshold: ");
+        dualPrintln(distanceThreshold);
+        writeFile(SPIFFS, "/threshold.txt", String(distanceThreshold).c_str());
+      } 
+      
+      if(inString == "s"){
+        dualPrintln(" Enter New Smoothing Factor. (" + String(smoothingFactor) + ")");
+        smoothingFactor = getUserInput().toFloat();
+        dualPrint(" New Smoothing Factor: ");
+        dualPrintln(smoothingFactor);
+        writeFile(SPIFFS, "/smooth.txt", String(smoothingFactor).c_str());
+      } 
+
+      if(inString == "c"){
+        dualPrint(" Data flagged for clear.");
+        clearDataFlag = true;
+      }      
+  
+      if(inString == "r"){
+        showRawData = (!showRawData);
+      } 
+      showMenu(); 
+    }
+    
+    //DEBUG_PRINT("Free Heap: ");
+    //DEBUG_PRINTLN(ESP.getFreeHeap());
+
+    vTaskDelay(25 / portTICK_PERIOD_MS);
+
+  }
+    
+}
+
+
+
+//****************************************************************************************
 // LOOP - Main Loop                                   
 //****************************************************************************************
 void loop(){
-  int visible = 0;
   state = 0;
+  String inString;
+  bool inputReceived = false;
 
-  if (debugUART.available()){
-    String inString = debugUART.readStringUntil('\n');
-    inString.trim();
-    DEBUG_PRINTLN(inString); 
-    
-    if (inString == "n") {
-      DEBUG_PRINTLN(" Enter New Device Name. (" + deviceName +")");
-      deviceName = getUserInput();
-      DEBUG_PRINT(" New Device Name: ");
-      DEBUG_PRINTLN(deviceName);
-      writeFile(SPIFFS, "/name.txt", deviceName.c_str());
-    } 
-    
-    if(inString == "d"){
-      DEBUG_PRINTLN(" Enter New Distance Threshold. (" + String(distanceThreshold) +")");
-      distanceThreshold = getUserInput().toFloat();
-      DEBUG_PRINT(" New distanceThreshold: ");
-      DEBUG_PRINTLN(distanceThreshold);
-      writeFile(SPIFFS, "/threshold.txt", String(distanceThreshold).c_str());
-    } 
-    
-    if(inString == "s"){
-      DEBUG_PRINTLN(" Enter New Smoothing Factor. (" + String(smoothingFactor) + ")");
-      smoothingFactor = getUserInput().toFloat();
-      DEBUG_PRINT(" New Smoothing Factor: ");
-      DEBUG_PRINTLN(smoothingFactor);
-      writeFile(SPIFFS, "/smooth.txt", String(smoothingFactor).c_str());
-    } 
-
-    if(inString == "r"){
-      showRawData = (!showRawData);
-    } 
-    showMenu();
-
-    
+  if (clearDataFlag){
+    inCount = 0; 
+    outCount = 0;
+    clearDataFlag = false;    
   }
 
+  int visible = 0;
   // Are we visible on sensor 1?
   visible = process_LIDAR(tfmP_1, smoothed_LIDAR_1, 100); 
   
@@ -368,8 +478,8 @@ void loop(){
     state = state + visible * 2;
 
 
-    if (showRawData) DEBUG_PRINTLN();
-    //DEBUG_PRINTLN(state);
+    if (showRawData) dualPrintln(distanceThreshold);
+    //dualPrintln(state);
 
     jsonPayload = "{\"deviceName\":\"" + deviceName +
                   "\",\"deviceMAC\":\"" + WiFi.macAddress();
@@ -380,8 +490,7 @@ void loop(){
                      "\",\"count\":\"" + inCount + "\"" +
                      "}";
 
-      btUART.println(jsonPayload); // Send to Bluetooth listeners
-      if (showRawData == false) DEBUG_PRINTLN(jsonPayload); 
+      if (showRawData == false) dualPrintln(jsonPayload); 
     }
   
     if ((previousState == 1) && (state == 3)){
@@ -390,8 +499,7 @@ void loop(){
                     "\",\"count\":\"" + outCount + "\"" +
                     "}";
 
-      btUART.println(jsonPayload);
-      if (showRawData == false) DEBUG_PRINTLN(jsonPayload);
+      if (showRawData == false) dualPrintln(jsonPayload);
     }
     
     previousState = state;
