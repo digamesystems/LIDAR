@@ -35,6 +35,7 @@
 // Includes
 //****************************************************************************************
 #include <digameDebug.h>     // Serial debugging defines. 
+#include <digameFile.h>      // Read/Write Text files.
 
 #include "BluetoothSerial.h" // Part of the ESP32 board package. 
                              // By Evandro Copercini - 2018
@@ -77,11 +78,7 @@ bool clearDataFlag = false;
 
 String deviceName = "Front Door";
 
-TaskHandle_t userInputManagerTask;  // A task for updating the EInk display
-
 String jsonPayload; 
-
-
 
 //****************************************************************************************
 // Simultaneous Print functions. TODO: find a better way to do this with #define macro... 
@@ -202,52 +199,6 @@ int process_LIDAR(TFMPlus &tfmP, float &smoothed, int offset){
     
 }
 
-//****************************************************************************************
-// Grab a parameter from a file
-//****************************************************************************************
-String readFile(fs::FS &fs, const char * path){
-    String retValue = "";
-    //Serial.printf("Reading file: %s\r\n", path);
-
-    File file = fs.open(path);
-    if(!file || file.isDirectory()){
-        DEBUG_PRINTLN("- failed to open file for reading");
-        return retValue;
-    }
-
-    //DEBUG_PRINTLN("- read from file:");
-
-    retValue = file.readStringUntil('\r');
-    
-    //while(file.available()){
-    //    retValue = retValue + file.read();
-    //}
-    file.close();
-
-    return retValue;
-    
-}
-
-//****************************************************************************************
-// Write a parameter to a file
-//****************************************************************************************
-void writeFile(fs::FS &fs, const char * path, const char * message){
-    //Serial.printf("Writing file: %s\r\n", path);
-
-    File file = fs.open(path, FILE_WRITE);
-    if(!file){
-        DEBUG_PRINTLN("- failed to open file for writing");
-        return;
-    }
-    if(file.print(message)){
-        DEBUG_PRINTLN("  Saved.");
-    } else {
-        DEBUG_PRINTLN("- write failed");
-    }
-    file.close();
-}
-
-
 
 void showSplashScreen(){
   String compileDate = F(__DATE__);
@@ -318,7 +269,6 @@ void setup()
 
   //dualPrintln("  Initializing SPIFFS...");
 
-
   if(!SPIFFS.begin()){
     DEBUG_PRINTLN("    File System Mount Failed");
   } else {
@@ -360,40 +310,16 @@ void setup()
   delay(1000);
   init_TFMPlus(tfmP_2, 2);
 
-  // Create a task that will be executed in the userInputManager() function, 
-  //   with priority 0 and executed on core 0
-  //xTaskCreatePinnedToCore(
-  //  userInputManager,       /* Task function. */
-  //  "User Input Manager",   /* name of task. */
-  //  10000,                  /* Stack size of task */
- //   NULL,                   /* parameter of the task */
-  //  0,                      /* priority of the task */
-  //  &userInputManagerTask,  /* Task handle to keep track of created task */
-  //  0);                     /* pin task to core 0 */ 
-  
-
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("RUNNING!");
   DEBUG_PRINTLN();
-  
-    
+     
 }
 
 //****************************************************************************************
-// A task that runs on Core0 to update the display when the count changes. 
-//void userInputManager(void *parameter){
-  //DEBUG_PRINT("Display Manager Running on Core #: ");
- // DEBUG_PRINTLN(xPortGetCoreID());
- // DEBUG_PRINTLN();
-  
-  //for(;;){  
-    //DEBUG_PRINT("Free Heap: ");
-    //DEBUG_PRINTLN(ESP.getFreeHeap());
-    //vTaskDelay(25 / portTICK_PERIOD_MS);
-  //}
-//}
-
 void checkForUserInput(){
+//****************************************************************************************
+
   String inString;
   bool inputReceived=false;
  
@@ -451,7 +377,6 @@ void checkForUserInput(){
 }
 
 
-
 //****************************************************************************************
 // LOOP - Main Loop                                   
 //****************************************************************************************
@@ -477,7 +402,6 @@ void loop(){
     // Are we visible on sensor 2?
     visible = process_LIDAR(tfmP_2, smoothed_LIDAR_2, 110);
     state = state + visible * 2;
-
 
     if (showRawData) dualPrintln(distanceThreshold);
 

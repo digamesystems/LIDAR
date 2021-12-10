@@ -1,0 +1,8 @@
+{
+    "routeName": "Route 1",
+    "shuttleName": "Shuttle 6",
+    "knownLocations" :["Bighead", "William Shatner's Toupee"],
+    "reportingLocation": "Bighead",
+    "reportingLocationPassword":"billgates",
+    "counterNames": ["ShuttleCounter_c610", "ShuttleCounter_5ccc"]
+}

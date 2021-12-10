@@ -23,6 +23,7 @@
 #define TRAILER 1
 
 #include <digameDebug.h>      // Serial debugging defines. 
+#include <digameFile.h>       // SPIFFS file Handling
 #include <digameTime.h>       // Time functions for RTC, NTP, etc. 
 #include <digameNetwork_v2.h> // For connections, MAC Address and reporting.
 #include <digameDisplay.h>    // eInk Display support.
@@ -51,11 +52,12 @@ String shuttleRouteReport; // Aggreates the event summaries for each shuttle sto
 
 // TODO: Read these from a configuration file
 // "Basestation" wants to be an Object... Many of these might be his properties.
+String routeName   = "Route 1";
 String shuttleName = "Shuttle 6";
 
-String reportingLocation = "Bighead";
-
-String knownLocations[] PROGMEM = {"Bighead", 
+String reportingLocation = "AndroidAP3AE2";
+String reportingLocationPassword = "ohpp8971";
+String knownLocations[] PROGMEM = {"_Bighead", 
                                    "Tower88", 
                                    "William Shatner's Toupee", 
                                    "Pretty Fly For A Wi-Fi V4",
@@ -63,16 +65,20 @@ String knownLocations[] PROGMEM = {"Bighead",
                                    "SanPedroSquareMarket",
                                    "AndroidAP3AE2"}; // Saving in PROGMEM 
                                
-String counterNames[] = {"ShuttleCounter_5ccc",
-                         "ShuttleCounter_aaaa"};
+String counterNames[] = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
+
+                         
 
 String currentLocation  = "Unknown"; // Updated in wifiManager task. (Read-only everywhere else!)
 String previousLocation = "Unknown";
 
 
 // Multi-Tasking
+SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
 TaskHandle_t wifiManagerTask;  // A task to look for known networks and do reporting.
 TaskHandle_t eInkManagerTask;  // A task to update the eInk display.
+bool uploadingData = false;
+
 
 // Flags for Tasks to take action
 bool messageDeliveryNeeded = false;
@@ -104,6 +110,9 @@ void configureWiFi();
 void configureBluetooth(); 
 void configureWiFiManagerTask();
 void configureEinkManagerTask();
+void loadParameters();
+void saveParameters();
+
 
 // Bluetooth Counters
 void   connectToCounter(BluetoothSerial &btUART, String counter);
@@ -129,12 +138,16 @@ void setup(){
   Serial.begin(115200);   // Intialize terminal serial port
   delay(1000);            // Give port time to initalize
 
+  mutex_v = xSemaphoreCreateMutex(); // The mutex we will use to protect variables 
+                                     // across tasks
+
   showSplashScreen();
+  loadParameters();
   configureIO();
   configureDisplay();
   configureRTC();
-  networkConfig.ssid = "Bighead";
-  networkConfig.password = "billgates";
+  networkConfig.ssid = reportingLocation;
+  networkConfig.password = reportingLocationPassword;
   configureWiFi();
   configureBluetooth();
   configureWiFiManagerTask();
@@ -167,8 +180,12 @@ void loop(){
       DEBUG_PRINTLN("We have arrived at the reportingLocation!"); 
       DEBUG_PRINTLN("ROUTE REPORT: ");
       DEBUG_PRINTLN(shuttleRouteReport);
-      // Tidy up the routeReport for delivery
-      shuttleRouteReport = formatRouteReport(shuttleRouteReport);
+      
+      xSemaphoreTake(mutex_v, portMAX_DELAY); 
+        // Tidy up the routeReport for delivery
+        shuttleRouteReport = formatRouteReport(shuttleRouteReport);
+      xSemaphoreGive(mutex_v);
+      
       flagRouteReportForDelivery(shuttleRouteReport);
       // Get ready to start again
       resetRouteReport(shuttleRouteReport);
@@ -245,6 +262,52 @@ void eInkManager(void *parameter){
     }
   }
 }
+
+// IO Routines 
+void loadParameters(){
+  StaticJsonDocument<2048> doc;  
+ 
+  if(!SPIFFS.begin()){
+    DEBUG_PRINTLN("    File System Mount Failed");
+  } else {
+    //DEBUG_PRINTLN("    SPIFFS up!");
+    String temp;
+    
+    temp = readFile(SPIFFS, "/config.txt");
+    // Deserialize the JSON document
+    DeserializationError error = deserializeJson(doc, temp);
+    if (error)
+    {
+      Serial.println(F("    Failed to parse file, using default configuration"));
+      return;
+    } 
+    DEBUG_PRINTLN((const char *)doc["shuttleName"]);  
+    shuttleName               = (const char *)doc["shuttleName"];
+    routeName                 = (const char *)doc["routeName"];
+    reportingLocation         = (const char *)doc["reportingLocation"];
+    reportingLocationPassword = (const char *)doc["reportingLocationPassword"];
+    
+    DEBUG_PRINTLN(doc["knownLocations"].size());
+    
+    for (int i=0; i<doc["knownLocations"].size(); i++){
+      knownLocations[i] = String((const char *)doc["knownLocations"][i]);
+      DEBUG_PRINTLN(knownLocations[i]);
+    }
+    
+    for (int i=0; i<doc["counterNames"].size(); i++){
+      counterNames[i] = String((const char *)doc["counterNames"][i]);
+      DEBUG_PRINTLN(counterNames[i]);
+    }
+    
+  }    
+}
+
+
+void saveParameters(){
+  
+}
+
+
 
 // UI Routines
 
@@ -453,12 +516,12 @@ String getShuttleStopJSON(ShuttleStop &shuttleStop){
   shuttleStopJSON["location"]               = shuttleStop.location;
   shuttleStopJSON["startTime"]              = shuttleStop.startTime;
   shuttleStopJSON["endTime"]                = shuttleStop.endTime;
-  shuttleStopJSON["shuttle"]["macAddress"]  = shuttleStop.counterMACAddresses[SHUTTLE];
-  shuttleStopJSON["shuttle"]["inbound"]     = shuttleStop.counterEvents[SHUTTLE][INBOUND];
-  shuttleStopJSON["shuttle"]["outbound"]    = shuttleStop.counterEvents[SHUTTLE][OUTBOUND];
-  shuttleStopJSON["trailer"]["macAddress"]  = shuttleStop.counterMACAddresses[TRAILER];
-  shuttleStopJSON["trailer"]["inbound"]     = shuttleStop.counterEvents[TRAILER][INBOUND];
-  shuttleStopJSON["trailer"]["outbound"]    = shuttleStop.counterEvents[TRAILER][OUTBOUND];
+  shuttleStopJSON["sensors"]["shuttle"]["macAddress"]  = shuttleStop.counterMACAddresses[SHUTTLE];
+  shuttleStopJSON["sensors"]["shuttle"]["inbound"]     = shuttleStop.counterEvents[SHUTTLE][INBOUND];
+  shuttleStopJSON["sensors"]["shuttle"]["outbound"]    = shuttleStop.counterEvents[SHUTTLE][OUTBOUND];
+  shuttleStopJSON["sensors"]["trailer"]["macAddress"]  = shuttleStop.counterMACAddresses[TRAILER];
+  shuttleStopJSON["sensors"]["trailer"]["inbound"]     = shuttleStop.counterEvents[TRAILER][INBOUND];
+  shuttleStopJSON["sensors"]["trailer"]["outbound"]    = shuttleStop.counterEvents[TRAILER][OUTBOUND];
 
   //Serial.print("Base Station State: ");
   String retValue; 
@@ -473,7 +536,8 @@ String getShuttleStopJSON(ShuttleStop &shuttleStop){
 // Prefix for the JSON shuttle route report.                                  
 //****************************************************************************************
 void resetRouteReport(String &routeReport){
-    routeReport = "{\"shuttleName\":\"" + shuttleName    + "\"," + 
+    routeReport = "{\"routeName\":\"" + routeName    + "\"," +
+                   "\"shuttleName\":\"" + shuttleName    + "\"," + 
                    "\"macAddress\":\"" + getMACAddress() + "\"," +
                    "\"shuttleStops\":[";  
 
