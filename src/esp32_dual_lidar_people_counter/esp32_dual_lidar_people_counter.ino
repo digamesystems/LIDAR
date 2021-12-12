@@ -96,6 +96,10 @@ void showMenu();
 String getUserInput();
 void   processUserInput();
 
+void  configWiFi();
+void  configBluetooth();
+void  configLIDARs();
+
 void initLIDAR(TFMPlus &tfmP, int port=1);
 int  processLIDAR(TFMPlus &tfmP, float &smoothed, int offset);
 
@@ -109,35 +113,19 @@ void setup() // - Device initialization
   showSplashScreen();
   loadDefaults();
 
-  DEBUG_PRINTLN("INITIALIZING HARDWARE");
+  DEBUG_PRINTLN("INITIALIZING HARDWARE...");
   DEBUG_PRINTLN();
   
-  DEBUG_PRINTLN(" WiFi...");
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
+  configWiFi();
+  configBluetooth();
+  configLIDARs();
 
-  DEBUG_PRINTLN(" Bluetooth...");
-  btUART.begin("ShuttleCounter_" + getShortMACAddress()); // My Bluetooth device name 
-                                  //  TODO: Provide opportunity to change names. 
-  delay(1000);                    // Give port time to initalize
-  
-  DEBUG_PRINTLN(" LIDAR 1...");
-  tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
-  delay(1000);                    // Give port time to initalize
-  initLIDAR(tfmP_1, 1);
-   
-  DEBUG_PRINTLN(" LIDAR 2...");
-  tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
-  delay(1000);
-  initLIDAR(tfmP_2, 2);
-
+  // The first part of all of our JSON messages
   jsonPrefix = "{\"deviceName\":\"" + deviceName + "\",\"deviceMAC\":\"" + WiFi.macAddress();
 
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("RUNNING!");
-  DEBUG_PRINTLN();
+
      
 }
 
@@ -196,6 +184,45 @@ void loop()  // Main
   }
 }
 
+
+//****************************************************************************************
+void configWiFi(){
+//****************************************************************************************
+  DEBUG_PRINTLN(" WiFi...");
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+}
+
+
+//****************************************************************************************
+void configBluetooth(){
+//****************************************************************************************
+  DEBUG_PRINTLN(" Bluetooth...");
+  btUART.begin("ShuttleCounter_" + getShortMACAddress()); // My Bluetooth device name 
+                                  //  TODO: Provide opportunity to change names. 
+  delay(1000);                    // Give port time to initalize
+    
+}
+
+
+//****************************************************************************************
+void configLIDARs(){
+//****************************************************************************************
+  DEBUG_PRINTLN(" LIDAR 1...");
+  tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
+  delay(1000);                    // Give port time to initalize
+  initLIDAR(tfmP_1, 1);
+   
+  DEBUG_PRINTLN(" LIDAR 2...");
+  tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
+  delay(1000);
+  initLIDAR(tfmP_2, 2);
+  
+}
+
+  
 //****************************************************************************************
 // Simultaneous Print functions. Bluetooth and Serial. 
 // TODO: find a better way to do this with #define macro... 
