@@ -159,11 +159,11 @@ int process_LIDAR(TFMPlus &tfmP, float &smoothed, int offset){
   int16_t tfFlux = 0;    // Strength or quality of return signal
   int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
   
-  int lidarUpdateRate = 10; // 100Hz -> 10 ms
+  int lidarUpdateRate = 5; // 100Hz -> 10 ms
   int targetVisible = false;
   
   tfmP.sendCommand(TRIGGER_DETECTION, 0);
-  //delay(lidarUpdateRate);
+  delay(lidarUpdateRate);
 
   // Read the LIDAR Sensor
   if( tfmP.getData( tfDist, tfFlux, tfTemp)) { 

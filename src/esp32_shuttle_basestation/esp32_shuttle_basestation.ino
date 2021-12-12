@@ -69,13 +69,12 @@ String counterNames[] = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"};
 
                          
 
-String currentLocation  = "Unknown"; // Updated in wifiManager task. (Read-only everywhere else!)
+String currentLocation  = "Unknown"; 
 String previousLocation = "Unknown";
 
 
 // Multi-Tasking
 SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
-TaskHandle_t wifiManagerTask;  // A task to look for known networks and do reporting.
 TaskHandle_t eInkManagerTask;  // A task to update the eInk display.
 bool uploadingData = false;
 
@@ -88,13 +87,8 @@ bool displayUpdateNeeded   = false;
 // Utility Function: Number of items in an array
 #define NUMITEMS(arg) ((unsigned int) (sizeof (arg) / sizeof (arg [0])))
 
-//****************************************************************************************
-// Declares                                  
-//****************************************************************************************
-
 // WiFi
 String scanForKnownLocations(String knownLocations[], int arraySize);
-void wifiManager(void *parameter); // TASK that runs on Core 0
 
 
 // UI
@@ -108,11 +102,9 @@ void configureDisplay();
 void configureRTC();
 void configureWiFi();
 void configureBluetooth(); 
-void configureWiFiManagerTask();
 void configureEinkManagerTask();
 void loadParameters();
 void saveParameters();
-
 
 // Bluetooth Counters
 void   connectToCounter(BluetoothSerial &btUART, String counter);
@@ -128,7 +120,6 @@ String getShuttleStopJSON(ShuttleStop &shuttleStop);
 void   resetRouteReport(String &routeReport);
 void   appendRouteReport(String &routeReport, ShuttleStop &shuttleStop);
 String formatRouteReport(String &routeReport);
-void   flagRouteReportForDelivery(String &routeReport);
 
 
 //****************************************************************************************
@@ -140,7 +131,6 @@ void setup(){
 
   mutex_v = xSemaphoreCreateMutex(); // The mutex we will use to protect variables 
                                      // across tasks
-
   showSplashScreen();
   loadParameters();
   configureIO();
@@ -150,60 +140,101 @@ void setup(){
   networkConfig.password = reportingLocationPassword;
   configureWiFi();
   configureBluetooth();
-  configureWiFiManagerTask();
-  configureEinkManagerTask();
-  
+   
   // TODO: add a second counter when I build one...
   connectToCounter(btUART, counterNames[SHUTTLE]);
   
   resetShuttleStop(currentShuttleStop);
   resetRouteReport(shuttleRouteReport);
+
+  configureEinkManagerTask();
   
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("RUNNING!");
+  xSemaphoreTake(mutex_v, portMAX_DELAY); 
+    DEBUG_PRINT("mainLoop Running on Core #: ");
+    DEBUG_PRINTLN(xPortGetCoreID());
+  xSemaphoreGive(mutex_v);
+  
   DEBUG_PRINTLN();
+}
+
+void deliverRouteReport(String shuttleRouteReport){
+  
+  String reportToIssue = shuttleRouteReport; 
+  messageDeliveryNeeded = false;   
+  if (WiFi.status() != WL_CONNECTED){  
+    enableWiFi(networkConfig);
+  }
+  if (WiFi.status() == WL_CONNECTED){
+    postJSON(reportToIssue, networkConfig);  
+  } 
+}
+
+void processLocationChange(){
+
+  // Log what happened at the last location
+  appendRouteReport(shuttleRouteReport, currentShuttleStop);
+  
+  // Get ready to take data here, at the new location
+  resetShuttleStop(currentShuttleStop);
+  
+  if (currentLocation == reportingLocation){
+    DEBUG_PRINTLN("We have arrived at the reportingLocation!"); 
+    DEBUG_PRINTLN("ROUTE REPORT: ");
+    DEBUG_PRINTLN(shuttleRouteReport);
+
+    // The WiFi Reporting task Touches the Shuttle Route Report as well.
+    xSemaphoreTake(mutex_v, portMAX_DELAY); 
+      // Tidy up the routeReport for delivery
+      shuttleRouteReport = formatRouteReport(shuttleRouteReport);
+    xSemaphoreGive(mutex_v);
+    
+    deliverRouteReport(shuttleRouteReport);
+    
+    // Get ready to start again
+    xSemaphoreTake(mutex_v, portMAX_DELAY); 
+      resetRouteReport(shuttleRouteReport);
+    xSemaphoreGive(mutex_v);
+    
+  }else if (previousLocation == reportingLocation){
+    DEBUG_PRINTLN("We have left the reportingLocation!");
+  } else {
+    DEBUG_PRINTLN("We have changed shuttle stops!");
+  }
+  
+  previousLocation = currentLocation;
+  displayUpdateNeeded = true; // Display update handled in a separate task. 
+   
 }
 
 
 //****************************************************************************************
 // Main Loop                                   
 //****************************************************************************************
+unsigned int t1=0,t2=t1;
+
 void loop(){
+
+  t2=millis();
+  if ((t2-t1)>5000){
+    currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
+    DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " +currentLocation);
+    t1=millis(); 
+  }
+
   if (currentLocation != previousLocation){ // We've moved
-    // Log what happened at the last location
-    appendRouteReport(shuttleRouteReport, currentShuttleStop);
-    
-    // Get ready to take data here, at the new location
-    resetShuttleStop(currentShuttleStop);
-    
-    if (currentLocation == reportingLocation){
-      DEBUG_PRINTLN("We have arrived at the reportingLocation!"); 
-      DEBUG_PRINTLN("ROUTE REPORT: ");
-      DEBUG_PRINTLN(shuttleRouteReport);
-      
-      xSemaphoreTake(mutex_v, portMAX_DELAY); 
-        // Tidy up the routeReport for delivery
-        shuttleRouteReport = formatRouteReport(shuttleRouteReport);
-      xSemaphoreGive(mutex_v);
-      
-      flagRouteReportForDelivery(shuttleRouteReport);
-      // Get ready to start again
-      resetRouteReport(shuttleRouteReport);
-    }else if (previousLocation == reportingLocation){
-      DEBUG_PRINTLN("We have left the reportingLocation!");
-    } else {
-      DEBUG_PRINTLN("We have changed shuttle stops!");
-    }
-    
-    previousLocation = currentLocation;
-    displayUpdateNeeded = true; // Display update handled in a separate task. 
+    processLocationChange();
   }
 
   // We have just received some data. 
   // Take the message from the counter and update the current shuttleStop struct.
+  xSemaphoreTake(mutex_v, portMAX_DELAY); 
   if (btUART.available()) {
     processMessage(btUART, 0); 
   }
+  xSemaphoreGive(mutex_v);
+      
   
   // Check for lost connection. Try and reconnect if lost.
   if (!btUART.connected()){
@@ -213,40 +244,8 @@ void loop(){
   delay(20);
 }
 
-// Tasks:
 
-//****************************************************************************************
-// A TASK that runs on Core 0. Scans for known networks and delivers our routeReports when 
-// we get to our 'reportingLocation'
-//****************************************************************************************
-void wifiManager(void *parameter){
-  const unsigned int countDownTimeout = 5000; // How long between WiFi scans in ms
-  const unsigned int ticInterval      = 100;
-  static unsigned int scanCountDown   = countDownTimeout;
-  String reportToIssue;
-  
-  for(;;){ 
-    scanCountDown = scanCountDown - ticInterval;
-    if (messageDeliveryNeeded){    
-      reportToIssue = shuttleRouteReport; 
-      messageDeliveryNeeded = false;   
-      if (WiFi.status() != WL_CONNECTED){  
-        enableWiFi(networkConfig);
-      }
-      if (WiFi.status() == WL_CONNECTED){
-        postJSON(reportToIssue, networkConfig);  
-      }
-    } 
-    // set our currentLocation based on the visibility of SSIDs
-    if (scanCountDown <=0){
-      currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
-      scanCountDown = countDownTimeout; 
-      DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " +currentLocation);
-    }   
-  
-    vTaskDelay(ticInterval / portTICK_PERIOD_MS);
-  }
-}
+// Tasks:
 
 //****************************************************************************************
 // A TASK that runs on Core0. Updates the eInk display with the currentShuttleStop data
@@ -281,22 +280,22 @@ void loadParameters(){
       Serial.println(F("    Failed to parse file, using default configuration"));
       return;
     } 
-    DEBUG_PRINTLN((const char *)doc["shuttleName"]);  
+    //DEBUG_PRINTLN((const char *)doc["shuttleName"]);  
     shuttleName               = (const char *)doc["shuttleName"];
     routeName                 = (const char *)doc["routeName"];
     reportingLocation         = (const char *)doc["reportingLocation"];
     reportingLocationPassword = (const char *)doc["reportingLocationPassword"];
     
-    DEBUG_PRINTLN(doc["knownLocations"].size());
+    //DEBUG_PRINTLN(doc["knownLocations"].size());
     
     for (int i=0; i<doc["knownLocations"].size(); i++){
       knownLocations[i] = String((const char *)doc["knownLocations"][i]);
-      DEBUG_PRINTLN(knownLocations[i]);
+      //DEBUG_PRINTLN(knownLocations[i]);
     }
     
     for (int i=0; i<doc["counterNames"].size(); i++){
       counterNames[i] = String((const char *)doc["counterNames"][i]);
-      DEBUG_PRINTLN(counterNames[i]);
+      //DEBUG_PRINTLN(counterNames[i]);
     }
     
   }    
@@ -334,7 +333,7 @@ void showSplashScreen(){
 // Update the eInk display with the events seen at the current shuttle stop.
 //****************************************************************************************
 void showCountDisplay(ShuttleStop &shuttleStop){
-  char stopInfo [255];
+  char stopInfo [512];
   int n;
   n = sprintf(stopInfo, "Shuttle:\n       In:  %d\n       Out: %d\n\nTrailer:\n       In:  %d\n       Out: %d\n",
               shuttleStop.counterEvents[SHUTTLE][INBOUND],
@@ -358,9 +357,13 @@ void showCountDisplay(ShuttleStop &shuttleStop){
 //****************************************************************************************
 String scanForKnownLocations(String knownLocations[], int arraySize){
   String retValue = "Unknown";
-  
+  //DEBUG_PRINTLN(" Scanning...");
   // WiFi.scanNetworks will return the number of networks found
   int n = WiFi.scanNetworks();
+  //DEBUG_PRINT("Free Heap: ");
+  //DEBUG_PRINTLN(ESP.getFreeHeap());
+  //DEBUG_PRINTLN(" Done.");
+
   if (n == 0) {
     DEBUG_PRINTLN(" No networks found.");
   } else {
@@ -420,21 +423,6 @@ void configureBluetooth(){
   delay(500); // Give port time to initalize
 }
 
-void configureWiFiManagerTask(){
-  // Set up a separate task to scan for WiFi networks to see if we are in a location 
-  // we are familiar with. 
-  // Task that will be executed in the wifiManager() function with priority 0 and 
-  // executed on core 0.
-  
-  xTaskCreatePinnedToCore(
-    wifiManager,      // Task function. 
-   "Location Scanner",// name of task. 
-    10000,            // Stack size of task 
-    NULL,             // parameter of the task 
-    0,                // priority of the task 
-    &wifiManagerTask, // Task handle to keep track of created task 
-    0);               // pin task to core 0  
-}
 
 void configureEinkManagerTask(){
   // Set up a separate task to update the eInk display. 
@@ -564,22 +552,6 @@ String formatRouteReport(String &routeReport){
   return routeReport + "]}";
 }
 
-
-//****************************************************************************************
-// Flag that we need to report data to the Parkdata server.
-//****************************************************************************************
-void flagRouteReportForDelivery(String &routeReport){
-  messageDeliveryNeeded = true; 
-  while (messageDeliveryNeeded){ // Wait for the WiFiManager TASK to tell us he's grabbed 
-                                 // the data before we proceed with clearing out the 
-                                 // routeReport structure.
-    delay(10);  
-  }  
-  return; 
-}
-
-
-// Counter I/O
 
 //****************************************************************************************
 // Grab a JSON message from a counter and use it to update the currentShuttleStop.                             
