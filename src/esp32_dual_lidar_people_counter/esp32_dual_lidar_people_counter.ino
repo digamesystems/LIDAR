@@ -26,29 +26,26 @@
 */
 
 //****************************************************************************************
-// Defines
 //****************************************************************************************
 #define tfMiniUART_1 Serial1
 #define tfMiniUART_2 Serial2
 
 //****************************************************************************************
-// Includes
 //****************************************************************************************
 #include <digameDebug.h>     // Serial debugging defines. 
 #include <digameFile.h>      // Read/Write Text files.
+#include <digameNetwork.h>   // For MAC address functions
 
 #include "BluetoothSerial.h" // Part of the ESP32 board package. 
                              // By Evandro Copercini - 2018
                         
 #include <TFMPlus.h>         // Include TFMini Plus LIDAR Library v1.4.0
                              // https://github.com/budryerson/TFMini-Plus
-                        
-#include <digameNetwork.h>   // For MAC address functions
 
-#include <SPIFFS.h> 
+#include <SPIFFS.h>          // FLASH file system support.
+
 
 //****************************************************************************************
-// Objects
 //****************************************************************************************                        
 TFMPlus tfmP_1;         // Create a TFMini Plus object for sensor 1
 TFMPlus tfmP_2;         // Create a TFMini Plus object for sensor 2
@@ -56,39 +53,159 @@ BluetoothSerial btUART; // Create a BlueTooth Serial Port Object
 
 
 //****************************************************************************************
-// Globals
 //****************************************************************************************
 // Smoothing the LIDAR signals to get rid of noise and introduce a bit of a decay time. 
-
 float smoothed_LIDAR_1 = 0.0;
 float smoothed_LIDAR_2 = 0.0;
 
 // We're tracking the visibility of the target on both sensors. Valid events go from only 
 // visible on one sensor to being visible on both. Direction is determined by which sensor
 // sees the target first. 
-
 int previousState = 0; 
-int state = 0; 
-unsigned int inCount = 0;
+int state         = 0; 
+
+unsigned int inCount  = 0;
 unsigned int outCount = 0;
-float distanceThreshold = 160;
-float smoothingFactor = 0.95;
-bool showRawData = false; 
+
+String deviceName        = "Front Door";
+float  distanceThreshold = 160;
+float  smoothingFactor   = 0.95;
+
+bool streamingRawData = false; 
+
 bool clearDataFlag = false; 
 
-String deviceName = "Front Door";
+String jsonPayload;
+String jsonPrefix;  
 
-String jsonPayload; 
 
 //****************************************************************************************
-// Simultaneous Print functions. TODO: find a better way to do this with #define macro... 
 //****************************************************************************************
-void dualPrintln(String s=""){
+void dualPrintln(String s="");
+void dualPrint(String s="");
+void dualPrintln(float f);
+void dualPrint(float f);
+void dualPrintln(int i);
+void dualPrint(int i);
+
+void loadDefaults();
+
+void showSplashScreen();
+void showMenu();
+
+String getUserInput();
+void   processUserInput();
+
+void initLIDAR(TFMPlus &tfmP, int port=1);
+int  processLIDAR(TFMPlus &tfmP, float &smoothed, int offset);
+
+//****************************************************************************************                            
+void setup() // - Device initialization
+//****************************************************************************************
+{
+  Serial.begin(115200);   // Intialize terminal serial port
+  delay(1000);            // Give port time to initalize
+  
+  showSplashScreen();
+  loadDefaults();
+
+  DEBUG_PRINTLN("INITIALIZING HARDWARE");
+  DEBUG_PRINTLN();
+  
+  DEBUG_PRINTLN(" WiFi...");
+  // Set WiFi to station mode and disconnect from an AP if it was previously connected
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+
+  DEBUG_PRINTLN(" Bluetooth...");
+  btUART.begin("ShuttleCounter_" + getShortMACAddress()); // My Bluetooth device name 
+                                  //  TODO: Provide opportunity to change names. 
+  delay(1000);                    // Give port time to initalize
+  
+  DEBUG_PRINTLN(" LIDAR 1...");
+  tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
+  delay(1000);                    // Give port time to initalize
+  initLIDAR(tfmP_1, 1);
+   
+  DEBUG_PRINTLN(" LIDAR 2...");
+  tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
+  delay(1000);
+  initLIDAR(tfmP_2, 2);
+
+  jsonPrefix = "{\"deviceName\":\"" + deviceName + "\",\"deviceMAC\":\"" + WiFi.macAddress();
+
+  DEBUG_PRINTLN();
+  DEBUG_PRINTLN("RUNNING!");
+  DEBUG_PRINTLN();
+     
+}
+
+
+//****************************************************************************************
+void loop()  // Main 
+//****************************************************************************************
+{  
+  processUserInput();
+  
+  if (clearDataFlag){
+    inCount = 0; 
+    outCount = 0;
+    clearDataFlag = false;    
+  }
+
+  int visible = 0;
+  state = 0;
+
+  // Target visible on sensor 1?
+  visible = processLIDAR(tfmP_1, smoothed_LIDAR_1, 100); 
+  
+  if (visible>=0){
+    
+    state = state + visible;
+
+    // Target visible on sensor 2?
+    visible = processLIDAR(tfmP_2, smoothed_LIDAR_2, 110);
+    state = state + visible * 2;
+
+    if (streamingRawData) dualPrintln(distanceThreshold);
+
+    if (state == 3){ // Visible on both Sensors
+      jsonPayload = jsonPrefix; 
+    
+      if ((previousState == 2)){ // INBOUND event
+        inCount += 1;
+        jsonPayload = jsonPayload + "\",\"eventType\":\"inbound" +
+                       "\",\"count\":\"" + inCount + "\"" +
+                       "}";
+  
+        if (!streamingRawData) dualPrintln(jsonPayload); 
+      }
+    
+      if ((previousState == 1)){ // OUTBOUND event
+        outCount += 1;
+        jsonPayload = jsonPayload + "\",\"eventType\":\"outbound" +
+                      "\",\"count\":\"" + outCount + "\"" +
+                      "}";
+  
+        if (!streamingRawData) dualPrintln(jsonPayload);
+      }
+      
+    }
+    previousState = state;
+  }
+}
+
+//****************************************************************************************
+// Simultaneous Print functions. Bluetooth and Serial. 
+// TODO: find a better way to do this with #define macro... 
+//****************************************************************************************
+void dualPrintln(String s){
   DEBUG_PRINTLN(s);
   btUART.println(s);  
 }
 
-void dualPrint(String s=""){
+void dualPrint(String s){
   DEBUG_PRINT(s);
   btUART.print(s);  
 }
@@ -112,10 +229,71 @@ void dualPrint(int i){
   DEBUG_PRINT(i);
   btUART.print(i);  
 }
+
+
+//****************************************************************************************
+void showSplashScreen(){
+//****************************************************************************************
+  String compileDate = F(__DATE__);
+  String compileTime = F(__TIME__);
+
+  dualPrintln();
+  dualPrintln("*****************************************************");
+  dualPrintln("ParkData Directional LIDAR Sensor");
+  dualPrintln("Version 1.0");
+  dualPrintln("Compiled: " + compileDate + " at " + compileTime); 
+  dualPrintln("Copyright 2021, Digame Systems. All rights reserved.");
+  dualPrint("Device Name: ");
+  dualPrintln(deviceName);
+  dualPrint("Bluetooth Address: ShuttleCounter_");
+  dualPrintln(String(getShortMACAddress()));
+  dualPrintln();
+  dualPrintln("*****************************************************");
+  dualPrintln();   
+}
+
+
+//****************************************************************************************
+void showMenu(){
+//****************************************************************************************
+  showSplashScreen();
+  
+  dualPrintln("MENU: ");
+  dualPrintln("  [N]ame               (" + deviceName +")");
+  dualPrintln("  [D]istance threshold (" + String(distanceThreshold) + ")");
+  dualPrintln("  [S]moothing factor   (" + String(smoothingFactor) + ")");
+  dualPrintln("  [C]Clear count data");
+  dualPrintln("  [R]aw Data Stream    (" + String(streamingRawData) + ")");
+  dualPrintln();
+  //dualPrintln("  Toggle [r]aw data stream ");
+}
+
+
+//****************************************************************************************                            
+void loadDefaults(){
+//****************************************************************************************                            
+  if(!SPIFFS.begin()){
+    DEBUG_PRINTLN("    File System Mount Failed");
+  } else {
+    //DEBUG_PRINTLN("    SPIFFS up!");
+    String temp;
+    
+    temp = readFile(SPIFFS, "/name.txt");
+    if (temp.length() >0) deviceName  = temp;
+    
+    temp = readFile(SPIFFS, "/smooth.txt");
+    if (temp.length() > 0) smoothingFactor = temp.toFloat();
+    
+    temp = readFile(SPIFFS, "/threshold.txt");
+    if (temp.length() > 0) distanceThreshold = temp.toFloat();
+  }
+}
+
+
 //****************************************************************************************
 // Initialize a LIDAR sensor on a serial port. 
 //****************************************************************************************
-void init_TFMPlus(TFMPlus &tfmP, int port=1){
+void initLIDAR(TFMPlus &tfmP, int port){
    
   // Initialize a TFminiPlus class and pass a serial port to the object.
   if (port == 1){
@@ -130,7 +308,7 @@ void init_TFMPlus(TFMPlus &tfmP, int port=1){
      
   // Send some commands to configure the TFMini-Plus
   // Perform a system reset
-  Serial.printf( "  Activating LIDAR Sensor... ");
+  DEBUG_PRINT( "  Activating LIDAR Sensor... ");
   if( tfmP.sendCommand(SYSTEM_RESET, 0)){
       DEBUG_PRINTLN("Sensor Active.");
   }
@@ -142,7 +320,7 @@ void init_TFMPlus(TFMPlus &tfmP, int port=1){
   delay(1000);
 
   // Set the acquisition rate to 100 Hz.
-  Serial.printf( "  Adjusting Frame Rate... ");
+  DEBUG_PRINT( "  Adjusting Frame Rate... ");
   if( tfmP.sendCommand(SET_FRAME_RATE, FRAME_100)){
       DEBUG_PRINTLN("Frame Rate Adjusted.");
   }
@@ -154,7 +332,7 @@ void init_TFMPlus(TFMPlus &tfmP, int port=1){
 // Read the LIDAR sensor and determine if a target is present in the field. Uses a bit of 
 // history in the form of an exponentially smoothed version of the raw signal.
 //****************************************************************************************
-int process_LIDAR(TFMPlus &tfmP, float &smoothed, int offset){
+int processLIDAR(TFMPlus &tfmP, float &smoothed, int offset){
   int16_t tfDist = 0;    // Distance to object in centimeters
   int16_t tfFlux = 0;    // Strength or quality of return signal
   int16_t tfTemp = 0;    // Internal temperature of Lidar sensor chip
@@ -171,10 +349,9 @@ int process_LIDAR(TFMPlus &tfmP, float &smoothed, int offset){
     //Filter the measured distance
     smoothed = smoothed * smoothingFactor + (float)tfDist * (1-smoothingFactor); 
 
-
     targetVisible = (smoothed < distanceThreshold);  
 
-    if (showRawData) {  
+    if (streamingRawData) {  
       //dualPrint(tfDist + offset);
       //dualPrint(" ");
       dualPrint(smoothed);
@@ -200,46 +377,9 @@ int process_LIDAR(TFMPlus &tfmP, float &smoothed, int offset){
 }
 
 
-void showSplashScreen(){
-  String compileDate = F(__DATE__);
-  String compileTime = F(__TIME__);
-
-  dualPrintln();
-  dualPrintln("*****************************************************");
-  dualPrintln("ParkData Directional LIDAR Sensor");
-  dualPrintln("Version 1.0");
-  dualPrintln("Compiled: " + compileDate + " at " + compileTime); 
-  dualPrintln("Copyright 2021, Digame Systems. All rights reserved.");
-  dualPrint("Device Name: ");
-  dualPrintln(deviceName);
-  dualPrint("Bluetooth Address: ShuttleCounter_");
-  dualPrintln(String(getShortMACAddress()));
-  dualPrintln();
-  dualPrintln("*****************************************************");
-  dualPrintln();   
-}
-
 //****************************************************************************************
-// A little menu routine so users can set paramters
+String getUserInput() { // -- No range checking!
 //****************************************************************************************
-void showMenu(){
-  showSplashScreen();
-  
-  dualPrintln("MENU: ");
-  dualPrintln("  [N]ame               (" + deviceName +")");
-  dualPrintln("  [D]istance threshold (" + String(distanceThreshold) + ")");
-  dualPrintln("  [S]moothing factor   (" + String(smoothingFactor) + ")");
-  dualPrintln("  [C]Clear count data");
-  dualPrintln("  [R]aw Data Stream    (" + String(showRawData) + ")");
-  dualPrintln();
-  //dualPrintln("  Toggle [r]aw data stream ");
-}
-
-
-//****************************************************************************************
-// Grab input from the user. -- No range checking!
-//****************************************************************************************
-String getUserInput(){
   String inString;
 
   while (!(debugUART.available()) && !(btUART.available())){
@@ -259,67 +399,9 @@ String getUserInput(){
 
 
 //****************************************************************************************
-// SETUP - Device initialization                                   
+void processUserInput()
 //****************************************************************************************
-void setup()
 {
-
-  Serial.begin(115200);   // Intialize terminal serial port
-  delay(1000);            // Give port time to initalize
-
-  //dualPrintln("  Initializing SPIFFS...");
-
-  if(!SPIFFS.begin()){
-    DEBUG_PRINTLN("    File System Mount Failed");
-  } else {
-    //DEBUG_PRINTLN("    SPIFFS up!");
-    String temp;
-    
-    temp = readFile(SPIFFS, "/name.txt");
-    if (temp.length() >0) deviceName  = temp;
-    
-    temp = readFile(SPIFFS, "/smooth.txt");
-    if (temp.length() > 0) smoothingFactor = temp.toFloat();
-    
-    temp = readFile(SPIFFS, "/threshold.txt");
-    if (temp.length() > 0) distanceThreshold = temp.toFloat();
-  }
-  
-  showSplashScreen();
-
-  DEBUG_PRINTLN("INITIALIZING HARDWARE");
-  DEBUG_PRINTLN();
-  DEBUG_PRINTLN(" WiFi...");
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
-
-  DEBUG_PRINTLN(" Bluetooth...");
-  btUART.begin("ShuttleCounter_" + getShortMACAddress()); // Bluetooth device name 
-                                  //  TODO: Provide opportunity to change names. 
-  delay(1000);                    // Give port time to initalize
-  
-  DEBUG_PRINTLN(" LIDAR 1...");
-  tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
-  delay(1000);                    // Give port time to initalize
-  init_TFMPlus(tfmP_1, 1);
-   
-  DEBUG_PRINTLN(" LIDAR 2...");
-  tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
-  delay(1000);
-  init_TFMPlus(tfmP_2, 2);
-
-  DEBUG_PRINTLN();
-  DEBUG_PRINTLN("RUNNING!");
-  DEBUG_PRINTLN();
-     
-}
-
-//****************************************************************************************
-void checkForUserInput(){
-//****************************************************************************************
-
   String inString;
   bool inputReceived=false;
  
@@ -364,68 +446,14 @@ void checkForUserInput(){
     } 
 
     if(inString == "c"){
-      dualPrint(" Data flagged for clear.");
+      dualPrint("OK.");
       clearDataFlag = true;
     }      
 
     if(inString == "r"){
-      showRawData = (!showRawData);
+      streamingRawData = (!streamingRawData);
     } 
     
-    if (!showRawData) showMenu(); 
+    if (!streamingRawData) showMenu(); 
   }   
-}
-
-
-//****************************************************************************************
-// LOOP - Main Loop                                   
-//****************************************************************************************
-void loop(){
-  state = 0;
-
-  checkForUserInput();
-  
-  if (clearDataFlag){
-    inCount = 0; 
-    outCount = 0;
-    clearDataFlag = false;    
-  }
-
-  int visible = 0;
-  // Are we visible on sensor 1?
-  visible = process_LIDAR(tfmP_1, smoothed_LIDAR_1, 100); 
-  
-  if (visible>=0){
-    
-    state = state + visible;
-
-    // Are we visible on sensor 2?
-    visible = process_LIDAR(tfmP_2, smoothed_LIDAR_2, 110);
-    state = state + visible * 2;
-
-    if (showRawData) dualPrintln(distanceThreshold);
-
-    jsonPayload = "{\"deviceName\":\"" + deviceName +
-                  "\",\"deviceMAC\":\"" + WiFi.macAddress();
-  
-    if ((previousState == 2) && (state == 3)){
-      inCount += 1;
-      jsonPayload = jsonPayload + "\",\"eventType\":\"inbound" +
-                     "\",\"count\":\"" + inCount + "\"" +
-                     "}";
-
-      if (showRawData == false) dualPrintln(jsonPayload); 
-    }
-  
-    if ((previousState == 1) && (state == 3)){
-      outCount += 1;
-      jsonPayload = jsonPayload + "\",\"eventType\":\"outbound" +
-                    "\",\"count\":\"" + outCount + "\"" +
-                    "}";
-
-      if (showRawData == false) dualPrintln(jsonPayload);
-    }
-    
-    previousState = state;
-  }
 }
