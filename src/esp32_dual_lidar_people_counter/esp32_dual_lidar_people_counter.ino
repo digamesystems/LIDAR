@@ -96,9 +96,9 @@ void showMenu();
 String getUserInput();
 void   processUserInput();
 
-void  configWiFi();
-void  configBluetooth();
-void  configLIDARs();
+void  configureWiFi();
+void  configureBluetooth();
+void  configureLIDARs();
 
 void initLIDAR(TFMPlus &tfmP, int port=1);
 int  processLIDAR(TFMPlus &tfmP, float &smoothed, int offset);
@@ -116,9 +116,9 @@ void setup() // - Device initialization
   DEBUG_PRINTLN("INITIALIZING HARDWARE...");
   DEBUG_PRINTLN();
   
-  configWiFi();
-  configBluetooth();
-  configLIDARs();
+  configureWiFi();
+  configureBluetooth();
+  configureLIDARs();
 
   // The first part of all of our JSON messages
   jsonPrefix = "{\"deviceName\":\"" + deviceName + "\",\"deviceMAC\":\"" + WiFi.macAddress();
@@ -186,7 +186,7 @@ void loop()  // Main
 
 
 //****************************************************************************************
-void configWiFi(){
+void configureWiFi(){
 //****************************************************************************************
   DEBUG_PRINTLN(" WiFi...");
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
@@ -197,7 +197,7 @@ void configWiFi(){
 
 
 //****************************************************************************************
-void configBluetooth(){
+void configureBluetooth(){
 //****************************************************************************************
   DEBUG_PRINTLN(" Bluetooth...");
   btUART.begin("ShuttleCounter_" + getShortMACAddress()); // My Bluetooth device name 
@@ -208,7 +208,7 @@ void configBluetooth(){
 
 
 //****************************************************************************************
-void configLIDARs(){
+void configureLIDARs(){
 //****************************************************************************************
   DEBUG_PRINTLN(" LIDAR 1...");
   tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.

@@ -68,7 +68,6 @@ String knownLocations[] PROGMEM = {"_Bighead",
 String counterNames[] = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
 
                          
-
 String currentLocation  = "Unknown"; 
 String previousLocation = "Unknown";
 
@@ -76,11 +75,8 @@ String previousLocation = "Unknown";
 // Multi-Tasking
 SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
 TaskHandle_t eInkManagerTask;  // A task to update the eInk display.
-bool uploadingData = false;
-
 
 // Flags for Tasks to take action
-bool messageDeliveryNeeded = false;
 bool displayUpdateNeeded   = false;
 
 
@@ -107,9 +103,9 @@ void loadParameters();
 void saveParameters();
 
 // Bluetooth Counters
-void   connectToCounter(BluetoothSerial &btUART, String counter);
-void   reconnectToCounter(BluetoothSerial &btUART);
-void   processMessage(BluetoothSerial &btUART, int counterID);
+void connectToCounter(BluetoothSerial &btUART, String counter);
+void reconnectToCounter(BluetoothSerial &btUART);
+void processMessage(BluetoothSerial &btUART, int counterID);
 
 // ShuttleStop wants to be a class...
 void   resetShuttleStop(ShuttleStop &shuttleStop);
@@ -162,7 +158,7 @@ void setup(){
 void deliverRouteReport(String shuttleRouteReport){
   
   String reportToIssue = shuttleRouteReport; 
-  messageDeliveryNeeded = false;   
+
   if (WiFi.status() != WL_CONNECTED){  
     enableWiFi(networkConfig);
   }
