@@ -44,6 +44,11 @@
 
 #include <SPIFFS.h>          // FLASH file system support.
 
+#include "driver/adc.h"   // ADC functions. (Allows us to turn off to save power.)
+#include <esp_bt.h>       // Bluetooth control functions
+#include <esp_wifi.h>
+
+
 
 //****************************************************************************************
 //****************************************************************************************                        
@@ -63,6 +68,9 @@ float smoothed_LIDAR_2 = 0.0;
 // sees the target first. 
 int previousState = 0; 
 int state         = 0; 
+#define OUTBOUND  1
+#define INBOUND   2
+#define BOTH      3
 
 unsigned int inCount  = 0;
 unsigned int outCount = 0;
@@ -94,7 +102,7 @@ void showSplashScreen();
 void showMenu();
 
 String getUserInput();
-void   processUserInput();
+void   scanForUserInput();
 
 void  configureWiFi();
 void  configureBluetooth();
@@ -103,10 +111,19 @@ void  configureLIDARs();
 void initLIDAR(TFMPlus &tfmP, int port=1);
 int  processLIDAR(TFMPlus &tfmP, float &smoothed, int offset);
 
+
+void lightSleepMSec(unsigned long ms){
+  unsigned long mS_TO_S_FACTOR = 1000;
+  esp_sleep_enable_timer_wakeup(ms * mS_TO_S_FACTOR);
+  esp_light_sleep_start(); 
+}
+
 //****************************************************************************************                            
 void setup() // - Device initialization
 //****************************************************************************************
 {
+
+
   Serial.begin(115200);   // Intialize terminal serial port
   delay(1000);            // Give port time to initalize
   
@@ -133,14 +150,19 @@ void setup() // - Device initialization
 //****************************************************************************************
 void loop()  // Main 
 //****************************************************************************************
-{  
-  processUserInput();
+{ 
+
+  scanForUserInput();
   
   if (clearDataFlag){
     inCount = 0; 
     outCount = 0;
     clearDataFlag = false;    
   }
+
+
+  // Run a little state machine based on the visibility of a target
+  // on the two LIDAR sensors
 
   int visible = 0;
   state = 0;
@@ -158,10 +180,10 @@ void loop()  // Main
 
     if (streamingRawData) dualPrintln(distanceThreshold);
 
-    if (state == 3){ // Visible on both Sensors
+    if (state == BOTH){ // Visible on both Sensors
       jsonPayload = jsonPrefix; 
     
-      if ((previousState == 2)){ // INBOUND event
+      if ((previousState == INBOUND)){ // INBOUND event
         inCount += 1;
         jsonPayload = jsonPayload + "\",\"eventType\":\"inbound" +
                        "\",\"count\":\"" + inCount + "\"" +
@@ -170,7 +192,7 @@ void loop()  // Main
         if (!streamingRawData) dualPrintln(jsonPayload); 
       }
     
-      if ((previousState == 1)){ // OUTBOUND event
+      if ((previousState == OUTBOUND)){ // OUTBOUND event
         outCount += 1;
         jsonPayload = jsonPayload + "\",\"eventType\":\"outbound" +
                       "\",\"count\":\"" + outCount + "\"" +
@@ -336,7 +358,7 @@ void initLIDAR(TFMPlus &tfmP, int port){
   // Send some commands to configure the TFMini-Plus
   // Perform a system reset
   DEBUG_PRINT( "  Activating LIDAR Sensor... ");
-  if( tfmP.sendCommand(SYSTEM_RESET, 0)){
+  if( tfmP.sendCommand(SOFT_RESET, 0)){
       DEBUG_PRINTLN("Sensor Active.");
   }
   else{
@@ -367,7 +389,9 @@ int processLIDAR(TFMPlus &tfmP, float &smoothed, int offset){
   int lidarUpdateRate = 5; // 100Hz -> 10 ms
   int targetVisible = false;
   
-  tfmP.sendCommand(TRIGGER_DETECTION, 0);
+  //tfmP.sendCommand(TRIGGER_DETECTION, 0);
+
+  //lightSleepMSec(lidarUpdateRate);
   delay(lidarUpdateRate);
 
   // Read the LIDAR Sensor
@@ -411,6 +435,7 @@ String getUserInput() { // -- No range checking!
 
   while (!(debugUART.available()) && !(btUART.available())){
     delay(10);
+    //lightSleepMSec(10);
     //vTaskDelay(10 / portTICK_PERIOD_MS);
   }  
 
@@ -426,7 +451,7 @@ String getUserInput() { // -- No range checking!
 
 
 //****************************************************************************************
-void processUserInput()
+void scanForUserInput()
 //****************************************************************************************
 {
   String inString;
@@ -473,7 +498,7 @@ void processUserInput()
     } 
 
     if(inString == "c"){
-      dualPrint("OK.");
+      dualPrint("OK");
       clearDataFlag = true;
     }      
 

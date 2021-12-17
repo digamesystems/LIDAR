@@ -131,6 +131,10 @@ void disableWiFi()
 {
     WiFi.disconnect(true); // Disconnect from the network
     WiFi.mode(WIFI_OFF);   // Switch WiFi off
+    btStop();
+    adc_power_off();
+    esp_wifi_stop();
+    esp_bt_controller_disable();
     DEBUG_PRINTLN("");
     DEBUG_PRINTLN("WiFi disconnected!");
     wifiConnected = false;

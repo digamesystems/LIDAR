@@ -89,6 +89,7 @@ unsigned long lastHeartbeatMillis = 0;
 unsigned long bootMillis=0;
 
 
+
 //****************************************************************************************
 // Pretty(?) debug splash screen
 void splash(){
@@ -357,13 +358,12 @@ void messageManager(void *parameter){
           DEBUG_PRINTLN("Success!");
           DEBUG_PRINTLN();
         }
-    
         vTaskDelay(100 / portTICK_PERIOD_MS);
       
       } else {
         
         // Introduce a variable retry delay if we are in the transmit window.
-        if (inTransmitWindow(counterNumber, numCounters)) {
+        if (inTransmitWindow(config.counterID.toInt(), config.counterPopulation.toInt())) {
           
           if (config.showDataStream == "false"){
             DEBUG_PRINTLN("******* Timeout Waiting for ACK **********");
@@ -531,6 +531,7 @@ void setup(){
     initLoRa();
 
     // Configure radio params 
+    debugUART.println("  Configuring LoRa...");
     if (configureLoRa(config)){  
       hwStatus+="   LoRa : OK\n\n";
     }else{
@@ -652,6 +653,9 @@ void setup(){
   bootMillis = millis();
   upTimeMillis = millis() - bootMillis;
   lastHeartbeatMillis = millis();
+
+// ********* TESTING....************
+ //config.showDataStream = "true"; 
   
   currentTime = getRTCTime(); 
   bootMinute = getRTCMinute();
@@ -684,7 +688,11 @@ void pushMessage(String message){
 // Main Loop
 //****************************************************************************************
 void loop(){ 
-
+  
+  unsigned long T1,T2;
+   
+  T1 = millis(); // Time at the start of the loop.
+    
   if (resetFlag){
     DEBUG_PRINTLN("Reset flag has been flipped. Rebooting the processor.");
     delay(1000);  
@@ -704,8 +712,9 @@ void loop(){
   //**************************************************************************************   
   // Test if vehicle event has occured 
   // TODO: Consider putting this in a separate RTOS Task. 
-    vehicleMessageNeeded = processLIDARSignal3(config); // Threshold Detection Algorithm
-
+    
+    vehicleMessageNeeded = processLIDARSignal3(config); //
+   
   //**************************************************************************************   
   // Check for display mode button being pressed and switch display
     handleModeButtonPress();
@@ -752,6 +761,7 @@ void loop(){
       }      
       heartbeatMessageNeeded = false; 
       lastHeartbeatMillis = millis()- slippedMilliSeconds;
+      
     }
    
   //**************************************************************************************   
@@ -808,4 +818,9 @@ void loop(){
       }
       vehicleMessageNeeded = 0; 
     }
+
+  delay(5);
+  T2= millis();
+  //DEBUG_PRINTLN(T2-T1); 
+   
 }

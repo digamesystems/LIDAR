@@ -26,7 +26,7 @@ String readFile(fs::FS &fs, const char * path){
     }
     file.close();
     
-    DEBUG_PRINTLN(retValue);
+    //DEBUG_PRINTLN(retValue);
     
     return retValue;
     

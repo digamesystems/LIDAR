@@ -32,20 +32,20 @@ void setLowPowerMode() {
 void setMediumPowerMode() {
     debugUART.print("  Switching to Medium Power Mode... ");
     btStop();
-    adc_power_off();
+    //adc_power_off();
     esp_bt_controller_disable();
     setCpuFrequencyMhz(80); // Slow down the CPU
     debugUART.println("    Done. Medium Power Mode Enabled.");
 }
 
 //***************************************************************************** 
-// Run the CPU Flat out at 240MHz w/ WiFi active. Turn off ADC and Bluetooth.
+// Run the CPU Flat out at 240MHz w/ WiFi active. Turn off and Bluetooth.
 void setFullPowerMode() {
     debugUART.println("  Switching to Full Power Mode... ");
     setCpuFrequencyMhz(240); // Speed up the CPU
     btStop();
     esp_bt_controller_disable();
-    adc_power_on();          // Turn on the ADCs
+    adc_power_on();          // Turn on the ADCs for WiFi
     debugUART.println("    Done. Full Power Mode Enabled. ");
 }
 

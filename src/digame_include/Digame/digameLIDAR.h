@@ -15,7 +15,7 @@ TFMPlus tfmP;                 // Create a TFMini Plus object
 
 int16_t initLIDARDist = 999; // The initial distance measured by the lidar when it wakes up.
 
-const int lidarSamples = 50;
+const int lidarSamples = 25;
 String lastDistanceMeasured = "0";
 
 CircularBuffer<int, lidarSamples> lidarBuffer; // We're going to hang onto the last 100 raw data
@@ -38,6 +38,20 @@ void showLIDARDistanceHistogram();
 void clearLIDARDistanceHistogram();
 String getDistanceHistogramString();
 
+
+
+void lightSleepMSec(unsigned long ms){
+  unsigned long mS_TO_S_FACTOR = 1000;
+  esp_sleep_enable_timer_wakeup(ms * mS_TO_S_FACTOR);
+  esp_light_sleep_start();  
+}
+
+
+
+
+
+
+
 //*****************************************************************************
 // Set up the LIDAR sensor in triggered mode
 bool initLIDAR(bool triggeredMode = false)
@@ -51,7 +65,7 @@ bool initLIDAR(bool triggeredMode = false)
   // Perform a system reset
   debugUART.print("  Activating LIDAR Sensor... ");
 
-  if (tfmP.sendCommand(SYSTEM_RESET, 0))
+  if (tfmP.sendCommand(SOFT_RESET, 0))
   {
 
     debugUART.println("Done. (LIDAR Sensor initialized)");
@@ -546,8 +560,10 @@ int processLIDARSignal3(Config config){
 
   int threshold = config.lidarResidenceTime.toInt(); // Level of signal to count as present.
 
-  tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
-  delay(lidarUpdateRate);                 // Wait a bit...
+// Trying an experiment. Let the LIDAR run free and poll it occassionally.
+  //tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
+  //delay(lidarUpdateRate);                 // Wait a bit...
+  //lightSleepMSec(lidarUpdateRate);
 
   lidarResult = tfmP.getData(tfDist, tfFlux, tfTemp); // Grab the results
 
@@ -678,6 +694,7 @@ int processLIDARSignal3(Config config){
     // TODO: Investigate.
   }
 
+  tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
   return retValue;
 
 }

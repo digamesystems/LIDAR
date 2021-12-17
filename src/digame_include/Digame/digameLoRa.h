@@ -45,39 +45,50 @@ String sendReceiveReyax(String s)
 bool configureLoRa(Config &config)
 {
 
-  debugUART.println("  Configuring LoRa...");
-  LoRaUART.println("AT");
-  delay(1000);
-  //sendReceiveReyax("AT"); // Get the module's attention
+  //debugUART.println("  Configuring LoRa...");
+  //LoRaUART.println("AT");
+  //delay(1000);
+  sendReceiveReyax("AT"); // Get the module's attention
   //sendReceiveReyax("AT"); // Get the module's attention
 
-  debugUART.println("    Setting Address to: " + config.loraAddress);
+  //debugUART.println("    Setting Address to: " + config.loraAddress);
   ///config.loraAddress.trim();
   //debugUART.println(config.loraAddress);
   sendReceiveReyax("AT+ADDRESS=" + config.loraAddress);
-  sendReceiveReyax("AT+ADDRESS?");
+  //sendReceiveReyax("AT+ADDRESS?");
 
-  debugUART.println("    Setting Network ID to: " + config.loraNetworkID);
+  //debugUART.println("    Setting Network ID to: " + config.loraNetworkID);
   sendReceiveReyax("AT+NETWORKID=" + config.loraNetworkID);
-  sendReceiveReyax("AT+NETWORKID?");
+  //sendReceiveReyax("AT+NETWORKID?");
 
-  debugUART.println("    Setting Band to: " + config.loraBand);
+  //debugUART.println("    Setting Band to: " + config.loraBand);
   sendReceiveReyax("AT+BAND=" + config.loraBand);
-  sendReceiveReyax("AT+BAND?");
+  //sendReceiveReyax("AT+BAND?");
 
-  debugUART.println("    Setting Modulation Parameters to: " + config.loraSF + "," + config.loraBW + "," + config.loraCR + "," + config.loraPreamble);
+  //debugUART.println("    Setting Modulation Parameters to: " + config.loraSF + "," + config.loraBW + "," + config.loraCR + "," + config.loraPreamble);
   sendReceiveReyax("AT+PARAMETER=" + config.loraSF + "," + config.loraBW + "," + config.loraCR + "," + config.loraPreamble);
-  sendReceiveReyax("AT+PARAMETER?");
+  //sendReceiveReyax("AT+PARAMETER?");
 
+  //debugUART.println("    Sleeping LoRa Module...");
+  //sendReceiveReyax("AT+MODE=1");
   //hwStatus+= "   LoRa : OK\n\n";
   return true;
+}
+
+void sleepReyax(){
+  sendReceiveReyax("AT+MODE=1");
+}
+
+void wakeReyax(){
+  sendReceiveReyax("AT+MODE=0");
+  configureLoRa(config); // Calling Mode = 0 resets the module. Settings are lost.
 }
 
 //****************************************************************************************
 // Sends a message to another LoRa module and listens for an ACK reply.
 bool sendReceiveLoRa(String msg)
 {
-  long timeout = 2000; // TODO: Make this part of the Config struct -- better yet,
+  long timeout = 2500; // TODO: Make this part of the Config struct -- better yet,
                        // calculate from the LoRa RF parameters and payload...
   bool replyPending = true;
  
@@ -86,6 +97,8 @@ bool sendReceiveLoRa(String msg)
 
   t1 = millis();
   t2 = t1;
+
+  wakeReyax();
 
   strRetryCount = String(LoRaRetryCount);
   strRetryCount.trim();
@@ -105,10 +118,10 @@ bool sendReceiveLoRa(String msg)
   // Test if parsing succeeded.
   if (error)
   {
-    
     debugUART.print(F("deserializeJson() failed: "));
     debugUART.println(error.f_str());
     debugUART.println(msg);
+    sleepReyax();
     return false;
   }
 
@@ -120,6 +133,7 @@ bool sendReceiveLoRa(String msg)
   if (serializeJson(doc, msg) == 0)
   {
     Serial.println(F("Failed to write to string"));
+    sleepReyax();
     return false;
   }
 
@@ -161,17 +175,18 @@ if (config.showDataStream == "false"){
           }
           LoRaRetryCount = 0; // Reset for the next message.
           
-          debugUART.print("Elapsed Time: ");
-          debugUART.println((t2-t1));
+          //debugUART.print("Elapsed Time: ");
+          //debugUART.println((t2-t1));
 
+          sleepReyax();
           return true;
         }
       }
     }
   }
 
-  debugUART.print("Elapsed Time: ");
-  debugUART.println((t2-t1));
+  //debugUART.print("Elapsed Time: ");
+  //debugUART.println((t2-t1));
 
   if ((t2 - t1) >= timeout)
   {
@@ -184,6 +199,7 @@ if (config.showDataStream == "false"){
   }
 
 
+  sleepReyax();
   vTaskDelay(2000 / portTICK_PERIOD_MS); // Two seconds between messages
 
   return true;
