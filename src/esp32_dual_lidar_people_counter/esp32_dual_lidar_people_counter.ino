@@ -2,7 +2,7 @@
     Heimdall -- "Heimdall sees all!" 
 
     This program uses a pair of TFMini-plus LIDARs to count people boarding /
-    unboarding shuttle busses. 
+    unboarding shuttle buses. 
     
     The two sensors are used in combination to determine direction of travel and 
     thereby if a person is boarding or exiting.
@@ -211,10 +211,15 @@ void loop()  // Main
 void configureWiFi(){
 //****************************************************************************************
   DEBUG_PRINTLN(" WiFi...");
+
+  // Commented out the lines below since we aren't using WiFi. Use later if we want 
+  // to support OTA updates.
+
+  
   // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect();
-  delay(100);
+  // WiFi.mode(WIFI_STA);
+  // WiFi.disconnect();
+  // delay(100);
 }
 
 
