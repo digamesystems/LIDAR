@@ -292,17 +292,19 @@ void showSplashScreen(){
   String compileTime = F(__TIME__);
 
   dualPrintln();
-  dualPrintln("*****************************************************");
+  dualPrintln("*******************************************");
   dualPrintln("ParkData Directional LIDAR Sensor");
   dualPrintln("Version 1.0");
+  dualPrintln();
   dualPrintln("Compiled: " + compileDate + " at " + compileTime); 
-  dualPrintln("Copyright 2021, Digame Systems. All rights reserved.");
   dualPrint("Device Name: ");
   dualPrintln(deviceName);
   dualPrint("Bluetooth Address: ShuttleCounter_");
   dualPrintln(String(getShortMACAddress()));
   dualPrintln();
-  dualPrintln("*****************************************************");
+  dualPrintln("Copyright 2021, Digame Systems.");
+  dualPrintln("All rights reserved.");
+  dualPrintln("*******************************************");
   dualPrintln();   
 }
 
