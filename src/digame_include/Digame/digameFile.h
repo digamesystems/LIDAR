@@ -51,6 +51,31 @@ void writeFile(fs::FS &fs, const char * path, const char * message){
     file.close();
 }
 
+//****************************************************************************************
+// Save some text to a file
+void appendFile(fs::FS &fs, const char *filename, String contents)
+{
+
+  DEBUG_PRINTLN("Appending File...");
+
+  // Open file for writing
+  //debugUART.println("    Opening file for write...");
+  File file = fs.open(filename, FILE_APPEND);
+
+  if (!file)
+  {
+    DEBUG_PRINTLN(F("    Failed to open file!"));
+    return;
+  }
+
+  //debugUART.println("    Writing file...");
+  file.println(contents);
+
+  // Close the file 
+  DEBUG_PRINTLN("  Done.");
+  file.close();
+}
+
 
 
 #endif //__DIGAME_FILE_H__

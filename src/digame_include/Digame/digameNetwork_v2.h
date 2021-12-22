@@ -58,8 +58,12 @@ String getShortMACAddress()
     String retString;
 
     WiFi.macAddress(mac);
-    retString = String(retString + String(mac[4], HEX));
-    retString = String(retString + String(mac[5], HEX));
+    //DEBUG_PRINTLN(mac);
+    char buffer[3]; 
+    sprintf (buffer, "%02x", mac[4]);
+    retString = String(retString + buffer);
+    sprintf (buffer, "%02x", mac[5]);
+    retString = String(retString + buffer);
 
     return retString;
 }
