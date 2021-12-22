@@ -25,10 +25,14 @@
 
 */
 
+#define hardwarePresent true // Flag so we can debug the code without LIDAR sensors.
+
 //****************************************************************************************
 //****************************************************************************************
+
 #define tfMiniUART_1 Serial1
 #define tfMiniUART_2 Serial2
+
 
 //****************************************************************************************
 //****************************************************************************************
@@ -38,7 +42,7 @@
 
 #include "BluetoothSerial.h" // Part of the ESP32 board package. 
                              // By Evandro Copercini - 2018
-                        
+
 #include <TFMPlus.h>         // Include TFMini Plus LIDAR Library v1.4.0
                              // https://github.com/budryerson/TFMini-Plus
 
@@ -49,11 +53,13 @@
 #include <esp_wifi.h>
 
 
-
 //****************************************************************************************
 //****************************************************************************************                        
+
 TFMPlus tfmP_1;         // Create a TFMini Plus object for sensor 1
 TFMPlus tfmP_2;         // Create a TFMini Plus object for sensor 2
+
+ 
 BluetoothSerial btUART; // Create a BlueTooth Serial Port Object
 
 
@@ -80,6 +86,7 @@ float  distanceThreshold = 160;
 float  smoothingFactor   = 0.95;
 
 bool streamingRawData = false; 
+bool menuActive = true;
 
 bool clearDataFlag = false; 
 
@@ -127,17 +134,19 @@ void setup() // - Device initialization
   Serial.begin(115200);   // Intialize terminal serial port
   delay(1000);            // Give port time to initalize
   
-  showSplashScreen();
   loadDefaults();
-
+  showSplashScreen();
+  
   DEBUG_PRINTLN("INITIALIZING HARDWARE...");
-  DEBUG_PRINTLN();
+  //DEBUG_PRINTLN();
   
   configureWiFi();
   configureBluetooth();
   configureLIDARs();
 
   // The first part of all of our JSON messages
+  String tString = "00:00:00";
+  //jsonPrefix = "{\"eventTime\":\"" + tString + "\",\"deviceName\":\"" + deviceName + "\",\"deviceMAC\":\"" + WiFi.macAddress();
   jsonPrefix = "{\"deviceName\":\"" + deviceName + "\",\"deviceMAC\":\"" + WiFi.macAddress();
 
   DEBUG_PRINTLN();
@@ -189,7 +198,7 @@ void loop()  // Main
                        "\",\"count\":\"" + inCount + "\"" +
                        "}";
   
-        if (!streamingRawData) dualPrintln(jsonPayload); 
+        if ((!streamingRawData)&&(menuActive)) dualPrintln(jsonPayload); 
       }
     
       if ((previousState == OUTBOUND)){ // OUTBOUND event
@@ -198,7 +207,7 @@ void loop()  // Main
                       "\",\"count\":\"" + outCount + "\"" +
                       "}";
   
-        if (!streamingRawData) dualPrintln(jsonPayload);
+        if ((!streamingRawData)&&(menuActive)) dualPrintln(jsonPayload);
       }
       
     }
@@ -236,17 +245,21 @@ void configureBluetooth(){
 
 //****************************************************************************************
 void configureLIDARs(){
-//****************************************************************************************
-  DEBUG_PRINTLN(" LIDAR 1...");
-  tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
-  delay(1000);                    // Give port time to initalize
-  initLIDAR(tfmP_1, 1);
-   
-  DEBUG_PRINTLN(" LIDAR 2...");
-  tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
-  delay(1000);
-  initLIDAR(tfmP_2, 2);
-  
+//**************************************************************************************** 
+  DEBUG_PRINTLN("  Configuring LIDARS...");
+
+  #if hardwarePresent
+    DEBUG_PRINTLN("  LIDAR 1...");
+    tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
+    delay(1000);                    // Give port time to initalize
+    initLIDAR(tfmP_1, 1);
+     
+    DEBUG_PRINTLN("  LIDAR 2...");
+    tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
+    delay(1000);
+    initLIDAR(tfmP_2, 2);
+  #endif
+
 }
 
   
@@ -295,7 +308,7 @@ void showSplashScreen(){
   dualPrintln("*******************************************");
   dualPrintln("ParkData Directional LIDAR Sensor");
   dualPrintln("Version 1.0");
-  dualPrintln();
+  dualPrintln("");
   dualPrintln("Compiled: " + compileDate + " at " + compileTime); 
   dualPrint("Device Name: ");
   dualPrintln(deviceName);
@@ -312,16 +325,20 @@ void showSplashScreen(){
 //****************************************************************************************
 void showMenu(){
 //****************************************************************************************
+  if (menuActive){
   showSplashScreen();
   
   dualPrintln("MENU: ");
+  dualPrintln("  [+][-]Menu Active");
   dualPrintln("  [N]ame               (" + deviceName +")");
   dualPrintln("  [D]istance threshold (" + String(distanceThreshold) + ")");
   dualPrintln("  [S]moothing factor   (" + String(smoothingFactor) + ")");
+  dualPrintln("  [G]Get count data");
   dualPrintln("  [C]Clear count data");
   dualPrintln("  [R]aw Data Stream    (" + String(streamingRawData) + ")");
   dualPrintln();
   //dualPrintln("  Toggle [r]aw data stream ");
+  }
 }
 
 
@@ -395,7 +412,8 @@ int processLIDAR(TFMPlus &tfmP, float &smoothed, int offset){
   
   int lidarUpdateRate = 5; // 100Hz -> 10 ms
   int targetVisible = false;
-  
+
+#if hardwarePresent 
   //tfmP.sendCommand(TRIGGER_DETECTION, 0);
 
   //lightSleepMSec(lidarUpdateRate);
@@ -431,7 +449,10 @@ int processLIDAR(TFMPlus &tfmP, float &smoothed, int offset){
   }
 
   return -1; 
-    
+#else // Emulating the presence of the LIDAR sensor
+  delay(250);
+  return random(2); // returns a random number from 0 to 1
+#endif
 }
 
 
@@ -478,7 +499,17 @@ void scanForUserInput()
   
   if (inputReceived) {  
     inString.trim();
-    dualPrintln(inString); 
+    //dualPrintln(inString); 
+
+    if (inString == "+") {
+      dualPrintln("OK");
+      menuActive = true;
+    }
+
+    if (inString == "-") {
+      dualPrintln("OK");
+      menuActive = false;
+    }
     
     if (inString == "n") {
       dualPrintln(" Enter New Device Name. (" + deviceName +")");
@@ -502,10 +533,18 @@ void scanForUserInput()
       dualPrint(" New Smoothing Factor: ");
       dualPrintln(smoothingFactor);
       writeFile(SPIFFS, "/smooth.txt", String(smoothingFactor).c_str());
+    }
+
+    if(inString == "g"){
+      String jsonPayload = jsonPrefix + "\",\"inbound\":\""  + inCount  + "\"" + 
+                                          ",\"outbound\":\"" + outCount + "\"" +
+                                          "}";
+      dualPrintln(jsonPayload);
+      //dualPrintln("OK");
     } 
 
     if(inString == "c"){
-      dualPrint("OK");
+      dualPrintln("OK");
       clearDataFlag = true;
     }      
 

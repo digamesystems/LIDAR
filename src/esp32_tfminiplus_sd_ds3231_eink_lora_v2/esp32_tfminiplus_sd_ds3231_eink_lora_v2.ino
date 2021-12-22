@@ -9,8 +9,8 @@
 #define debugUART Serial
 
 // Pick one LoRa or WiFi as the data reporting link. These are mutually exclusive.
-#define USE_LORA false    // Use LoRa as the reporting link
-#define USE_WIFI true     // Use WiFi as the reporting link
+#define USE_LORA true    // Use LoRa as the reporting link
+#define USE_WIFI false     // Use WiFi as the reporting link
 
 #if USE_LORA
   String model = "DS-VC-LIDAR-LORA-1";

@@ -25,6 +25,7 @@
 #include <digameDebug.h>      // Serial debugging defines. 
 #include <digameFile.h>       // SPIFFS file Handling
 #include <digameTime.h>       // Time functions for RTC, NTP, etc. 
+#include <digamePowerMgt.h>
 #include <digameNetwork_v2.h> // For connections, MAC Address and reporting.
 #include <digameDisplay.h>    // eInk Display support.
 #include "BluetoothSerial.h"  // Virtual UART support for Bluetooth Classic 
@@ -34,7 +35,8 @@
 NetworkConfig networkConfig; // See digameNetwork_v2.h Currently using defaults. 
                              // TODO: initialize with what we want...
 
-BluetoothSerial btUART; // Create a BlueTooth Serial port to talk to the counter
+BluetoothSerial btUART1; // Create a BlueTooth Serial port to talk to the counter
+BluetoothSerial btUART2; // Create a BlueTooth Serial port to talk to the counter
 
 struct ShuttleStop { 
   String location       = "Unknown";  
@@ -57,13 +59,13 @@ String shuttleName = "Shuttle 6";
 
 String reportingLocation = "AndroidAP3AE2";
 String reportingLocationPassword = "ohpp8971";
-String knownLocations[] PROGMEM = {"_Bighead", 
-                                   "Tower88", 
-                                   "William Shatner's Toupee", 
-                                   "Pretty Fly For A Wi-Fi V4",
-                                   "4th_StreetPizzaCo", 
-                                   "SanPedroSquareMarket",
-                                   "AndroidAP3AE2"}; // Saving in PROGMEM 
+String knownLocations[] = {"_Bighead", 
+                           "Tower88", 
+                           "William Shatner's Toupee", 
+                           "Pretty Fly For A Wi-Fi V4",
+                           "_4th_StreetPizzaCo", 
+                           "SanPedroSquareMarket",
+                           "AndroidAP3AE2"}; // Saving in PROGMEM 
                                
 String counterNames[] = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
 
@@ -103,13 +105,16 @@ void loadParameters();
 void saveParameters();
 
 // Bluetooth Counters
-void connectToCounter(BluetoothSerial &btUART, String counter);
+bool connectToCounter(BluetoothSerial &btUART, String counter);
 void reconnectToCounter(BluetoothSerial &btUART);
 void processMessage(BluetoothSerial &btUART, int counterID);
+String sendReceive(BluetoothSerial &btUART, String stringToSend, int counterID);
+
 
 // ShuttleStop wants to be a class...
 void   resetShuttleStop(ShuttleStop &shuttleStop);
 void   updateShuttleStop(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber);
+void   updateShuttleStop2(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber);
 String getShuttleStopJSON(ShuttleStop &shuttleStop);
 
 // RouteReport wants to be a class...
@@ -138,7 +143,16 @@ void setup(){
   configureBluetooth();
    
   // TODO: add a second counter when I build one...
-  connectToCounter(btUART, counterNames[SHUTTLE]);
+  
+  //connectToCounter(btUART1, counterNames[SHUTTLE]);
+  sendReceive(btUART1, "-",0);
+  sendReceive(btUART1, "g",0);
+  sendReceive(btUART1, "c",0);
+  
+  //connectToCounter(btUART2, counterNames[TRAILER]);
+  sendReceive(btUART2, "-",1);
+  sendReceive(btUART2, "g",1);
+  sendReceive(btUART2, "c",1);
   
   resetShuttleStop(currentShuttleStop);
   resetRouteReport(shuttleRouteReport);
@@ -170,7 +184,9 @@ void deliverRouteReport(String shuttleRouteReport){
 void processLocationChange(){
 
   // Log what happened at the last location
-  appendRouteReport(shuttleRouteReport, currentShuttleStop);
+  if (currentShuttleStop.endTime != "00:00:00"){ // Don't append if no events are present. 
+    appendRouteReport(shuttleRouteReport, currentShuttleStop);
+  }
   
   // Get ready to take data here, at the new location
   resetShuttleStop(currentShuttleStop);
@@ -200,8 +216,9 @@ void processLocationChange(){
   }
   
   previousLocation = currentLocation;
-  displayUpdateNeeded = true; // Display update handled in a separate task. 
-   
+  //xSemaphoreTake(mutex_v, portMAX_DELAY); 
+     displayUpdateNeeded = true;
+  //xSemaphoreGive(mutex_v);
 }
 
 
@@ -209,34 +226,66 @@ void processLocationChange(){
 // Main Loop                                   
 //****************************************************************************************
 unsigned int t1=0,t2=t1;
+unsigned int t3=0,t4=t3;
 
 void loop(){
 
   t2=millis();
-  if ((t2-t1)>5000){
+  if ((t2-t1)>60000){
     currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
-    DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " +currentLocation);
+    DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " + currentLocation);
     t1=millis(); 
   }
 
   if (currentLocation != previousLocation){ // We've moved
+
+    DEBUG_PRINTLN("New Location!");
+    String counterStats = sendReceive(btUART1, "g",0); // Get the last state
+    updateShuttleStop2(currentShuttleStop, counterStats, 0);
+    counterStats = sendReceive(btUART1, "c",0); // Clear the counter
+
+    counterStats = sendReceive(btUART2, "g",1); // Get the last state
+    updateShuttleStop2(currentShuttleStop, counterStats, 1);
+    counterStats = sendReceive(btUART2, "c",1); // Clear the counter
+
+    
     processLocationChange();
   }
 
   // We have just received some data. 
   // Take the message from the counter and update the current shuttleStop struct.
   xSemaphoreTake(mutex_v, portMAX_DELAY); 
-  if (btUART.available()) {
-    processMessage(btUART, 0); 
-  }
-  xSemaphoreGive(mutex_v);
+    //if (btUART2.available()) {
+    //  processMessage(btUART2, 1); 
+    //}
+    if (btUART1.available()) {
       
+      processMessage(btUART1, 0); 
+    }
+  xSemaphoreGive(mutex_v);
+
+  t4=millis();
+  if ((t4-t3)>5000){
+    String counterStats = sendReceive(btUART1, "g", 0);
+    updateShuttleStop2(currentShuttleStop, counterStats, 0);
+
+    counterStats = sendReceive(btUART2, "g", 1);
+    updateShuttleStop2(currentShuttleStop, counterStats, 1);
+
+    
+    t3=millis();
+  }    
   
   // Check for lost connection. Try and reconnect if lost.
-  if (!btUART.connected()){
-    reconnectToCounter(btUART);
+  /*
+  if (!btUART1.connected()){
+    reconnectToCounter(btUART1);
   }
-
+  if (!btUART2.connected()){
+    reconnectToCounter(btUART2);
+  }
+  */
+  
   delay(20);
 }
 
@@ -253,7 +302,9 @@ void eInkManager(void *parameter){
     vTaskDelay(updateInterval / portTICK_PERIOD_MS);
     if (displayUpdateNeeded){
       showCountDisplay(currentShuttleStop);
-      displayUpdateNeeded = false;
+      //xSemaphoreTake(mutex_v, portMAX_DELAY); 
+         displayUpdateNeeded = false;
+      //xSemaphoreGive(mutex_v);
     }
   }
 }
@@ -352,7 +403,7 @@ void showCountDisplay(ShuttleStop &shuttleStop){
 // "Unknown"
 //****************************************************************************************
 String scanForKnownLocations(String knownLocations[], int arraySize){
-  String retValue = "Unknown";
+  String retValue = "Unknown_" + String(getRTCHour()) +":" + String(getRTCMinute()) +":" + String(getRTCSecond());
   //DEBUG_PRINTLN(" Scanning...");
   // WiFi.scanNetworks will return the number of networks found
   int n = WiFi.scanNetworks();
@@ -414,9 +465,14 @@ void configureWiFi(){
 
 void configureBluetooth(){  
   DEBUG_PRINTLN(" Bluetooth...");
-  btUART.begin("ShuttleBasestation", true); // Bluetooth device name 
+  //btUART2.begin("ShuttleBasestationB", true); // Bluetooth device name 
+                                            //  TODO: Provide opportunity to change names. 
+  //delay(500); // Give port time to initalize
+  btUART1.begin("ShuttleBasestationA", true); // Bluetooth device name 
                                             //  TODO: Provide opportunity to change names. 
   delay(500); // Give port time to initalize
+  
+
 }
 
 
@@ -435,8 +491,27 @@ void configureEinkManagerTask(){
     0);               // pin task to core 0   
 }
 
+void connectToCounterAddress(BluetoothSerial &btUART, uint8_t remoteAddress[]){
+// Comment from the library author: 
+// connect(address) is fast (upto 10 secs max), connect(name) is slow (upto 30 secs max) as it needs
+// to resolve name to address first, but it allows to connect to different devices with the same name.
+// Set CoreDebugLevel to Info to view devices bluetooth address and device names
+  
+  DEBUG_PRINT("  Connecting to address...");
+  bool connected = btUART.connect(remoteAddress);
+  
+  if(connected) {
+    DEBUG_PRINTLN(" Success!");
+  } else {
+    while(!btUART.connected(10000)) {
+      DEBUG_PRINTLN(" Failed to connect. Make sure remote device is available and in range, then restart app."); 
+    }
+  }  
 
-void connectToCounter(BluetoothSerial &btUART, String counter){ 
+  
+}
+
+bool connectToCounter(BluetoothSerial &btUART, String counter){ 
 // Comment from the library author: 
 // connect(address) is fast (upto 10 secs max), connect(name) is slow (upto 30 secs max) as it needs
 // to resolve name to address first, but it allows to connect to different devices with the same name.
@@ -451,8 +526,37 @@ void connectToCounter(BluetoothSerial &btUART, String counter){
     while(!btUART.connected(10000)) {
       DEBUG_PRINTLN(" Failed to connect. Make sure remote device is available and in range, then restart app."); 
     }
-  }  
+  } 
+
+  return connected; 
 }
+
+
+String sendReceive(BluetoothSerial &btUART, String stringToSend, int counterID){
+  
+  String inString="";
+
+  if (connectToCounter(btUART, counterNames[counterID])){
+  
+    btUART.println(stringToSend);
+    while (!(btUART.available())){
+      delay(10);
+    }  
+  
+    if ( btUART.available() ) inString = btUART.readStringUntil('\n');
+    inString.trim();
+    DEBUG_PRINTLN("Reply to:  " + stringToSend);
+    DEBUG_PRINTLN(inString);
+
+  }
+
+  btUART.disconnect();
+  
+  return inString;  
+  
+
+}
+
 
 
 // Data Management TODO: Turn much of this into a couple of classes
@@ -463,7 +567,7 @@ void connectToCounter(BluetoothSerial &btUART, String counter){
 void resetShuttleStop(ShuttleStop &shuttleStop){
   shuttleStop.location = currentLocation;
   shuttleStop.startTime = getRTCTime();
-  shuttleStop.endTime = shuttleStop.startTime;
+  shuttleStop.endTime = "00:00:00"; //shuttleStop.startTime;
   shuttleStop.counterEvents[SHUTTLE][INBOUND] = 0;
   shuttleStop.counterEvents[SHUTTLE][OUTBOUND] = 0;
   shuttleStop.counterEvents[TRAILER][INBOUND] = 0;
@@ -487,6 +591,40 @@ void updateShuttleStop(ShuttleStop &shuttleStop, String jsonMessage, int counter
     shuttleStop.counterEvents[counterNumber][INBOUND]++;   //  = (const char *)counterMessage["count"];  
   }else{
     shuttleStop.counterEvents[counterNumber][OUTBOUND]++;  // = (const char *)counterMessage["count"];  
+  }
+
+  /*counterMessage["eventTime"] = getRTCTime();
+  String test;
+  serializeJson(counterMessage, test);
+  DEBUG_PRINTLN(test);
+  appendFile(SPIFFS,"/events.txt",test+",");
+  DEBUG_PRINTLN(readFile(SPIFFS,"/events.txt"));
+  */
+}
+
+//****************************************************************************************
+// Update the shuttleStop with data from one of the counters. 'message' is the JSON 
+// string the counters send us over Bluetooth.                                   
+//****************************************************************************************
+void updateShuttleStop2(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber){
+  StaticJsonDocument<2048> counterMessage;  
+  deserializeJson(counterMessage, jsonMessage);
+
+  unsigned int inCount = atoi((const char *)counterMessage["inbound"]);
+  unsigned int outCount = atoi((const char *)counterMessage["outbound"]);
+  
+
+  if ((inCount  != shuttleStop.counterEvents[counterNumber][INBOUND]) || 
+      (outCount != shuttleStop.counterEvents[counterNumber][OUTBOUND])) 
+  
+  {
+    shuttleStop.endTime = getRTCTime();
+    shuttleStop.counterMACAddresses[counterNumber]= (const char *)counterMessage["deviceMAC"];
+    shuttleStop.counterEvents[counterNumber][INBOUND] = inCount;
+    shuttleStop.counterEvents[counterNumber][OUTBOUND] = outCount;
+
+    displayUpdateNeeded = true;
+    
   }
 }
 
@@ -557,7 +695,9 @@ void processMessage(BluetoothSerial &btUART, int counterID){
   Serial.print("Incoming Message: ");
   Serial.println(inString);  
   updateShuttleStop(currentShuttleStop, inString, counterID);
-  displayUpdateNeeded = true; // Display update handled in a separate task. 
+  //xSemaphoreTake(mutex_v, portMAX_DELAY); 
+     displayUpdateNeeded = true;
+  //xSemaphoreGive(mutex_v);
 }
 
 
