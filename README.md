@@ -2,7 +2,7 @@
 Next-Generation systems for Park Data collection
 
 ### Authors: 
-John Price, Jason Pitts
+John Price, Jason Pitts, Bailee Allen
 
 ### Abstract: 
 
