@@ -6,7 +6,9 @@
     Parkdata System when a shuttle returns within range of a specific WiFi SSID
     desigated as the "reportLocation".
 
-    As the bus travels its route, WiFi SSIDs are used to track location.
+    As the bus travels its route, WiFi SSIDs are used to track location. If 
+    events are logged at an unknown location a pseudo location starting with 'UN' 
+    is created.
     
     Written for the ESP32 WROOM Dev board V4 
     (Incl. WiFi, Bluetooth, and stacks of I/O.)
@@ -32,6 +34,14 @@
 #include <WiFi.h>           
 #include <ArduinoJson.h>     
 
+#include <CircularBuffer.h>   // Adafruit library for handling circular buffers of data. 
+
+const int samples = 100;
+
+CircularBuffer<String *, samples> shuttleStops; // A buffer containing pointers to JSON messages to be 
+                                                // sent to the LoRa basestation or server.
+
+
 NetworkConfig networkConfig; // See digameNetwork_v2.h Currently using defaults. 
                              // TODO: initialize with what we want...
 
@@ -39,7 +49,7 @@ BluetoothSerial btUART1; // Create a BlueTooth Serial port to talk to the counte
 BluetoothSerial btUART2; // Create a BlueTooth Serial port to talk to the counter
 
 struct ShuttleStop { 
-  String location       = "Unknown";  
+  String location       = "UN";  
   String startTime      = "00:00:00"; // When we got to this location
   String endTime        = "00:00:00"; // When we last saw an event while here
   String counterMACAddresses[NUM_COUNTERS]    = {"",""};  // TODO: Consider moving into the "BaseStation"
@@ -48,9 +58,6 @@ struct ShuttleStop {
 };
 
 ShuttleStop currentShuttleStop;
-
-String shuttleRouteReport; // Aggreates the event summaries for each shuttle stop. 
-
 
 // TODO: Read these from a configuration file
 // "Basestation" wants to be an Object... Many of these might be his properties.
@@ -69,17 +76,16 @@ String knownLocations[] = {"_Bighead",
                                
 String counterNames[] = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
 
+uint8_t counter1Address[] = {0xAC,0x0B,0xFB,0x25,0xC6,0x12};
+uint8_t counter2Address[] = {0xE8,0x68,0xE7,0x30,0xAA,0x0E};
                          
-String currentLocation  = "Unknown"; 
-String previousLocation = "Unknown";
+String currentLocation  = "UN"; 
+String previousLocation = "UN";
 
 
 // Multi-Tasking
 SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
 TaskHandle_t eInkManagerTask;  // A task to update the eInk display.
-
-// Flags for Tasks to take action
-bool displayUpdateNeeded   = false;
 
 
 // Utility Function: Number of items in an array
@@ -87,7 +93,6 @@ bool displayUpdateNeeded   = false;
 
 // WiFi
 String scanForKnownLocations(String knownLocations[], int arraySize);
-
 
 // UI
 void showSplashScreen();
@@ -102,25 +107,19 @@ void configureWiFi();
 void configureBluetooth(); 
 void configureEinkManagerTask();
 void loadParameters();
-void saveParameters();
+
 
 // Bluetooth Counters
 bool connectToCounter(BluetoothSerial &btUART, String counter);
-void reconnectToCounter(BluetoothSerial &btUART);
-void processMessage(BluetoothSerial &btUART, int counterID);
+bool connectToCounterAddr(BluetoothSerial &btUART, uint8_t counterAddr[]);
+
 String sendReceive(BluetoothSerial &btUART, String stringToSend, int counterID);
 
-
 // ShuttleStop wants to be a class...
+void   pushShuttleStop(ShuttleStop &shuttleStop);
 void   resetShuttleStop(ShuttleStop &shuttleStop);
 void   updateShuttleStop(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber);
-void   updateShuttleStop2(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber);
 String getShuttleStopJSON(ShuttleStop &shuttleStop);
-
-// RouteReport wants to be a class...
-void   resetRouteReport(String &routeReport);
-void   appendRouteReport(String &routeReport, ShuttleStop &shuttleStop);
-String formatRouteReport(String &routeReport);
 
 
 //****************************************************************************************
@@ -134,104 +133,47 @@ void setup(){
                                      // across tasks
   showSplashScreen();
   loadParameters();
+  
   configureIO();
   configureDisplay();
   configureRTC();
-  networkConfig.ssid = reportingLocation;
-  networkConfig.password = reportingLocationPassword;
+
+  // TODO: make configurable.
+  networkConfig.ssid      = reportingLocation;
+  networkConfig.password  = reportingLocationPassword;
+  networkConfig.serverURL = "http://199.21.201.53/trailwaze/zion/lidar_shuttle_import.php";
+  
   configureWiFi();
   configureBluetooth();
    
-  // TODO: add a second counter when I build one...
-  
-  //connectToCounter(btUART1, counterNames[SHUTTLE]);
-  sendReceive(btUART1, "-",0);
-  sendReceive(btUART1, "g",0);
-  sendReceive(btUART1, "c",0);
-  
-  //connectToCounter(btUART2, counterNames[TRAILER]);
-  sendReceive(btUART2, "-",1);
-  sendReceive(btUART2, "g",1);
-  sendReceive(btUART2, "c",1);
+  sendReceive(btUART1, "-",0); // Turn off the menu system
+  sendReceive(btUART1, "g",0); // Get a value
+  sendReceive(btUART1, "c",0); // Clear the counter
   
   resetShuttleStop(currentShuttleStop);
-  resetRouteReport(shuttleRouteReport);
-
+  
   configureEinkManagerTask();
   
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("RUNNING!");
-  xSemaphoreTake(mutex_v, portMAX_DELAY); 
-    DEBUG_PRINT("mainLoop Running on Core #: ");
-    DEBUG_PRINTLN(xPortGetCoreID());
-  xSemaphoreGive(mutex_v);
-  
+  DEBUG_PRINT("mainLoop Running on Core #: ");
+  DEBUG_PRINTLN(xPortGetCoreID());
   DEBUG_PRINTLN();
 }
 
-void deliverRouteReport(String shuttleRouteReport){
-  
-  String reportToIssue = shuttleRouteReport; 
-
-  if (WiFi.status() != WL_CONNECTED){  
-    enableWiFi(networkConfig);
-  }
-  if (WiFi.status() == WL_CONNECTED){
-    postJSON(reportToIssue, networkConfig);  
-  } 
-}
-
-void processLocationChange(){
-
-  // Log what happened at the last location
-  if (currentShuttleStop.endTime != "00:00:00"){ // Don't append if no events are present. 
-    appendRouteReport(shuttleRouteReport, currentShuttleStop);
-  }
-  
-  // Get ready to take data here, at the new location
-  resetShuttleStop(currentShuttleStop);
-  
-  if (currentLocation == reportingLocation){
-    DEBUG_PRINTLN("We have arrived at the reportingLocation!"); 
-    DEBUG_PRINTLN("ROUTE REPORT: ");
-    DEBUG_PRINTLN(shuttleRouteReport);
-
-    // The WiFi Reporting task Touches the Shuttle Route Report as well.
-    xSemaphoreTake(mutex_v, portMAX_DELAY); 
-      // Tidy up the routeReport for delivery
-      shuttleRouteReport = formatRouteReport(shuttleRouteReport);
-    xSemaphoreGive(mutex_v);
-    
-    deliverRouteReport(shuttleRouteReport);
-    
-    // Get ready to start again
-    xSemaphoreTake(mutex_v, portMAX_DELAY); 
-      resetRouteReport(shuttleRouteReport);
-    xSemaphoreGive(mutex_v);
-    
-  }else if (previousLocation == reportingLocation){
-    DEBUG_PRINTLN("We have left the reportingLocation!");
-  } else {
-    DEBUG_PRINTLN("We have changed shuttle stops!");
-  }
-  
-  previousLocation = currentLocation;
-  //xSemaphoreTake(mutex_v, portMAX_DELAY); 
-     displayUpdateNeeded = true;
-  //xSemaphoreGive(mutex_v);
-}
-
 
 //****************************************************************************************
-// Main Loop                                   
+// MAIN LOOP                                   
 //****************************************************************************************
-unsigned int t1=0,t2=t1;
+unsigned int t1=-600000,t2=t1;
 unsigned int t3=0,t4=t3;
 
 void loop(){
 
   t2=millis();
-  if ((t2-t1)>60000){
+  
+  // Scan for know SSIDs.
+  if ((t2-t1)>5000){
     currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
     DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " + currentLocation);
     t1=millis(); 
@@ -240,51 +182,20 @@ void loop(){
   if (currentLocation != previousLocation){ // We've moved
 
     DEBUG_PRINTLN("New Location!");
-    String counterStats = sendReceive(btUART1, "g",0); // Get the last state
-    updateShuttleStop2(currentShuttleStop, counterStats, 0);
+    String counterStats = sendReceive(btUART1, "g",0); // Get the current count
+    if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
     counterStats = sendReceive(btUART1, "c",0); // Clear the counter
 
-    counterStats = sendReceive(btUART2, "g",1); // Get the last state
-    updateShuttleStop2(currentShuttleStop, counterStats, 1);
-    counterStats = sendReceive(btUART2, "c",1); // Clear the counter
-
-    
     processLocationChange();
   }
-
-  // We have just received some data. 
-  // Take the message from the counter and update the current shuttleStop struct.
-  xSemaphoreTake(mutex_v, portMAX_DELAY); 
-    //if (btUART2.available()) {
-    //  processMessage(btUART2, 1); 
-    //}
-    if (btUART1.available()) {
-      
-      processMessage(btUART1, 0); 
-    }
-  xSemaphoreGive(mutex_v);
-
-  t4=millis();
-  if ((t4-t3)>5000){
+ 
+  // Poll the counters.
+  t4 = millis();
+  if ((t4-t3)>1000){
     String counterStats = sendReceive(btUART1, "g", 0);
-    updateShuttleStop2(currentShuttleStop, counterStats, 0);
-
-    counterStats = sendReceive(btUART2, "g", 1);
-    updateShuttleStop2(currentShuttleStop, counterStats, 1);
-
-    
-    t3=millis();
+    if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
+    t3 = millis();   
   }    
-  
-  // Check for lost connection. Try and reconnect if lost.
-  /*
-  if (!btUART1.connected()){
-    reconnectToCounter(btUART1);
-  }
-  if (!btUART2.connected()){
-    reconnectToCounter(btUART2);
-  }
-  */
   
   delay(20);
 }
@@ -298,16 +209,84 @@ void loop(){
 //****************************************************************************************
 void eInkManager(void *parameter){
   const unsigned int updateInterval = 5000;
-  for(;;){ 
+  static int lastInCount = 0;
+  static int lastOutCount = 0;
+  for(;;){
+     
     vTaskDelay(updateInterval / portTICK_PERIOD_MS);
-    if (displayUpdateNeeded){
-      showCountDisplay(currentShuttleStop);
-      //xSemaphoreTake(mutex_v, portMAX_DELAY); 
-         displayUpdateNeeded = false;
-      //xSemaphoreGive(mutex_v);
+
+    // Check if we need an update to the display... 
+    if ( (lastInCount  != currentShuttleStop.counterEvents[SHUTTLE][INBOUND]) ||
+         (lastOutCount != currentShuttleStop.counterEvents[SHUTTLE][OUTBOUND]) ) {   
+        
+        lastInCount  = currentShuttleStop.counterEvents[SHUTTLE][INBOUND];
+        lastOutCount = currentShuttleStop.counterEvents[SHUTTLE][OUTBOUND];   
+        showCountDisplay(currentShuttleStop);
     }
   }
 }
+
+//****************************************************************************************
+void deliverRouteReport(){
+//****************************************************************************************
+  String reportToIssue = routeReportPrefix(); 
+  bool postSuccessful = false;
+
+  while (shuttleStops.size() > 0){ 
+    DEBUG_PRINT("Buffer Size: ");
+    DEBUG_PRINTLN(shuttleStops.size());
+
+    reportToIssue = routeReportPrefix(); 
+
+    if (WiFi.status() != WL_CONNECTED){  
+      while (!(WiFi.status() == WL_CONNECTED)){enableWiFi(networkConfig);}
+    }
+  
+    String activeShuttleStop = String(shuttleStops.first()->c_str()); // Read from the buffer without removing the data from it.
+    DEBUG_PRINTLN(activeShuttleStop);
+    reportToIssue += activeShuttleStop;
+    //if (shuttleStops.size>1) reportToIssue += ","
+    reportToIssue += "]}";
+
+    DEBUG_PRINTLN(reportToIssue);
+  
+    postSuccessful = postJSON(reportToIssue, networkConfig);
+
+    if (postSuccessful) {
+      String  * entry = shuttleStops.shift();
+      delete entry;
+      DEBUG_PRINTLN("Success!");
+      DEBUG_PRINTLN();
+    }
+
+  }
+   
+}
+
+//****************************************************************************************
+void processLocationChange()
+//****************************************************************************************
+{
+  // Log what happened at the last location
+  if (currentShuttleStop.endTime != "00:00:00"){ // Append if events are present. 
+    pushShuttleStop(currentShuttleStop);
+  }
+  
+  // Get ready to take data here, at the new location
+  resetShuttleStop(currentShuttleStop);
+  
+  if (currentLocation == reportingLocation){
+    DEBUG_PRINTLN("We have arrived at the reportingLocation!"); 
+    deliverRouteReport();
+  } else if (previousLocation == reportingLocation){
+    DEBUG_PRINTLN("We have left the reportingLocation!");
+  } else {
+    DEBUG_PRINTLN("We have changed shuttle stops!");
+  }
+  
+  previousLocation = currentLocation;
+}
+
 
 // IO Routines 
 void loadParameters(){
@@ -349,12 +328,6 @@ void loadParameters(){
 }
 
 
-void saveParameters(){
-  
-}
-
-
-
 // UI Routines
 
 //****************************************************************************************
@@ -382,17 +355,17 @@ void showSplashScreen(){
 void showCountDisplay(ShuttleStop &shuttleStop){
   char stopInfo [512];
   int n;
-  n = sprintf(stopInfo, "Shuttle:\n       In:  %d\n       Out: %d\n\nTrailer:\n       In:  %d\n       Out: %d\n",
-              shuttleStop.counterEvents[SHUTTLE][INBOUND],
-              shuttleStop.counterEvents[SHUTTLE][OUTBOUND],
-              shuttleStop.counterEvents[TRAILER][INBOUND],
-              shuttleStop.counterEvents[TRAILER][OUTBOUND]);
+    
+  n = sprintf(stopInfo, "\n In  %d\n\n Out %d\n",
+            shuttleStop.counterEvents[SHUTTLE][INBOUND],
+            shuttleStop.counterEvents[SHUTTLE][OUTBOUND]);
 
   if (shuttleStop.location == reportingLocation){
-    displayTextScreen("Visitors' Center", stopInfo);
+    displayTextScreenLarge("Visitors' Center", stopInfo);
   } else {
-    displayTextScreen(shuttleStop.location.c_str(), stopInfo);
-  }             
+    displayTextScreenLarge(shuttleStop.location.c_str(), stopInfo);
+  }
+               
 }
 
 // WiFI 
@@ -400,10 +373,15 @@ void showCountDisplay(ShuttleStop &shuttleStop){
 //****************************************************************************************
 // Scans to see if we are at a known location. This version uses WiFi networks. 
 // Here, we return the strongest known SSID we can see. If we don't see any, we return
-// "Unknown"
+// "UN_HH:MM:SS"
 //****************************************************************************************
 String scanForKnownLocations(String knownLocations[], int arraySize){
-  String retValue = "Unknown_" + String(getRTCHour()) +":" + String(getRTCMinute()) +":" + String(getRTCSecond());
+
+  char strTime[12];
+  sprintf (strTime, "%02d:%02d:%02d", getRTCHour(),getRTCMinute(),getRTCSecond());
+  
+  String retValue = "UN " + String(strTime);
+  
   //DEBUG_PRINTLN(" Scanning...");
   // WiFi.scanNetworks will return the number of networks found
   int n = WiFi.scanNetworks();
@@ -465,14 +443,12 @@ void configureWiFi(){
 
 void configureBluetooth(){  
   DEBUG_PRINTLN(" Bluetooth...");
-  //btUART2.begin("ShuttleBasestationB", true); // Bluetooth device name 
+  btUART2.begin("ShuttleBasestationB", true); // Bluetooth device name 
                                             //  TODO: Provide opportunity to change names. 
-  //delay(500); // Give port time to initalize
+  delay(500); // Give port time to initalize
   btUART1.begin("ShuttleBasestationA", true); // Bluetooth device name 
                                             //  TODO: Provide opportunity to change names. 
   delay(500); // Give port time to initalize
-  
-
 }
 
 
@@ -491,25 +467,6 @@ void configureEinkManagerTask(){
     0);               // pin task to core 0   
 }
 
-void connectToCounterAddress(BluetoothSerial &btUART, uint8_t remoteAddress[]){
-// Comment from the library author: 
-// connect(address) is fast (upto 10 secs max), connect(name) is slow (upto 30 secs max) as it needs
-// to resolve name to address first, but it allows to connect to different devices with the same name.
-// Set CoreDebugLevel to Info to view devices bluetooth address and device names
-  
-  DEBUG_PRINT("  Connecting to address...");
-  bool connected = btUART.connect(remoteAddress);
-  
-  if(connected) {
-    DEBUG_PRINTLN(" Success!");
-  } else {
-    while(!btUART.connected(10000)) {
-      DEBUG_PRINTLN(" Failed to connect. Make sure remote device is available and in range, then restart app."); 
-    }
-  }  
-
-  
-}
 
 bool connectToCounter(BluetoothSerial &btUART, String counter){ 
 // Comment from the library author: 
@@ -517,47 +474,123 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 // to resolve name to address first, but it allows to connect to different devices with the same name.
 // Set CoreDebugLevel to Info to view devices bluetooth address and device names
   
-  DEBUG_PRINT("  Connecting to " + counter + "...");
+  DEBUG_PRINT("Connecting to " + counter + "...");
   bool connected = btUART.connect(counter);
   
   if(connected) {
     DEBUG_PRINTLN(" Success!");
   } else {
-    while(!btUART.connected(10000)) {
-      DEBUG_PRINTLN(" Failed to connect. Make sure remote device is available and in range, then restart app."); 
-    }
+    DEBUG_PRINTLN(" Failed to connect."); 
   } 
 
   return connected; 
 }
 
 
-String sendReceive(BluetoothSerial &btUART, String stringToSend, int counterID){
+bool connectToCounterAddr(BluetoothSerial &btUART, uint8_t counterAddr[] ){ 
+// Comment from the library author: 
+// connect(address) is fast (upto 10 secs max), connect(name) is slow (upto 30 secs max) as it needs
+// to resolve name to address first, but it allows to connect to different devices with the same name.
+// Set CoreDebugLevel to Info to view devices bluetooth address and device names
   
-  String inString="";
+  DEBUG_PRINT("Connecting to address...");
+  bool connected = btUART.connect(counterAddr);
+  
+  if(connected) {
+    DEBUG_PRINTLN(" Success!");
+  } else {
+    DEBUG_PRINTLN(" Failed to connect."); 
+  } 
 
-  if (connectToCounter(btUART, counterNames[counterID])){
-  
-    btUART.println(stringToSend);
-    while (!(btUART.available())){
-      delay(10);
-    }  
-  
-    if ( btUART.available() ) inString = btUART.readStringUntil('\n');
-    inString.trim();
-    DEBUG_PRINTLN("Reply to:  " + stringToSend);
-    DEBUG_PRINTLN(inString);
-
-  }
-
-  btUART.disconnect();
-  
-  return inString;  
-  
-
+  return connected; 
 }
 
+String sendReceive(BluetoothSerial &btUART, String stringToSend, int counterID){
+  unsigned int timeout = 2000;
+  bool timedOut = false; 
+  unsigned long t1, t2;
+  String inString="";
+  bool btConnected = false; 
+  int maxRetries = 10;
+  int retries = 0; 
+  static int lastID = 0; 
+  
+  unsigned long t3 = millis();
+  
+  if ((lastID!=counterID)||(btUART.connected()==false)){
 
+    if (btUART.connected()){ btUART.disconnect();}
+    
+    // Give ourselves a couple attempts to make a connection. 
+    while ((retries<maxRetries)&&(!(btConnected))){
+      DEBUG_PRINTLN("TRY: " + String(retries));
+  
+      //Lookup by name
+      btConnected = connectToCounter(btUART, counterNames[counterID]);
+  
+      //Lookup by addr (seems less reliable for some reason...)
+      /*
+      if (counterID == SHUTTLE){
+        btConnected = connectToCounterAddr(btUART, counter1Address);
+      } else if (counterID == TRAILER){
+        btConnected = connectToCounterAddr(btUART, counter2Address);
+      }
+
+      */
+      retries++;
+    }
+  }
+
+  
+  if (btUART.connected()){
+    
+    if (btUART.available()){
+      String junkString = btUART.readString();
+      DEBUG_PRINTLN("Junk: " + junkString);  
+    }
+
+    btUART.flush();
+    btUART.println(stringToSend);
+    
+    t1 = millis();
+    t2 = t1;
+    
+    while ( (!(btUART.available())) && (!(timedOut)) ){
+      delay(10);
+      t2 = millis();
+      timedOut = ((t2-t1) > timeout );
+    }  
+
+    if (timedOut){ 
+      return inString; 
+    }
+    
+    if ( btUART.available() ){ 
+      //while ( btUART.available() ){  // read until we are caught up.
+        inString = btUART.readStringUntil('\n');
+      //}
+
+      if (btUART.available()){
+        DEBUG_PRINTLN("EXTRA STUFF!!!!");
+      }
+       
+      inString.trim();
+      //DEBUG_PRINTLN("Reply to:  " + stringToSend);
+      DEBUG_PRINTLN(getRTCTime() + " " + inString);
+        
+    }
+    
+  
+  } else {
+    DEBUG_PRINTLN("Problem connecting to counter.");  
+  }
+
+  unsigned long t4 = millis();
+
+  //DEBUG_PRINTLN("Time for sendReceive: " + String(t4-t3));
+  return inString;  
+  
+}
 
 // Data Management TODO: Turn much of this into a couple of classes
 
@@ -581,38 +614,16 @@ void resetShuttleStop(ShuttleStop &shuttleStop){
 //****************************************************************************************
 void updateShuttleStop(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber){
   StaticJsonDocument<2048> counterMessage;  
-  deserializeJson(counterMessage, jsonMessage);
+  
+  DeserializationError err = deserializeJson(counterMessage, jsonMessage);
 
-  shuttleStop.endTime = getRTCTime();
-
-  shuttleStop.counterMACAddresses[counterNumber]= (const char *)counterMessage["deviceMAC"];
-   
-  if (counterMessage["eventType"] =="inbound"){
-    shuttleStop.counterEvents[counterNumber][INBOUND]++;   //  = (const char *)counterMessage["count"];  
-  }else{
-    shuttleStop.counterEvents[counterNumber][OUTBOUND]++;  // = (const char *)counterMessage["count"];  
+  if (err){
+    DEBUG_PRINTLN("deserializeJson() failed.");
+    return;  
   }
-
-  /*counterMessage["eventTime"] = getRTCTime();
-  String test;
-  serializeJson(counterMessage, test);
-  DEBUG_PRINTLN(test);
-  appendFile(SPIFFS,"/events.txt",test+",");
-  DEBUG_PRINTLN(readFile(SPIFFS,"/events.txt"));
-  */
-}
-
-//****************************************************************************************
-// Update the shuttleStop with data from one of the counters. 'message' is the JSON 
-// string the counters send us over Bluetooth.                                   
-//****************************************************************************************
-void updateShuttleStop2(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber){
-  StaticJsonDocument<2048> counterMessage;  
-  deserializeJson(counterMessage, jsonMessage);
-
+  
   unsigned int inCount = atoi((const char *)counterMessage["inbound"]);
   unsigned int outCount = atoi((const char *)counterMessage["outbound"]);
-  
 
   if ((inCount  != shuttleStop.counterEvents[counterNumber][INBOUND]) || 
       (outCount != shuttleStop.counterEvents[counterNumber][OUTBOUND])) 
@@ -622,9 +633,6 @@ void updateShuttleStop2(ShuttleStop &shuttleStop, String jsonMessage, int counte
     shuttleStop.counterMACAddresses[counterNumber]= (const char *)counterMessage["deviceMAC"];
     shuttleStop.counterEvents[counterNumber][INBOUND] = inCount;
     shuttleStop.counterEvents[counterNumber][OUTBOUND] = outCount;
-
-    displayUpdateNeeded = true;
-    
   }
 }
 
@@ -635,9 +643,9 @@ void updateShuttleStop2(ShuttleStop &shuttleStop, String jsonMessage, int counte
 String getShuttleStopJSON(ShuttleStop &shuttleStop){   
   StaticJsonDocument<2048> shuttleStopJSON;
   
-  shuttleStopJSON["location"]               = shuttleStop.location;
-  shuttleStopJSON["startTime"]              = shuttleStop.startTime;
-  shuttleStopJSON["endTime"]                = shuttleStop.endTime;
+  shuttleStopJSON["location"]                          = shuttleStop.location;
+  shuttleStopJSON["startTime"]                         = shuttleStop.startTime;
+  shuttleStopJSON["endTime"]                           = shuttleStop.endTime;
   shuttleStopJSON["sensors"]["shuttle"]["macAddress"]  = shuttleStop.counterMACAddresses[SHUTTLE];
   shuttleStopJSON["sensors"]["shuttle"]["inbound"]     = shuttleStop.counterEvents[SHUTTLE][INBOUND];
   shuttleStopJSON["sensors"]["shuttle"]["outbound"]    = shuttleStop.counterEvents[SHUTTLE][OUTBOUND];
@@ -657,54 +665,21 @@ String getShuttleStopJSON(ShuttleStop &shuttleStop){
 //****************************************************************************************
 // Prefix for the JSON shuttle route report.                                  
 //****************************************************************************************
-void resetRouteReport(String &routeReport){
-    routeReport = "{\"routeName\":\"" + routeName    + "\"," +
-                   "\"shuttleName\":\"" + shuttleName    + "\"," + 
-                   "\"macAddress\":\"" + getMACAddress() + "\"," +
-                   "\"shuttleStops\":[";  
-
+String routeReportPrefix(){
+   
+    String prefix = "{\"routeName\":\"" + routeName    + "\"," +
+                    "\"shuttleName\":\"" + shuttleName    + "\"," + 
+                    "\"macAddress\":\"" + getMACAddress() + "\"," +
+                    "\"shuttleStops\":["; 
+    return prefix;
 }
 
 
 //****************************************************************************************
-// Body of the JSON shuttle route report.                                 
+// Add the results from a shuttle stop to the circular buffer.                                 
 //****************************************************************************************
-void appendRouteReport(String &routeReport, ShuttleStop &shuttleStop){
-  String shuttleStopJSON = getShuttleStopJSON(shuttleStop);
-  routeReport = routeReport + shuttleStopJSON + ",";
-}
-
-
-//****************************************************************************************
-// Tidy up the JSON routeReport.                               
-//****************************************************************************************
-String formatRouteReport(String &routeReport){  
-  // The last entry will have a trailing comma. Remove it. 
-  int pos = routeReport.lastIndexOf(',');
-  if (pos >=0) routeReport.remove(pos);  
-  // Close out the JSON payload 
-  return routeReport + "]}";
-}
-
-
-//****************************************************************************************
-// Grab a JSON message from a counter and use it to update the currentShuttleStop.                             
-//****************************************************************************************
-void processMessage(BluetoothSerial &btUART, int counterID){
-  String inString = btUART.readStringUntil('\n');
-  Serial.print("Incoming Message: ");
-  Serial.println(inString);  
-  updateShuttleStop(currentShuttleStop, inString, counterID);
-  //xSemaphoreTake(mutex_v, portMAX_DELAY); 
-     displayUpdateNeeded = true;
-  //xSemaphoreGive(mutex_v);
-}
-
-
-//****************************************************************************************
-// If we loose the Bluetooth counter connection, try to get it back.                               
-//****************************************************************************************
-void reconnectToCounter(BluetoothSerial &btUART){
-  Serial.println("Reconnecting...");
-  btUART.connect(); // Uses previous address / name  
+void pushShuttleStop(ShuttleStop &shuttleStop){
+  String shuttleStopJSON = getShuttleStopJSON(shuttleStop);  
+  String * msgPtr = new String(shuttleStopJSON);
+  shuttleStops.push(msgPtr);
 }

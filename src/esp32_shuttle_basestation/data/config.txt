@@ -1,7 +1,7 @@
 {
     "routeName": "Route 1",
     "shuttleName": "Shuttle 6",
-    "knownLocations" :["_Bighead", "William Shatner's Toupee","AndroidAP3AE2"],
+    "knownLocations" :["_Bighead", "_William Shatner's Toupee","AndroidAP3AE2"],
     "reportingLocation": "AndroidAP3AE2",
     "reportingLocationPassword":"ohpp8971",
     "counterNames": ["ShuttleCounter_c610", "ShuttleCounter_aa0c"]

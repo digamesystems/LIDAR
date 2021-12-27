@@ -25,7 +25,7 @@
 
 */
 
-#define hardwarePresent true // Flag so we can debug the code without LIDAR sensors.
+#define HARDWARE_PRESENT false // Flag so we can debug the code without LIDAR sensors.
 
 //****************************************************************************************
 //****************************************************************************************
@@ -53,8 +53,19 @@
 #include <esp_wifi.h>
 
 
+
+// For Over the Air (OTA) updates... 
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncElegantOTA.h>
+
+bool useOTA = true; 
+
+
 //****************************************************************************************
 //****************************************************************************************                        
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
 
 TFMPlus tfmP_1;         // Create a TFMini Plus object for sensor 1
 TFMPlus tfmP_2;         // Create a TFMini Plus object for sensor 2
@@ -81,12 +92,12 @@ int state         = 0;
 unsigned int inCount  = 0;
 unsigned int outCount = 0;
 
-String deviceName        = "Front Door";
+String deviceName        = "Shuttle 6";
 float  distanceThreshold = 160;
 float  smoothingFactor   = 0.95;
 
 bool streamingRawData = false; 
-bool menuActive = true;
+bool menuActive = false;
 
 bool clearDataFlag = false; 
 
@@ -115,6 +126,8 @@ void  configureWiFi();
 void  configureBluetooth();
 void  configureLIDARs();
 
+void  configureOTA();
+
 void initLIDAR(TFMPlus &tfmP, int port=1);
 int  processLIDAR(TFMPlus &tfmP, float &smoothed, int offset);
 
@@ -135,7 +148,7 @@ void setup() // - Device initialization
   delay(1000);            // Give port time to initalize
   
   loadDefaults();
-  showSplashScreen();
+  //showSplashScreen();
   
   DEBUG_PRINTLN("INITIALIZING HARDWARE...");
   //DEBUG_PRINTLN();
@@ -143,6 +156,10 @@ void setup() // - Device initialization
   configureWiFi();
   configureBluetooth();
   configureLIDARs();
+
+  if (useOTA) {
+    configureOTA();  
+  }
 
   // The first part of all of our JSON messages
   String tString = "00:00:00";
@@ -248,7 +265,7 @@ void configureLIDARs(){
 //**************************************************************************************** 
   DEBUG_PRINTLN("  Configuring LIDARS...");
 
-  #if hardwarePresent
+  #if HARDWARE_PRESENT
     DEBUG_PRINTLN("  LIDAR 1...");
     tfMiniUART_1.begin(115200,SERIAL_8N1,25,33);  // Initialize TFMPLus device serial port.
     delay(1000);                    // Give port time to initalize
@@ -260,6 +277,43 @@ void configureLIDARs(){
     initLIDAR(tfmP_2, 2);
   #endif
 
+}
+
+
+//*******************************************************************************************************
+String processor(const String& var){
+  if(var == "config.deviceName") return deviceName;
+  return "";
+}
+
+//****************************************************************************************
+void configureOTA(){
+//****************************************************************************************
+
+  DEBUG_PRINTLN("  Stand-Alone Mode. Setting AP (Access Point)…");  
+  WiFi.mode(WIFI_AP);
+  
+  String netName = "ShuttleCounter_" + getShortMACAddress();
+  const char* ssid = netName.c_str();
+  WiFi.softAP(ssid);
+  
+  IPAddress IP = WiFi.softAPIP();
+  DEBUG_PRINT("    AP IP address: ");
+  DEBUG_PRINTLN(IP);   
+  
+  delay(3000);  
+  
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    if(!request->authenticate("admin", "admin"))
+      return request->requestAuthentication();
+      
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  
+  });
+
+  server.serveStatic("/", SPIFFS, "/"); // sets the base path for the web server
+  AsyncElegantOTA.begin(&server);   
+  server.begin();
 }
 
   
@@ -413,7 +467,7 @@ int processLIDAR(TFMPlus &tfmP, float &smoothed, int offset){
   int lidarUpdateRate = 5; // 100Hz -> 10 ms
   int targetVisible = false;
 
-#if hardwarePresent 
+#if HARDWARE_PRESENT 
   //tfmP.sendCommand(TRIGGER_DETECTION, 0);
 
   //lightSleepMSec(lidarUpdateRate);
@@ -450,7 +504,7 @@ int processLIDAR(TFMPlus &tfmP, float &smoothed, int offset){
 
   return -1; 
 #else // Emulating the presence of the LIDAR sensor
-  delay(250);
+  delay(10);
   return random(2); // returns a random number from 0 to 1
 #endif
 }
