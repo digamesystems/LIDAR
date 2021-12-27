@@ -17,7 +17,7 @@
 
     Copyright 2021, Digame Systems. All rights reserved.
 */
-#define SW_VERSION "1.0.0"
+#define SW_VERSION "1.0.1"
 #define INBOUND  0  // The direction of counter events
 #define OUTBOUND 1
 #define NUM_COUNTERS 2
