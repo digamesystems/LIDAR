@@ -2,11 +2,11 @@
 Next-Generation systems for Park Data collection
 
 ### Authors: 
-John Price, Jason Pitts
+John Price, Jason Pitts, Bailee Allen, Jared Plunket
 
 ### Abstract: 
 
-Recent advances in low power wireless technologies have enabled simple, high-speed connectivity to sensors used for gathering environmental data. Much of the currently deployed sensor infrastructure in the park system, however, is not designed to support wireless connectivity. As a result, park staff are required to visit each sensor site and make manual connections to devices to download data for applications like trail use monitoring. Sometimes these sensors are in areas with rugged terrain, adding to the difficulty in extracting the information and even increasing safety risk. We propose to explore adding a low-power wireless link, (Bluetooth Low Energy, WiFi and LoRAWAN) to novel environmental sensors to allow ‘touchless’ access to this information. 
+Recent advances in low power wireless technologies have enabled simple, high-speed connectivity to sensors used for gathering environmental data. Much of the currently deployed sensor infrastructure in the park system, however, is not designed to support wireless connectivity. As a result, park staff are required to visit each sensor site and make manual connections to devices to download data for applications like trail use monitoring. Sometimes these sensors are in areas with rugged terrain, adding to the difficulty in extracting the information and even increasing risk to the safety of park personelle. We propose to explore adding a low-power wireless link, (Bluetooth Low Energy, WiFi and LoRAWAN) to novel environmental sensors to allow ‘touchless’ access to this information. 
 
 ### Technical Approach: 
 The need for accurate statistics around the use of our recreation areas has been well appreciated for some time:
