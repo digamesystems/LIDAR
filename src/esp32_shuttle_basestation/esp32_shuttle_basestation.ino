@@ -29,10 +29,10 @@
 #include <digameTime.h>       // Time functions for RTC, NTP, etc. 
 #include <digameNetwork_v2.h> // For connections, MAC Address and reporting.
 #include <digameDisplay.h>    // eInk Display support.
+
 #include "BluetoothSerial.h"  // Virtual UART support for Bluetooth Classic 
 #include <WiFi.h>           
 #include <ArduinoJson.h>     
-
 #include <CircularBuffer.h>   // Adafruit library for handling circular buffers of data. 
 
 const int samples = 100;
@@ -40,15 +40,13 @@ const int samples = 100;
 CircularBuffer<String *, samples> shuttleStops; // A buffer containing pointers to JSON messages to be 
                                                 // sent to the LoRa basestation or server.
 
-
-NetworkConfig networkConfig; // See digameNetwork_v2.h Currently using defaults. 
-                             // TODO: initialize with what we want...
+NetworkConfig networkConfig; // See digameNetwork_v2.h for structure definition.
 
 BluetoothSerial btUART1; // Create a BlueTooth Serial port to talk to the counter
 BluetoothSerial btUART2; // Create a BlueTooth Serial port to talk to the counter
 
 struct ShuttleStop { 
-  String location       = "UN";  
+  String location       = "UNK";  
   String startTime      = "00:00:00"; // When we got to this location
   String endTime        = "00:00:00"; // When we last saw an event while here
   String counterMACAddresses[NUM_COUNTERS]    = {"",""};  // TODO: Consider moving into the "BaseStation"
@@ -58,8 +56,7 @@ struct ShuttleStop {
 
 ShuttleStop currentShuttleStop;
 
-// TODO: Read these from a configuration file
-// "Basestation" wants to be an Object... Many of these might be his properties.
+
 String routeName   = "Route 1";
 String shuttleName = "Shuttle 6";
 
@@ -67,26 +64,25 @@ String reportingLocation         = "AndroidAP3AE2";
 String reportingLocationPassword = "ohpp8971";
 
 String knownLocations[] = {"_Bighead", 
-                           "Tower88", 
-                           "William Shatner's Toupee", 
-                           "Pretty Fly For A Wi-Fi V4",
-                           "_4th_StreetPizzaCo", 
-                           "SanPedroSquareMarket",
-                           "AndroidAP3AE2"}; // Saving in PROGMEM 
-                               
+                          "Tower88", 
+                          "William Shatner's Toupee", 
+                          "Pretty Fly For A Wi-Fi V4",
+                          "_4th_StreetPizzaCo", 
+                          "SanPedroSquareMarket",
+                          "AndroidAP3AE2"};
+
 String counterNames[]     = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
 
 uint8_t counter1Address[] = {0xAC,0x0B,0xFB,0x25,0xC6,0x12};
 uint8_t counter2Address[] = {0xE8,0x68,0xE7,0x30,0xAA,0x0E};
-                         
-String currentLocation  = "UN"; 
-String previousLocation = "UN";
+
+String currentLocation  = "UNK"; 
+String previousLocation = "UNK";
 
 
 // Multi-Tasking
 SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
 TaskHandle_t eInkManagerTask;  // A task to update the eInk display.
-
 
 // Utility Function: Number of items in an array
 #define NUMITEMS(arg) ((unsigned int) (sizeof (arg) / sizeof (arg [0])))
@@ -107,7 +103,6 @@ void configureWiFi();
 void configureBluetooth(); 
 void configureEinkManagerTask();
 void loadParameters();
-
 
 // Bluetooth Counters
 bool connectToCounter(BluetoothSerial &btUART, String counter);
@@ -131,21 +126,18 @@ void setup(){
 
   mutex_v = xSemaphoreCreateMutex(); // The mutex we will use to protect variables 
                                      // across tasks
-  showSplashScreen();
+
   loadParameters();
+  showSplashScreen();
   
   configureIO();
   configureDisplay();
   configureRTC();
-
-  // TODO: make configurable.
-  networkConfig.ssid      = reportingLocation;
-  networkConfig.password  = reportingLocationPassword;
-  networkConfig.serverURL = "http://199.21.201.53/trailwaze/zion/lidar_shuttle_import.php";
-  
+    
   configureWiFi();
   configureBluetooth();
-   
+
+  // Setup our counter. 
   sendReceive(btUART1, "-",0); // Turn off the menu system
   sendReceive(btUART1, "g",0); // Get a value
   sendReceive(btUART1, "c",0); // Clear the counter
@@ -167,13 +159,15 @@ void setup(){
 //****************************************************************************************
 unsigned int t1=-600000,t2=t1;
 unsigned int t3=0,t4=t3;
+unsigned int networkScanInterval = 5000;
+unsigned int counterPollingInterval = 1000;
 
 void loop(){
 
   t2=millis();
   
   // Scan for know SSIDs.
-  if ((t2-t1)>5000){
+  if ((t2-t1) > networkScanInterval){
     currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
     DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " + currentLocation);
     t1=millis(); 
@@ -191,7 +185,7 @@ void loop(){
  
   // Poll the counters.
   t4 = millis();
-  if ((t4-t3)>1000){
+  if ((t4-t3) > counterPollingInterval){
     String counterStats = sendReceive(btUART1, "g", 0);
     if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
     t3 = millis();   
@@ -201,19 +195,17 @@ void loop(){
 }
 
 
-// Tasks:
-
 //****************************************************************************************
 // A TASK that runs on Core0. Updates the eInk display with the currentShuttleStop data
 // if it has changed.
 //****************************************************************************************
 void eInkManager(void *parameter){
-  const unsigned int updateInterval = 5000;
+  const unsigned int displayUpdateInterval = 5000;
   static int lastInCount = 0;
   static int lastOutCount = 0;
   for(;;){
      
-    vTaskDelay(updateInterval / portTICK_PERIOD_MS);
+    vTaskDelay(displayUpdateInterval / portTICK_PERIOD_MS);
 
     // Check if we need an update to the display... 
     if ( (lastInCount  != currentShuttleStop.counterEvents[SHUTTLE][INBOUND]) ||
@@ -225,6 +217,7 @@ void eInkManager(void *parameter){
     }
   }
 }
+
 
 //****************************************************************************************
 void deliverRouteReport(){
@@ -288,8 +281,11 @@ void processLocationChange()
 }
 
 
-// IO Routines 
+// IO Routines
+
+//****************************************************************************************
 void loadParameters(){
+//****************************************************************************************
   StaticJsonDocument<2048> doc;  
  
   if(!SPIFFS.begin()){
@@ -311,6 +307,11 @@ void loadParameters(){
     routeName                 = (const char *)doc["routeName"];
     reportingLocation         = (const char *)doc["reportingLocation"];
     reportingLocationPassword = (const char *)doc["reportingLocationPassword"];
+
+    
+    networkConfig.ssid      = reportingLocation;
+    networkConfig.password  = reportingLocationPassword;
+    networkConfig.serverURL = "http://199.21.201.53/trailwaze/zion/lidar_shuttle_import.php";
     
     //DEBUG_PRINTLN(doc["knownLocations"].size());
     
@@ -373,21 +374,17 @@ void showCountDisplay(ShuttleStop &shuttleStop){
 //****************************************************************************************
 // Scans to see if we are at a known location. This version uses WiFi networks. 
 // Here, we return the strongest known SSID we can see. If we don't see any, we return
-// "UN_HH:MM:SS"
+// "UNK HH:MM:SS"
 //****************************************************************************************
 String scanForKnownLocations(String knownLocations[], int arraySize){
 
   char strTime[12];
   sprintf (strTime, "%02d:%02d:%02d", getRTCHour(),getRTCMinute(),getRTCSecond());
   
-  String retValue = "UN " + String(strTime);
+  String retValue = "UNK " + String(strTime);
   
-  //DEBUG_PRINTLN(" Scanning...");
   // WiFi.scanNetworks will return the number of networks found
   int n = WiFi.scanNetworks();
-  //DEBUG_PRINT("Free Heap: ");
-  //DEBUG_PRINTLN(ESP.getFreeHeap());
-  //DEBUG_PRINTLN(" Done.");
 
   if (n == 0) {
     DEBUG_PRINTLN(" No networks found.");
