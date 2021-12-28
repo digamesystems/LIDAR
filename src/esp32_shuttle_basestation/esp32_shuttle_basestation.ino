@@ -371,6 +371,7 @@ void showCountDisplay(ShuttleStop &shuttleStop){
 
 // WiFI 
 
+
 //****************************************************************************************
 // Scans to see if we are at a known location. This version uses WiFi networks. 
 // Here, we return the strongest known SSID we can see. If we don't see any, we return
@@ -382,24 +383,30 @@ String scanForKnownLocations(String knownLocations[], int arraySize){
   sprintf (strTime, "%02d:%02d:%02d", getRTCHour(),getRTCMinute(),getRTCSecond());
   
   String retValue = "UNK " + String(strTime);
-  
-  // WiFi.scanNetworks will return the number of networks found
-  int n = WiFi.scanNetworks();
 
-  if (n == 0) {
-    DEBUG_PRINTLN(" No networks found.");
-  } else {
-    for (int i = 0; i < n; ++i) {
-      // Return the first match to our known SSID list -- Return values are ordered by RSSI
-      for (int j = 0; (j<arraySize); j++){
-        if (WiFi.SSID(i) == knownLocations[j].c_str()){
-          retValue = knownLocations[j];
-          return retValue;
-        }
-      }       
+  for (int attempts = 0; attempts < 3; attempts++){ // scan for known networks up to n times...
+    DEBUG_PRINTLN("Scanning... Attempts = " + String(attempts));
+    
+    // WiFi.scanNetworks will return the number of networks found
+    int n = WiFi.scanNetworks();
+  
+    if (n == 0) {
+      DEBUG_PRINTLN(" No networks found.");
+    } else {
+      for (int i = 0; i < n; ++i) {
+        // Return the first match to our known SSID list -- Return values are ordered by RSSI
+        for (int j = 0; (j<arraySize); j++){
+          if (WiFi.SSID(i) == knownLocations[j].c_str()){
+            retValue = knownLocations[j];
+            return retValue; // If we find a known network, return it and exit.
+          }
+        }       
+      }
     }
   }
-  return retValue;
+  DEBUG_PRINTLN("*******************************************");
+  DEBUG_PRINTLN("No Known Networks found!");
+  return retValue; // Return the "unknown" location
 }
 
 
