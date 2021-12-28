@@ -48,11 +48,6 @@
 
 #include <SPIFFS.h>          // FLASH file system support.
 
-#include "driver/adc.h"   // ADC functions. (Allows us to turn off to save power.)
-#include <esp_bt.h>       // Bluetooth control functions
-#include <esp_wifi.h>
-
-
 
 // For Over the Air (OTA) updates... 
 #include <AsyncTCP.h>
@@ -60,7 +55,6 @@
 #include <AsyncElegantOTA.h>
 
 bool useOTA = true; 
-
 
 //****************************************************************************************
 //****************************************************************************************                        
@@ -70,7 +64,6 @@ AsyncWebServer server(80);
 TFMPlus tfmP_1;         // Create a TFMini Plus object for sensor 1
 TFMPlus tfmP_2;         // Create a TFMini Plus object for sensor 2
 
- 
 BluetoothSerial btUART; // Create a BlueTooth Serial Port Object
 
 
