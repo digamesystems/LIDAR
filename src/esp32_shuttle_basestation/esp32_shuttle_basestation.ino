@@ -63,8 +63,9 @@ ShuttleStop currentShuttleStop;
 String routeName   = "Route 1";
 String shuttleName = "Shuttle 6";
 
-String reportingLocation = "AndroidAP3AE2";
+String reportingLocation         = "AndroidAP3AE2";
 String reportingLocationPassword = "ohpp8971";
+
 String knownLocations[] = {"_Bighead", 
                            "Tower88", 
                            "William Shatner's Toupee", 
@@ -73,7 +74,7 @@ String knownLocations[] = {"_Bighead",
                            "SanPedroSquareMarket",
                            "AndroidAP3AE2"}; // Saving in PROGMEM 
                                
-String counterNames[] = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
+String counterNames[]     = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
 
 uint8_t counter1Address[] = {0xAC,0x0B,0xFB,0x25,0xC6,0x12};
 uint8_t counter2Address[] = {0xE8,0x68,0xE7,0x30,0xAA,0x0E};
