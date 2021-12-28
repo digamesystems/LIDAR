@@ -17,7 +17,7 @@
 
     Copyright 2021, Digame Systems. All rights reserved.
 */
-#define SW_VERSION "1.0.1"
+#define SW_VERSION "1.0.0"
 #define INBOUND  0  // The direction of counter events
 #define OUTBOUND 1
 #define NUM_COUNTERS 2
@@ -27,7 +27,6 @@
 #include <digameDebug.h>      // Serial debugging defines. 
 #include <digameFile.h>       // SPIFFS file Handling
 #include <digameTime.h>       // Time functions for RTC, NTP, etc. 
-#include <digamePowerMgt.h>
 #include <digameNetwork_v2.h> // For connections, MAC Address and reporting.
 #include <digameDisplay.h>    // eInk Display support.
 #include "BluetoothSerial.h"  // Virtual UART support for Bluetooth Classic 

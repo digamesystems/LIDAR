@@ -9,6 +9,7 @@
 #ifndef __DIGAME_NETWORK_H__
 #define __DIGAME_NETWORK_H__
 #include <digameDebug.h>
+#include <digamePowerMgt.h> 
 #include <WiFi.h>       // WiFi stack
 #include <HTTPClient.h> // To post to the ParkData Server
 //#include <digameJSONConfig.h> // for Config struct that holds network credentials
@@ -178,14 +179,12 @@ bool postJSON(String jsonPayload, NetworkConfig config)
     DEBUG_PRINT("HTTP begin Time: ");
     DEBUG_PRINTLN(millis() - t1);
 
-
     // If you need an HTTP request with a content type: application/json, use the following:
     http.addHeader("Content-Type", "application/json");
-
+    
     t1 = millis();
     int httpResponseCode = http.POST(jsonPayload);
 
-  
     DEBUG_PRINT("POST Time: ");
     DEBUG_PRINTLN(millis() - t1);
     DEBUG_PRINTLN("POSTing to Server:");
@@ -204,7 +203,10 @@ bool postJSON(String jsonPayload, NetworkConfig config)
     // Free resources
     http.end();
 
-    if (httpResponseCode == 200)
+    if (
+        (httpResponseCode == 200) || 
+        (httpResponseCode == 303) 
+       )
     {
         return true;
     }

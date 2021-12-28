@@ -200,6 +200,19 @@ void displayTextScreen(String title, String s)
 }
 
 //******************************************************************************************
+void displayTextScreenLarge(String title, String s)
+{
+  GxEPD2_GFX &display = getDisplay();
+  display.fillScreen(GxEPD_WHITE);
+  display.setTextSize(2);
+  centerPrint(title, 15);
+  display.setTextSize(4);
+  display.setCursor(0, 25);
+  display.print(s);
+  displayCopyright();
+}
+
+//******************************************************************************************
 void displayStatusScreen(String s)
 {
   displayTextScreen("SELF-TEST", s);

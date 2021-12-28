@@ -25,7 +25,7 @@
 
 */
 
-#define HARDWARE_PRESENT false // Flag so we can debug the code without LIDAR sensors.
+#define HARDWARE_PRESENT true // Flag so we can debug the code without LIDAR sensors.
 
 //****************************************************************************************
 //****************************************************************************************
@@ -132,26 +132,16 @@ void initLIDAR(TFMPlus &tfmP, int port=1);
 int  processLIDAR(TFMPlus &tfmP, float &smoothed, int offset);
 
 
-void lightSleepMSec(unsigned long ms){
-  unsigned long mS_TO_S_FACTOR = 1000;
-  esp_sleep_enable_timer_wakeup(ms * mS_TO_S_FACTOR);
-  esp_light_sleep_start(); 
-}
-
 //****************************************************************************************                            
 void setup() // - Device initialization
 //****************************************************************************************
 {
-
-
   Serial.begin(115200);   // Intialize terminal serial port
   delay(1000);            // Give port time to initalize
   
   loadDefaults();
-  //showSplashScreen();
   
   DEBUG_PRINTLN("INITIALIZING HARDWARE...");
-  //DEBUG_PRINTLN();
   
   configureWiFi();
   configureBluetooth();
@@ -162,8 +152,6 @@ void setup() // - Device initialization
   }
 
   // The first part of all of our JSON messages
-  String tString = "00:00:00";
-  //jsonPrefix = "{\"eventTime\":\"" + tString + "\",\"deviceName\":\"" + deviceName + "\",\"deviceMAC\":\"" + WiFi.macAddress();
   jsonPrefix = "{\"deviceName\":\"" + deviceName + "\",\"deviceMAC\":\"" + WiFi.macAddress();
 
   DEBUG_PRINTLN();
@@ -177,7 +165,6 @@ void setup() // - Device initialization
 void loop()  // Main 
 //****************************************************************************************
 { 
-
   scanForUserInput();
   
   if (clearDataFlag){
@@ -185,7 +172,6 @@ void loop()  // Main
     outCount = 0;
     clearDataFlag = false;    
   }
-
 
   // Run a little state machine based on the visibility of a target
   // on the two LIDAR sensors
@@ -238,14 +224,6 @@ void configureWiFi(){
 //****************************************************************************************
   DEBUG_PRINTLN(" WiFi...");
 
-  // Commented out the lines below since we aren't using WiFi. Use later if we want 
-  // to support OTA updates.
-
-  
-  // Set WiFi to station mode and disconnect from an AP if it was previously connected
-  // WiFi.mode(WIFI_STA);
-  // WiFi.disconnect();
-  // delay(100);
 }
 
 
@@ -280,8 +258,10 @@ void configureLIDARs(){
 }
 
 
-//*******************************************************************************************************
-String processor(const String& var){
+//***************************************************************************************
+String processor(const String& var)
+//***************************************************************************************
+{
   if(var == "config.deviceName") return deviceName;
   return "";
 }
@@ -301,7 +281,7 @@ void configureOTA(){
   DEBUG_PRINT("    AP IP address: ");
   DEBUG_PRINTLN(IP);   
   
-  delay(3000);  
+  //delay(3000);  
   
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     if(!request->authenticate("admin", "admin"))
