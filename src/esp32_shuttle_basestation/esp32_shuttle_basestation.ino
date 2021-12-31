@@ -456,6 +456,7 @@ void configureDisplay(){
   displayCopyright();
 }
 
+
 void configureRTC(){  
   DEBUG_PRINTLN(" RTC...");
   initRTC();
@@ -503,14 +504,17 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 // connect(address) is fast (upto 10 secs max), connect(name) is slow (upto 30 secs max) as it needs
 // to resolve name to address first, but it allows to connect to different devices with the same name.
 // Set CoreDebugLevel to Info to view devices bluetooth address and device names
-  
+
+  displayTextScreen("BT CONNECTING","\n ...SEARCHING...");
   DEBUG_PRINT("Connecting to " + counter + "...");
   bool connected = btUART.connect(counter);
   
   if(connected) {
-    DEBUG_PRINTLN(" Success!");
+    DEBUG_PRINTLN(" Success! Awaiting Counts...");
+    displayTextScreen("BT CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
   } else {
     DEBUG_PRINTLN(" Failed to connect."); 
+    displayTextScreen("BT CONNECT",  "\n     FAILED!");
   } 
 
   return connected; 
