@@ -44,7 +44,6 @@ String getMACAddress()
 // Return the last four digits of the device's MAC address as a String
 String getShortMACAddress()
 {
-
     byte mac[6];
     String retString;
 
@@ -62,7 +61,6 @@ String getShortMACAddress()
 // Enable WiFi and log into the network
 bool enableWiFi(Config config)
 {
-
     String ssid = config.ssid;
     String password = config.password;
 
@@ -130,8 +128,6 @@ void disableWiFi()
     debugUART.println("WiFi disconnected!");
     wifiConnected = false;
 }
-
-
 
 
 //*****************************************************************************
