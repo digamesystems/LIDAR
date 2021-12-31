@@ -12,7 +12,6 @@
 #include <digamePowerMgt.h> 
 #include <WiFi.h>       // WiFi stack
 #include <HTTPClient.h> // To post to the ParkData Server
-//#include <digameJSONConfig.h> // for Config struct that holds network credentials
 
 struct NetworkConfig
 {
@@ -35,7 +34,6 @@ HTTPClient http;              // The class we use to POST messages
 // Return the device's MAC address as a String
 String getMACAddress()
 {
-
     byte mac[6];
     String retString;
 
@@ -54,7 +52,6 @@ String getMACAddress()
 // Return the last four digits of the device's MAC address as a String
 String getShortMACAddress()
 {
-
     byte mac[6];
     String retString;
 
@@ -68,12 +65,12 @@ String getShortMACAddress()
 
     return retString;
 }
+
 //*****************************************************************************
 // Enable WiFi and log into the network
 bool enableWiFi(NetworkConfig config)
 {
-
-    String ssid = config.ssid;
+    String ssid     = config.ssid;
     String password = config.password;
 
     WiFi.disconnect();   // Disconnect the network
@@ -150,13 +147,10 @@ void disableWiFi()
 // in a smart way.
 bool postJSON(String jsonPayload, NetworkConfig config)
 {
-
-
     DEBUG_PRINT("postJSON Running on Core #: ");
     DEBUG_PRINTLN(xPortGetCoreID());
     // DEBUG_PRINT("Free Heap: ");
     // DEBUG_PRINTLN(ESP.getFreeHeap());
-
 
     if (WiFi.status() != WL_CONNECTED)
     {
@@ -173,7 +167,6 @@ bool postJSON(String jsonPayload, NetworkConfig config)
     http.begin(config.serverURL);
     // http.begin("http://199.21.201.53/trailwaze/zion/lidar_sensor_import.php");
 
-   
     DEBUG_PRINT("JSON payload length: ");
     DEBUG_PRINTLN(jsonPayload.length());
     DEBUG_PRINT("HTTP begin Time: ");
@@ -198,7 +191,6 @@ bool postJSON(String jsonPayload, NetworkConfig config)
     }
 
     DEBUG_PRINTLN();
-
 
     // Free resources
     http.end();
