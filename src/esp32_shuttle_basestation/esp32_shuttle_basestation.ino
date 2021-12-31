@@ -56,7 +56,6 @@ struct ShuttleStop {
 
 ShuttleStop currentShuttleStop;
 
-
 String routeName   = "Route 1";
 String shuttleName = "Shuttle 6";
 
@@ -124,6 +123,7 @@ void processLocationChange(ShuttleStop &currentShuttleStop);
 // SETUP - Device initialization                                   
 //****************************************************************************************
 void setup(){
+  
   Serial.begin(115200);   // Intialize terminal serial port
   delay(1000);            // Give port time to initalize
 
@@ -136,7 +136,6 @@ void setup(){
   configureIO();
   configureDisplay();
   configureRTC();
-    
   configureWiFi();
   configureBluetooth();
 
@@ -178,6 +177,7 @@ void loop(){
 
   if (currentLocation != previousLocation){ // We've moved
     DEBUG_PRINTLN("New Location!");
+    
     String counterStats = sendReceive(btUART1, "g",0); // Get the current count
     if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
     
@@ -201,26 +201,45 @@ void loop(){
 
 
 //****************************************************************************************
+bool countsChanged (ShuttleStop shuttleStop) // Have the shuttleStop's counters changed
+                                             // since we last asked?
+//****************************************************************************************
+{
+  static int lastInCount = 0;
+  static int lastOutCount = 0;
+  bool retValue = false;
+  
+  if ( (lastInCount  != shuttleStop.counterEvents[SHUTTLE][INBOUND]) ||
+       (lastOutCount != shuttleStop.counterEvents[SHUTTLE][OUTBOUND]) ) 
+  {   
+    retValue = true;
+    lastInCount  = shuttleStop.counterEvents[SHUTTLE][INBOUND];
+    lastOutCount = shuttleStop.counterEvents[SHUTTLE][OUTBOUND];   
+  }
+
+  DEBUG_PRINTLN("countsChanged says: " + String(retValue));
+  return retValue; 
+  
+}
+
+//****************************************************************************************
 // A TASK that runs on Core0. Updates the eInk display with the currentShuttleStop data
 // if it has changed.
 //****************************************************************************************
 void eInkManager(void *parameter){
   const unsigned int displayUpdateInterval = 2000;
-  static int lastInCount = 0;
-  static int lastOutCount = 0;
-  for(;;){
-     
+  
+  for(;;){   
+    
     vTaskDelay(displayUpdateInterval / portTICK_PERIOD_MS);
 
-    // Check if we need an update to the display... 
-    if ( (lastInCount  != currentShuttleStop.counterEvents[SHUTTLE][INBOUND]) ||
-         (lastOutCount != currentShuttleStop.counterEvents[SHUTTLE][OUTBOUND]) ) {   
-        
-        lastInCount  = currentShuttleStop.counterEvents[SHUTTLE][INBOUND];
-        lastOutCount = currentShuttleStop.counterEvents[SHUTTLE][OUTBOUND];   
+    // Check if we need an update to the display to show new counts... 
+    if (countsChanged(currentShuttleStop)) {
         showCountDisplay(currentShuttleStop);
     }
+    
   }
+  
 }
 
 
@@ -273,9 +292,7 @@ void processLocationChange(ShuttleStop &currentShuttleStop)
   if (currentShuttleStop.endTime != "00:00:00"){ // Append report structure if events are present. 
     pushShuttleStop(currentShuttleStop);
   }
-  
-  // Get ready to take data here, at the new location
-  //resetShuttleStop(currentShuttleStop);
+
   
   if (currentLocation == reportingLocation){
     DEBUG_PRINTLN("We have arrived at the reportingLocation!"); 
