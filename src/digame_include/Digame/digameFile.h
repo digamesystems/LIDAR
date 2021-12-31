@@ -53,6 +53,7 @@ void writeFile(fs::FS &fs, const char * path, const char * message){
 
 //****************************************************************************************
 // Save some text to a file
+//****************************************************************************************
 void appendFile(fs::FS &fs, const char *filename, String contents)
 {
 
