@@ -189,6 +189,9 @@ void loop(){
     // Get ready to take data here, at the new location
     counterStats = sendReceive(btUART1, "c",0); // Clear the counter
     resetShuttleStop(currentShuttleStop);
+
+    titleToDisplay = "LOCATION";
+    textToDisplay = "\n " + currentLocation + "\n\n Awaiting Counts\n\n       ...";
   }
  
   // Poll the counters.
@@ -242,24 +245,36 @@ bool displayTextChanged(String displayText){
 // if it has changed.
 //****************************************************************************************
 void eInkManager(void *parameter){
-  const unsigned int displayUpdateInterval = 1000;
+  const unsigned int displayUpdateInterval = 500;
+  static String spinner = "|";
   
   for(;;){   
     
     vTaskDelay(displayUpdateInterval / portTICK_PERIOD_MS);
-
+  
     // Check if we need an update to the display to show new counts... 
     if (countsChanged(currentShuttleStop)) {
         showCountDisplay(currentShuttleStop);
-    }
-
-    if (displayTextChanged(textToDisplay)) {
+    } else if (displayTextChanged(textToDisplay)) {
       displayTextScreen(titleToDisplay,textToDisplay);  
+    } 
+
+    showPartialXY(spinner,180,180);
+
+    //OLD SCHOOL! :)
+    if (spinner == "|") {
+      spinner = "/";
+    } else if (spinner == "/") {
+      spinner = "-";
+    } else if (spinner == "-") {
+      spinner = "\\";
+    } else { 
+      spinner = "|";
     }
     
   }
-  
 }
+    
 
 
 //****************************************************************************************
@@ -278,6 +293,9 @@ void deliverRouteReport(){
     // This is a nifty opportunity to get hung up. If we pull into the reporting 
     // location and someone pulls the plug on the router, we'll hang here forever looking
     // for it...
+
+    titleToDisplay = "VISITORS CENTER";
+    textToDisplay = "\n\n Sending Report...";
     
     if (WiFi.status() != WL_CONNECTED){  
       while (!(WiFi.status() == WL_CONNECTED)){enableWiFi(networkConfig);}
@@ -302,6 +320,12 @@ void deliverRouteReport(){
     }
 
   }
+
+  
+  titleToDisplay = "VISITORS CENTER";
+  textToDisplay = "\n\n Sending Complete.";
+  delay(2000); // Give folks a sec to read the update.
+ 
    
 }
 
@@ -526,16 +550,16 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 // to resolve name to address first, but it allows to connect to different devices with the same name.
 // Set CoreDebugLevel to Info to view devices bluetooth address and device names
 
-  displayTextScreen("BT CONNECTING","\n ...SEARCHING...");
+  displayTextScreen("CONNECTING","\n ...SEARCHING...");
   DEBUG_PRINT("Connecting to " + counter + "...");
   bool connected = btUART.connect(counter);
   
   if(connected) {
     DEBUG_PRINTLN(" Success! Awaiting Counts...");
-    displayTextScreen("BT CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
+    displayTextScreen("CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
   } else {
     DEBUG_PRINTLN(" Failed to connect."); 
-    displayTextScreen("BT CONNECT",  "\n     FAILED!");
+    displayTextScreen("CONNECT",  "\n     FAILED!");
   } 
 
   return connected; 
