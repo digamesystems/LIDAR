@@ -78,6 +78,9 @@ uint8_t counter2Address[] = {0xE8,0x68,0xE7,0x30,0xAA,0x0E};
 String currentLocation  = "UNK"; 
 String previousLocation = "UNK";
 
+String titleToDisplay = "";
+String textToDisplay = "";
+
 
 // Multi-Tasking
 SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
@@ -222,12 +225,24 @@ bool countsChanged (ShuttleStop shuttleStop) // Have the shuttleStop's counters 
   
 }
 
+bool displayTextChanged(String displayText){
+  static String oldText = "";
+  bool retVal = false;
+  
+  if (displayText != oldText){
+    retVal = true;
+    oldText = displayText;  
+  }  
+
+  return retVal;  
+}
+
 //****************************************************************************************
 // A TASK that runs on Core0. Updates the eInk display with the currentShuttleStop data
 // if it has changed.
 //****************************************************************************************
 void eInkManager(void *parameter){
-  const unsigned int displayUpdateInterval = 2000;
+  const unsigned int displayUpdateInterval = 1000;
   
   for(;;){   
     
@@ -236,6 +251,10 @@ void eInkManager(void *parameter){
     // Check if we need an update to the display to show new counts... 
     if (countsChanged(currentShuttleStop)) {
         showCountDisplay(currentShuttleStop);
+    }
+
+    if (displayTextChanged(textToDisplay)) {
+      displayTextScreen(titleToDisplay,textToDisplay);  
     }
     
   }
@@ -259,10 +278,12 @@ void deliverRouteReport(){
     // This is a nifty opportunity to get hung up. If we pull into the reporting 
     // location and someone pulls the plug on the router, we'll hang here forever looking
     // for it...
+    
     if (WiFi.status() != WL_CONNECTED){  
       while (!(WiFi.status() == WL_CONNECTED)){enableWiFi(networkConfig);}
     }
-  
+
+    
     String activeShuttleStop = String(shuttleStops.first()->c_str()); // Read from the buffer without removing the data from it.
     DEBUG_PRINTLN(activeShuttleStop);
     reportToIssue += activeShuttleStop;
