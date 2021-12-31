@@ -117,6 +117,9 @@ void   updateShuttleStop(ShuttleStop &shuttleStop, String jsonMessage, int count
 String getShuttleStopJSON(ShuttleStop &shuttleStop);
 
 
+void processLocationChange(ShuttleStop &currentShuttleStop);
+
+
 //****************************************************************************************
 // SETUP - Device initialization                                   
 //****************************************************************************************
@@ -159,14 +162,14 @@ void setup(){
 //****************************************************************************************
 unsigned int t1=-600000,t2=t1;
 unsigned int t3=0,t4=t3;
-unsigned int networkScanInterval = 5000;
+unsigned int networkScanInterval = 15000;
 unsigned int counterPollingInterval = 1000;
 
 void loop(){
 
   t2=millis();
   
-  // Scan for know SSIDs.
+  // Scan for known SSIDs.
   if ((t2-t1) > networkScanInterval){
     currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
     DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " + currentLocation);
@@ -174,13 +177,15 @@ void loop(){
   }
 
   if (currentLocation != previousLocation){ // We've moved
-
     DEBUG_PRINTLN("New Location!");
     String counterStats = sendReceive(btUART1, "g",0); // Get the current count
     if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
+    
+    processLocationChange(currentShuttleStop);
+    
+    // Get ready to take data here, at the new location
     counterStats = sendReceive(btUART1, "c",0); // Clear the counter
-
-    processLocationChange();
+    resetShuttleStop(currentShuttleStop);
   }
  
   // Poll the counters.
@@ -200,7 +205,7 @@ void loop(){
 // if it has changed.
 //****************************************************************************************
 void eInkManager(void *parameter){
-  const unsigned int displayUpdateInterval = 5000;
+  const unsigned int displayUpdateInterval = 2000;
   static int lastInCount = 0;
   static int lastOutCount = 0;
   for(;;){
@@ -222,7 +227,7 @@ void eInkManager(void *parameter){
 //****************************************************************************************
 void deliverRouteReport(){
 //****************************************************************************************
-  String reportToIssue = routeReportPrefix(); 
+  String reportToIssue; 
   bool postSuccessful = false;
 
   while (shuttleStops.size() > 0){ 
@@ -231,6 +236,10 @@ void deliverRouteReport(){
 
     reportToIssue = routeReportPrefix(); 
 
+    // FAILURE MODE: 
+    // This is a nifty opportunity to get hung up. If we pull into the reporting 
+    // location and someone pulls the plug on the router, we'll hang here forever looking
+    // for it...
     if (WiFi.status() != WL_CONNECTED){  
       while (!(WiFi.status() == WL_CONNECTED)){enableWiFi(networkConfig);}
     }
@@ -257,16 +266,16 @@ void deliverRouteReport(){
 }
 
 //****************************************************************************************
-void processLocationChange()
+void processLocationChange(ShuttleStop &currentShuttleStop)
 //****************************************************************************************
 {
   // Log what happened at the last location
-  if (currentShuttleStop.endTime != "00:00:00"){ // Append if events are present. 
+  if (currentShuttleStop.endTime != "00:00:00"){ // Append report structure if events are present. 
     pushShuttleStop(currentShuttleStop);
   }
   
   // Get ready to take data here, at the new location
-  resetShuttleStop(currentShuttleStop);
+  //resetShuttleStop(currentShuttleStop);
   
   if (currentLocation == reportingLocation){
     DEBUG_PRINTLN("We have arrived at the reportingLocation!"); 
