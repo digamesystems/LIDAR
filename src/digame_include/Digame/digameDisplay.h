@@ -38,6 +38,9 @@ GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display2(GxEPD2_154_D67(/*CS=5
 //GxEPD2_GFX& display = display2;
 String displayType = "SSD1681";
 
+GxEPD2_GFX *mainDisplay;
+
+
 //******************************************************************************************
 GxEPD2_GFX &getDisplay()
 { // So we can use different displays.
@@ -96,7 +99,7 @@ void initDisplay()
   DEBUG_PRINTLN(displayType);
 
   GxEPD2_GFX &display = getDisplay();
-
+   
   display.init(0);
   display.setRotation(3);
   display.setTextSize(2);
@@ -151,7 +154,7 @@ void displayCopyright()
   GxEPD2_GFX &display = getDisplay();
   display.setTextSize(1);
   centerPrint("HEIMDALL VCS Family", 170);
-  centerPrint("Copyright 2021, Digame Systems.", 180);
+  centerPrint("(c) 2021, Digame Systems.", 180);
   centerPrint("All rights reserved.", 190);
   display.display();
 }
@@ -190,21 +193,24 @@ void displayAPScreen(String ssid, String ip)
 //******************************************************************************************
 void displayTextScreen(String title, String s)
 {
-  GxEPD2_GFX &display = getDisplay();
-  display.fillScreen(GxEPD_WHITE);
-  display.setTextSize(2);
-  centerPrint(title, 15);
-  display.setCursor(0, 50);
-  display.print(s);
+  //initDisplay();
+  //GxEPD2_GFX &display = getDisplay();
+  //display.fillScreen(GxEPD_WHITE);
+  //display.setTextSize(2);
+  //centerPrint(title, 15);
+  displayTitles(title,s);
+  //display.setCursor(0, 50);
+  //display.print(s);
   displayCopyright();
 }
 
 //******************************************************************************************
 void displayTextScreenLarge(String title, String s)
 {
+  //initDisplay();
   GxEPD2_GFX &display = getDisplay();
   display.fillScreen(GxEPD_WHITE);
-  display.setTextSize(2);
+  display.setTextSize(3);
   centerPrint(title, 15);
   display.setTextSize(4);
   display.setCursor(0, 25);
@@ -280,6 +286,43 @@ void showValue(double v)
     display.setCursor(x, y);
     display.print(valueString);
   } while (display.nextPage());
+  //See if we can put things back the way we found them
+  display.setPartialWindow(0, 0, display.width(), display.height());
+  display.firstPage();
+}
+
+//******************************************************************************************
+void showPartialXY(String msg, int x, int y)
+{
+  GxEPD2_GFX &display = getDisplay();
+  int digits = 0;
+
+  display.setTextSize(3);
+  display.setTextColor(GxEPD_BLACK);
+
+  int16_t tbx, tby;
+  uint16_t tbw, tbh;
+  display.getTextBounds(msg, 0, 0, &tbx, &tby, &tbw, &tbh);
+
+  //uint16_t x = ((display.width() - tbw) / 2) - tbx;
+  //uint16_t y = ((display.height() - tbh) / 2) - tby; //+ tbh / 2; // y is base line!
+
+  // show what happens, if we use the bounding box for partial window
+  //uint16_t wx = (display.width() - tbw) / 2;
+  //uint16_t wy = (display.height() - tbh) / 2; // / 2;
+
+  display.setPartialWindow(x, y, tbw, tbh);
+  display.firstPage();
+  do
+  {
+    //display.fillScreen(GxEPD_WHITE);
+    display.setCursor(x, y);
+    display.print(msg);
+  } while (display.nextPage());
+
+  //Put things back the way we found them
+  display.setPartialWindow(0, 0, display.width(), display.height());
+  display.firstPage();
 }
 
 #endif //__DIGAME_DISPLAY_H__
