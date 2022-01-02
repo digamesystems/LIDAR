@@ -9,8 +9,8 @@
 #define debugUART Serial
 
 // Pick one LoRa or WiFi as the data reporting link. These are mutually exclusive.
-#define USE_LORA true    // Use LoRa as the reporting link
-#define USE_WIFI false     // Use WiFi as the reporting link
+#define USE_LORA false    // Use LoRa as the reporting link
+#define USE_WIFI true     // Use WiFi as the reporting link
 
 #if USE_LORA
   String model = "DS-VC-LIDAR-LORA-1";
@@ -315,9 +315,7 @@ void messageManager(void *parameter){
     //*******************************
     // Process a message on the queue
     //*******************************
-    int counterNumber = 0;  // TODO: Add to Config structure and web UI
-    int numCounters = 3;    // TODO: Have base station tell us this?
-    
+
     if ( (msgBuffer.size() > 0) && (inTransmitWindow(config.counterID.toInt(), config.counterPopulation.toInt())) ){ 
     
       if (config.showDataStream == "false"){
@@ -387,7 +385,14 @@ void messageManager(void *parameter){
         
       }
     } else {
-      
+      #if USE_WIFI
+        if (wifiConnected){
+          if ((millis() - msLastPostTime)>60000){
+            DEBUG_PRINTLN("WiFi Stale...");
+            disableWiFi();  
+          }  
+        }
+      #endif
       vTaskDelay(100 / portTICK_PERIOD_MS);
       
     }
@@ -481,7 +486,7 @@ void setup(){
   // Setup SD card and load default values.
   if (initJSONConfig(filename, config))
   {
-    hwStatus+="   SD   : OK\n\n";     
+    hwStatus+="   SD   : OK\n\n";             
   }else{
     hwStatus+="   SD   : ERROR!\n\n"; 
   };
@@ -545,10 +550,6 @@ void setup(){
   // Data reporting over the WiFi link
   #if USE_WIFI
 
-    btStop();  // Turn off bluetooth to save power.
-    adc_power_off(); // We're not using ADCs. Save a little power here, too.
-    esp_bt_controller_disable();
-  
     useOTA = true;   
     usingWiFi = true;
 
@@ -684,6 +685,7 @@ void pushMessage(String message){
   xSemaphoreGive(mutex_v);  
 }
 
+
 //****************************************************************************************
 // Main Loop
 //****************************************************************************************
@@ -701,7 +703,7 @@ void loop(){
 
   //**************************************************************************************   
   // Grab the current time
-  currentTime = getRTCTime();
+  currentTime   = getRTCTime();
   currentSecond = getRTCSecond();
     
   //**************************************************************************************
@@ -820,6 +822,8 @@ void loop(){
     }
 
   delay(5);
+
+  
   T2= millis();
   //DEBUG_PRINTLN(T2-T1); 
    
