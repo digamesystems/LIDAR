@@ -1,9 +1,9 @@
 /* digameNetwork.h
- *  
+ *
  *  Functions for logging into a wifi network and reporting the device's
  *  MAC address, and POSTING a JSON message to a server.
- *  
- *  Copyright 2021, Digame Systems. All rights reserved.  
+ *
+ *  Copyright 2021, Digame Systems. All rights reserved.
  */
 
 #ifndef __DIGAME_NETWORK_H__
@@ -17,9 +17,9 @@
 
 // Globals
 bool wifiConnected = false;
-long msLastConnectionAttempt; // Timer value of the last time we tried to connect to the wifi.
-HTTPClient http;  // The class we use to POST messages
-
+unsigned long msLastConnectionAttempt; // Timer value of the last time we tried to connect to the wifi.
+HTTPClient http;                       // The class we use to POST messages
+unsigned long msLastPostTime;          // Timer value of the last time we did an http POST.
 
 //*****************************************************************************
 // Return the device's MAC address as a String
@@ -48,11 +48,11 @@ String getShortMACAddress()
     String retString;
 
     WiFi.macAddress(mac);
-    //DEBUG_PRINTLN(mac);
-    char buffer[3]; 
-    sprintf (buffer, "%02x", mac[4]);
+    // DEBUG_PRINTLN(mac);
+    char buffer[3];
+    sprintf(buffer, "%02x", mac[4]);
     retString = String(retString + buffer);
-    sprintf (buffer, "%02x", mac[5]);
+    sprintf(buffer, "%02x", mac[5]);
     retString = String(retString + buffer);
 
     return retString;
@@ -63,7 +63,7 @@ bool enableWiFi(Config config)
 {
     String ssid = config.ssid;
     String password = config.password;
-
+    setCpuFrequencyMhz(80);
     WiFi.disconnect();   // Disconnect the network
     WiFi.mode(WIFI_OFF); // Switch WiFi off
 
@@ -73,10 +73,9 @@ bool enableWiFi(Config config)
     WiFi.mode(WIFI_STA); // Station mode
     delay(250);
     String hostName = config.deviceName;
-    hostName.replace(" ","_");
-    WiFi.setHostname(hostName.c_str()); //define hostname
+    hostName.replace(" ", "_");
+    WiFi.setHostname(hostName.c_str());         // define hostname
     WiFi.begin(ssid.c_str(), password.c_str()); // Log in
-
 
     bool timedout = false;
     unsigned long wifiTimeout = 10000;
@@ -115,37 +114,40 @@ bool enableWiFi(Config config)
     }
 }
 
-bool initWiFi(Config config){
+bool initWiFi(Config config)
+{
     return enableWiFi(config);
 }
 
 //*****************************************************************************
 void disableWiFi()
 {
-    WiFi.disconnect(true); // Disconnect from the network
-    WiFi.mode(WIFI_OFF);   // Switch WiFi off
+    WiFi.setSleep(true);
+    WiFi.disconnect(true);  // Disconnect from the network
+    WiFi.mode(WIFI_OFF);    // Switch WiFi off
+    setCpuFrequencyMhz(40); // Drop cpu down to conserve power
     debugUART.println("");
     debugUART.println("WiFi disconnected!");
     wifiConnected = false;
 }
 
-
 //*****************************************************************************
-// Save a single JSON message to the server. TODO: Deal with retries, etc. 
-// in a smart way. 
+// Save a single JSON message to the server. TODO: Deal with retries, etc.
+// in a smart way.
 bool postJSON(String jsonPayload, Config config)
 {
-    
-    if (config.showDataStream == "false"){
+
+    if (config.showDataStream == "false")
+    {
         debugUART.print("postJSON Running on Core #: ");
         debugUART.println(xPortGetCoreID());
-        //debugUART.print("Free Heap: ");
-        //debugUART.println(ESP.getFreeHeap());
+        // debugUART.print("Free Heap: ");
+        // debugUART.println(ESP.getFreeHeap());
     }
 
     if (WiFi.status() != WL_CONNECTED)
     {
-        debugUART.println("WiFi Connection Lost.");
+        debugUART.println("WiFi not connected.");
         if (enableWiFi(config) == false)
         {
             return false;
@@ -154,47 +156,49 @@ bool postJSON(String jsonPayload, Config config)
 
     unsigned long t1 = millis();
 
-    // Your Domain name with URL path or IP address with path
     http.begin(config.serverURL);
-    //http.begin("http://199.21.201.53/trailwaze/zion/lidar_sensor_import.php");
 
-    if (config.showDataStream == "false"){
+    if (config.showDataStream == "false")
+    {
         debugUART.print("JSON payload length: ");
         debugUART.println(jsonPayload.length());
         debugUART.print("HTTP begin Time: ");
         debugUART.println(millis() - t1);
     }
-    
+
     // If you need an HTTP request with a content type: application/json, use the following:
     http.addHeader("Content-Type", "application/json");
 
     t1 = millis();
     int httpResponseCode = http.POST(jsonPayload);
 
-if (config.showDataStream == "false"){
-    debugUART.print("POST Time: ");
-    debugUART.println(millis() - t1);
-    debugUART.println("POSTing to Server:");
-    debugUART.println(jsonPayload);
-    debugUART.print("HTTP response code: ");
-    debugUART.println(httpResponseCode);
-    if (!(httpResponseCode==200)){
-        debugUART.println("*****ERROR*****");
-        debugUART.println(http.errorToString(httpResponseCode));
+    if (config.showDataStream == "false")
+    {
+        debugUART.print("POST Time: ");
+        debugUART.println(millis() - t1);
+        debugUART.println("POSTing to Server:");
+        debugUART.println(jsonPayload);
+        debugUART.print("HTTP response code: ");
+        debugUART.println(httpResponseCode);
+        if (!(httpResponseCode == 200))
+        {
+            debugUART.println("*****ERROR*****");
+            debugUART.println(http.errorToString(httpResponseCode));
+        }
+        debugUART.println();
     }
-    
-    debugUART.println();
-}
-
     // Free resources
     http.end();
 
-    if (httpResponseCode==200){
-      return true;
-    } else { 
-      return false;
+    if (httpResponseCode == 200)
+    {
+        msLastPostTime = millis(); // Log the time of the last successful post
+        return true;
     }
-    
+    else
+    {
+        return false;
+    }
 }
 
 #endif //__DIGAME_NETWORK_H__
