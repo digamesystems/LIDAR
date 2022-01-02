@@ -240,13 +240,28 @@ bool displayTextChanged(String displayText){
   return retVal;  
 }
 
+String rotateSpinner(){
+  static String spinner = "|";
+  
+  //OLD SCHOOL! :)
+  if (spinner == "|") {
+    spinner = "/";
+  } else if (spinner == "/") {
+    spinner = "-";
+  } else if (spinner == "-") {
+    spinner = "\\";
+  } else { 
+    spinner = "|";
+  }
+  return spinner;
+}
+
 //****************************************************************************************
 // A TASK that runs on Core0. Updates the eInk display with the currentShuttleStop data
 // if it has changed.
 //****************************************************************************************
 void eInkManager(void *parameter){
   const unsigned int displayUpdateInterval = 500;
-  static String spinner = "|";
   
   for(;;){   
     
@@ -259,17 +274,7 @@ void eInkManager(void *parameter){
       displayTextScreen(titleToDisplay,textToDisplay);  
     } 
 
-    showPartialXY(spinner,180,180);
-    //OLD SCHOOL! :)
-    if (spinner == "|") {
-      spinner = "/";
-    } else if (spinner == "/") {
-      spinner = "-";
-    } else if (spinner == "-") {
-      spinner = "\\";
-    } else { 
-      spinner = "|";
-    }
+    showPartialXY(rotateSpinner(),180,180);
     
   }
 }
