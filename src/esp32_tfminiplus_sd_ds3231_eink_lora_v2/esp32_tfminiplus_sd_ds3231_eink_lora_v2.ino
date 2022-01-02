@@ -315,8 +315,9 @@ void messageManager(void *parameter){
     //*******************************
     // Process a message on the queue
     //*******************************
-
-    if ( (msgBuffer.size() > 0) && (inTransmitWindow(config.counterID.toInt(), config.counterPopulation.toInt())) ){ 
+    if ( (msgBuffer.size() > 0) && 
+         (inTransmitWindow(config.counterID.toInt(), config.counterPopulation.toInt())) )
+    { 
     
       if (config.showDataStream == "false"){
         DEBUG_PRINT("Buffer Size: ");
@@ -328,14 +329,6 @@ void messageManager(void *parameter){
       // Send the data to the LoRa-WiFi base station that re-formats and routes it to the 
       // ParkData server.
       #if USE_LORA     
-        // TODO: Come up with a reasonable re-try scheme and deal with failures more 
-        // gracefully. This function simply yells out the message over the LoRa link and
-        // returns true if it gets an ACK from the basestation. It will retry forever...
-        // Probably not what we want.   
-        //
-        // Later: -- Rethinking that opinion. -- Daniel had his base station go down and 
-        // when it came back up, the counter uploaded all the data it had taken since it 
-        // went down. We lost _nothing_.
         messageACKed = sendReceiveLoRa(activeMessage);                                             
       #endif 
       
@@ -344,69 +337,62 @@ void messageManager(void *parameter){
         messageACKed = postJSON(activeMessage, config);
       #endif   
       
-      if (messageACKed) {
-        
+      if (messageACKed) 
+      {
         // Message sent and received. Take it off of the queue. 
         xSemaphoreTake(mutex_v, portMAX_DELAY); 
           String  * entry = msgBuffer.shift();
           delete entry;
         xSemaphoreGive(mutex_v);
        
-        if (config.showDataStream=="false"){
+        if (config.showDataStream == "false")
+        {
           DEBUG_PRINTLN("Success!");
           DEBUG_PRINTLN();
         }
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-      
       } else {
-        
-        // Introduce a variable retry delay if we are in the transmit window.
-        if (inTransmitWindow(config.counterID.toInt(), config.counterPopulation.toInt())) {
-          
-          if (config.showDataStream == "false"){
-            DEBUG_PRINTLN("******* Timeout Waiting for ACK **********");
-            DEBUG_PRINT("Retrying...");
-          }      
-           
-          /* Playing with scheduling each counter in its own time window. 
-           *  Commenting out the random backoff in that case. 
-           *  
-           *  Add a random delay before retrying... 4 time slots for retries.
-          long backOffTime = 100 / portTICK_PERIOD_MS + (2000 * random(0,4)) / portTICK_PERIOD_MS;
-          DEBUG_PRINTLN(backOffTime);
-          vTaskDelay(backOffTime);
-          */
-              
-          vTaskDelay(100 / portTICK_PERIOD_MS);    
-          
-        } else {
-          vTaskDelay(100 / portTICK_PERIOD_MS);
-        }
-        
+        if (config.showDataStream == "false")
+        {
+          DEBUG_PRINTLN("******* Timeout Waiting for ACK **********");
+          DEBUG_PRINT("Retrying...");
+        }      
       }
     } else {
       #if USE_WIFI
         if (wifiConnected){
-          if ((millis() - msLastPostTime)>60000){
+          if ((millis() - msLastPostTime)>60000){ // Turn WiFi off after an interval of inactivity
             DEBUG_PRINTLN("WiFi Stale...");
             disableWiFi();  
           }  
         }
       #endif
-      vTaskDelay(100 / portTICK_PERIOD_MS);
-      
     }
 
+    vTaskDelay(100 / portTICK_PERIOD_MS);  
                
   }  
 }
 
+String rotateSpinner(){
+  static String spinner = "|";
+  
+  //OLD SCHOOL! :)
+  if (spinner == "|") {
+    spinner = "/";
+  } else if (spinner == "/") {
+    spinner = "-";
+  } else if (spinner == "-") {
+    spinner = "\\";
+  } else { 
+    spinner = "|";
+  }
+  return spinner;
+}
 
 //****************************************************************************************
 // A task that runs on Core0 to update the display when the count changes. 
 void countDisplayManager(void *parameter){
   int countDisplayUpdateRate = 200;
-  unsigned int myCount;
   static unsigned int oldCount=0;
   
   if (config.showDataStream == "false"){
@@ -417,24 +403,20 @@ void countDisplayManager(void *parameter){
   
   for(;;){  
       
-    myCount = count;
-
-    if (myCount != oldCount){
+    if (count != oldCount){
       // Total refresh every 100 counts. (Or when we zero out the counter.)
-      //if (displayType=="SSD1608"){
-        if ((myCount%100==0)) {
-          initDisplay();
-          displayCountScreen(myCount);
-        }       
-      //}
-      showValue(myCount);  
-      oldCount = myCount;
+      if (count % 100 == 0) {
+        initDisplay();
+        displayCountScreen(count);
+      }       
+      showValue(count);  
+      oldCount = count;
     }
 
-    //DEBUG_PRINT("Free Heap: ");
-    //DEBUG_PRINTLN(ESP.getFreeHeap());
+    showPartialXY(rotateSpinner(),180,180);
 
-    upTimeMillis = millis() - bootMillis; 
+    upTimeMillis = millis() - bootMillis; //TODO: Put this somewhere else.
+   
     vTaskDelay(countDisplayUpdateRate / portTICK_PERIOD_MS);
 
   }
@@ -458,7 +440,6 @@ void handleModeButtonPress(){
 //****************************************************************************************   
 // Configure the device as an access point. TODO: move to DigameNetwork.h
 void setupAPMode(const char* ssid){
-  
   DEBUG_PRINTLN("  Stand-Alone Mode. Setting AP (Access Point)…");  
   WiFi.mode(WIFI_AP);
   WiFi.softAP(ssid);
@@ -479,8 +460,7 @@ void setup(){
   initPorts();                      // Set up UARTs and GPIOs
   initUI();                         // Splash screens
 
-  String foo = "Digame-CTR-" + getShortMACAddress();
-  const char* ssid = foo.c_str();
+  const char* ssid = (String("Digame-CTR-") + getShortMACAddress()).c_str();
 
   //**************************************************************************************   
   // Setup SD card and load default values.
@@ -497,14 +477,13 @@ void setup(){
   displaySplashScreen("(LIDAR Counter)",SW_VERSION); 
 
   //**************************************************************************************   
-  // Turn on the LIDAR Sensor
+  // Turn on the LIDAR Sensor and take an initial reading (initLIDARDist)
   if (initLIDAR(true)) { 
     hwStatus+="   LIDAR: OK\n\n";
   } else {
     hwStatus+="   LIDAR: ERROR!\n\n";
   }
 
- 
   //**************************************************************************************   
   // If the unit is unconfigured or is booted with the RESET button held down, enter AP mode.
   // Recently added a check to see if the unit was booted with something in front of the 
@@ -521,12 +500,12 @@ void setup(){
   // Data reporting over the LoRa link.
   #if USE_LORA  
     
-    if (accessPointMode){
+    if (accessPointMode)
+    {
       useOTA = true;
       usingWiFi = true;
       setupAPMode(ssid); 
-            
-    }else{
+    } else {
       useOTA = false;
       usingWiFi = false;
       setLowPowerMode(); // Lower clock rate and turn off WiFi
