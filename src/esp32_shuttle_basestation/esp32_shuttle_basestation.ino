@@ -260,7 +260,6 @@ void eInkManager(void *parameter){
     } 
 
     showPartialXY(spinner,180,180);
-
     //OLD SCHOOL! :)
     if (spinner == "|") {
       spinner = "/";
@@ -294,8 +293,8 @@ void deliverRouteReport(){
     // location and someone pulls the plug on the router, we'll hang here forever looking
     // for it...
 
-    titleToDisplay = "VISITORS CENTER";
-    textToDisplay = "\n\n Sending Report...";
+    titleToDisplay = "V. CENTER";
+    textToDisplay = "\n\n   Sending\n\n   Report...";
     
     if (WiFi.status() != WL_CONNECTED){  
       while (!(WiFi.status() == WL_CONNECTED)){enableWiFi(networkConfig);}
@@ -322,8 +321,8 @@ void deliverRouteReport(){
   }
 
   
-  titleToDisplay = "VISITORS CENTER";
-  textToDisplay = "\n\n Sending Complete.";
+  titleToDisplay = "V. CENTER";
+  textToDisplay = "\n\n   Sending\n\n   Complete.";
   delay(2000); // Give folks a sec to read the update.
  
    
@@ -433,7 +432,7 @@ void showCountDisplay(ShuttleStop &shuttleStop){
             shuttleStop.counterEvents[SHUTTLE][OUTBOUND]);
 
   if (shuttleStop.location == reportingLocation){
-    displayTextScreenLarge("Visitors' Center", stopInfo);
+    displayTextScreenLarge("V. Center", stopInfo);
   } else {
     displayTextScreenLarge(shuttleStop.location.c_str(), stopInfo);
   }
