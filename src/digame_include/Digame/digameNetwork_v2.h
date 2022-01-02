@@ -152,6 +152,7 @@ bool postJSON(String jsonPayload, NetworkConfig config)
     // DEBUG_PRINT("Free Heap: ");
     // DEBUG_PRINTLN(ESP.getFreeHeap());
 
+    
     if (WiFi.status() != WL_CONNECTED)
     {
         DEBUG_PRINTLN("WiFi Connection Lost.");
@@ -195,6 +196,7 @@ bool postJSON(String jsonPayload, NetworkConfig config)
     // Free resources
     http.end();
 
+
     if (
         (httpResponseCode == 200) || 
         (httpResponseCode == 303) 
@@ -206,6 +208,7 @@ bool postJSON(String jsonPayload, NetworkConfig config)
     {
         return false;
     }
+
 }
 
 #endif //__DIGAME_NETWORK_H__
