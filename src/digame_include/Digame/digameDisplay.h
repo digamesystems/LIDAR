@@ -194,13 +194,14 @@ void displayAPScreen(String ssid, String ip)
 void displayTextScreen(String title, String s)
 {
   //initDisplay();
-  //GxEPD2_GFX &display = getDisplay();
-  //display.fillScreen(GxEPD_WHITE);
-  //display.setTextSize(2);
-  //centerPrint(title, 15);
-  displayTitles(title,s);
-  //display.setCursor(0, 50);
-  //display.print(s);
+  GxEPD2_GFX &display = getDisplay();
+  display.fillScreen(GxEPD_WHITE);
+  display.setTextSize(3);
+  centerPrint(title, 15);
+  display.setTextSize(2);
+  //displayTitles(title,s);
+  display.setCursor(0, 50);
+  display.print(s);
   displayCopyright();
 }
 
