@@ -186,23 +186,7 @@ void loadParameters(String &statusMsg)
 }
 
 
-//**************************************************************************************   
-  // Add a message to the queue for transmission.
-void pushMessage(String message){
-  xSemaphoreTake(mutex_v, portMAX_DELAY);  
-    #if USE_LORA
-      String * msgPtr = new String(message);
-      msgBuffer.push(msgPtr);
-    #endif
 
-    #if USE_WIFI
-      if (accessPointMode == false){
-        String * msgPtr = new String(message);
-        msgBuffer.push(msgPtr);
-      }
-    #endif
-  xSemaphoreGive(mutex_v);  
-}
 
 
 //**************************************************************************************   
@@ -415,6 +399,24 @@ void showSplashScreen(){
 
 
 
+//**************************************************************************************   
+  // Add a message to the queue for transmission.
+void pushMessage(String message){
+  xSemaphoreTake(mutex_v, portMAX_DELAY);  
+    #if USE_LORA
+      String * msgPtr = new String(message);
+      msgBuffer.push(msgPtr);
+    #endif
+
+    #if USE_WIFI
+      if (accessPointMode == false){
+        String * msgPtr = new String(message);
+        msgBuffer.push(msgPtr);
+      }
+    #endif
+  xSemaphoreGive(mutex_v);  
+}
+
 #if USE_LORA
 //****************************************************************************************
 // LoRa can't handle big payloads. We use a terse JSON message in this case.
@@ -532,9 +534,10 @@ String buildJSONHeader(String eventType, double count, String lane = "1"){
 
 }
 
-
 //****************************************************************************************
-/* Playing around with scheduling message delivery to minimize interference between LoRa counters. 
+/* Playing around with scheduling message delivery to minimize interference between LoRa 
+ *  counters. 
+ *  
  *  Divide the minute up into equal portions for the number of counters
  *  we are dealing with. Each counter has his own window within the minute to transmit. 
  *  
@@ -571,8 +574,8 @@ bool inTransmitWindow(int counterNumber, int numCounters = 3){
   }else{ 
     return false;
   }
-
 }
+
 
 //****************************************************************************************
 // A task that runs on Core0 using a circular buffer to enqueue messages to the server...
@@ -648,6 +651,10 @@ void messageManager(void *parameter){
   }  
 }
 
+
+//****************************************************************************************
+// Text-based "I'm alive" indicator that we stick on the eInk display and update 
+// periodically to show the program is running. 
 String rotateSpinner(){
   static String spinner = "|";
   
@@ -676,8 +683,7 @@ void countDisplayManager(void *parameter){
     DEBUG_PRINTLN();
   }
   
-  for(;;){  
-      
+  for(;;){       
     if (count != oldCount){
       // Total refresh every 100 counts. (Or when we zero out the counter.)
       if (count % 100 == 0) {
@@ -687,15 +693,10 @@ void countDisplayManager(void *parameter){
       showValue(count);  
       oldCount = count;
     }
-
     showPartialXY(rotateSpinner(),180,180);
-
-    upTimeMillis = millis() - bootMillis; //TODO: Put this somewhere else.
-   
+    upTimeMillis = millis() - bootMillis; //TODO: Put this somewhere else. 
     vTaskDelay(countDisplayUpdateRate / portTICK_PERIOD_MS);
-
-  }
-    
+  }    
 }
 
 //***************************************************************************************   
@@ -713,7 +714,7 @@ void handleModeButtonPress(){
 }
 
 
-
+//**************************************************************************************   
 void handleBootEvent(){
   if (bootMessageNeeded){
     msgPayload = buildJSONHeader("b",count);
@@ -726,13 +727,14 @@ void handleBootEvent(){
   }
 }
 
+
+//**************************************************************************************   
 void handleResetEvent(){
   if (resetFlag){
     DEBUG_PRINTLN("Reset flag has been flipped. Rebooting the processor.");
     delay(1000);  
     ESP.restart();
   }
-  
 }
 
 
@@ -770,9 +772,7 @@ void handleHeartBeatEvent(){ // Issue a heartbeat message, if needed.
 //**************************************************************************************   
 void handleVehicleEvent(){ // Test if vehicle event has occured. Route message if needed. 
   vehicleMessageNeeded = processLIDARSignal3(config); //
- 
-//**************************************************************************************   
-// Issue a vehicle event message
+
   if (vehicleMessageNeeded>0){ 
     if (lidarBuffer.size()==lidarSamples){ // Fill up the buffer before processing so 
                                            // we don't get false events at startup.      
