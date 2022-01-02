@@ -8,6 +8,7 @@
 
 
 #include <digameJSONConfig.h> // Program parameters from config file on SD card
+#include <digamePowerMgt.h>
 #include <TFMPlus.h>          // Include TFMini Plus LIDAR Library v1.4.0
 TFMPlus tfmP;                 // Create a TFMini Plus object
 
@@ -39,12 +40,6 @@ void clearLIDARDistanceHistogram();
 String getDistanceHistogramString();
 
 
-
-void lightSleepMSec(unsigned long ms){
-  unsigned long mS_TO_S_FACTOR = 1000;
-  esp_sleep_enable_timer_wakeup(ms * mS_TO_S_FACTOR);
-  esp_light_sleep_start();  
-}
 
 
 
