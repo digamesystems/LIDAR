@@ -12,6 +12,15 @@
 #define debugUART Serial
 
 
+
+//*****************************************************************************
+// Sleep the ESP32 
+void lightSleepMSec(unsigned long ms){
+  unsigned long mS_TO_S_FACTOR = 1000;
+  esp_sleep_enable_timer_wakeup(ms * mS_TO_S_FACTOR);
+  esp_light_sleep_start(); 
+}
+
 //*****************************************************************************
 // Disable Bluetooth, the ADC sub-system, WiFi and drop the CPU down to 40Mhz.
 void setLowPowerMode() {
