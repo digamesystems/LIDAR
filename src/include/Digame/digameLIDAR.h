@@ -689,6 +689,7 @@ int processLIDARSignal3(Config config){
     // TODO: Investigate.
   }
 
+
   tfmP.sendCommand(TRIGGER_DETECTION, 0); // Trigger a LIDAR measurment
   return retValue;
 
