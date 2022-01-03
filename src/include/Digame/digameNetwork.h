@@ -78,7 +78,7 @@ bool enableWiFi(Config config)
     WiFi.begin(ssid.c_str(), password.c_str()); // Log in
 
     bool timedout = false;
-    unsigned long wifiTimeout = 10000;
+    unsigned long wifiTimeout = 30000;
     unsigned long tstart = millis();
     while (WiFi.status() != WL_CONNECTED)
     {
