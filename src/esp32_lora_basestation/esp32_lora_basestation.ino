@@ -336,7 +336,7 @@ String loraMsgToJSON(String msg){
                  "\",\"retries\":\""       + strRetries; 
 
   if (et=="v"){
-    jsonPayload = jsonPayload + "\",\"lane\":\"" + strLane;
+    jsonPayload = jsonPayload + "\",\"lane\":\"" + strLane +"\"";
   }
                  
   if ((et=="b")||(et=="hb")){
