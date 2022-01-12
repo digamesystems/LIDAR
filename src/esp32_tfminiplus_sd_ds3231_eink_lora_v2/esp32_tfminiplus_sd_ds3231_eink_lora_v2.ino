@@ -29,8 +29,8 @@ String model_description = "(LIDAR Traffic Counter with WiFi Back Haul)";
 #include <digameDebug.h>      // Debug message handling.
 #include <digameVersion.h>    // Global SW version constants
 #include <digameJSONConfig.h> // Read program parameters from config file on SD card. 
-//   TODO: Re-think this strategy. Too much coupling.
-//   The config struct is used all over the place.
+                              //   TODO: Re-think this strategy. Too much coupling.
+                              //   The config struct is used all over the place.
 #include <digameTime.h>       // Time Functions - RTC, NTP Synch etc
 #include <digameNetwork.h>    // Network Functions - Login, MAC addr
 #include <digamePowerMgt.h>   // Power management modes 
@@ -87,9 +87,12 @@ int    currentSecond;      // Set in the main loop from the RTC
 int    lidarReadingAtBoot; // At boot, do a reading of the LIDAR to check if it's blocked. Used
 // as a trigger to go into access point (AP) mode.
 
+
+bool wifiMessagePending = true;
+
 //---------------------------------------------------------------------------------------------
 
-// Used in setup
+// Used in setup()
 void loadConfiguration(String &statusMsg);
 
 void showSplashScreen();
@@ -105,7 +108,7 @@ void configureNetworking(String &statusMsg);
 void configureCore0Tasks(String &statusMsg);
 void configureTimers(String &statusMsg);
 
-// Used in loop
+// Used in loop()
 void handleBootEvent();       // Boot messages are sent at startup.
 void handleResetEvent();      // Look for reset flag getting toggled
 void handleModeButtonPress(); // Check for display mode button being pressed and switch display
@@ -120,16 +123,16 @@ void setup() // DEVICE INITIALIZATION
   String statusMsg = "";         // String to hold the results of self-test
 
   configurePorts(statusMsg);     // Set up UARTs and GPIOs
-  loadParameters(statusMsg);     // Grab program settings from SD card
   showSplashScreen();
   configureEinkDisplay(statusMsg);
+  loadParameters(statusMsg);     // Grab program settings from SD card
   lidarReadingAtBoot = configureLIDAR(statusMsg); // Sets up the LIDAR Sensor and
-  // returns an intial reading.
+                                                  // returns an intial reading.
   configureNetworking(statusMsg);
 
-#if USE_LORA
-  configureLoRa(statusMsg);
-#endif
+  #if USE_LORA
+    configureLoRa(statusMsg);
+  #endif
 
   configureRTC(statusMsg);         // Configure RTC. Set it if NTP is available.
 
@@ -166,7 +169,12 @@ void loop() // MAIN LOOP
   handleVehicleEvent();    // Read the LIDAR sensor and enque a count event msg, if needed
   handleHeartBeatEvent();  // Check timers and enque a heartbeat event msg, if needed
 
-  delay(10);
+  // Tune loop to run at about 50Hz
+  if (wifiConnected){ // 80Mhz clock
+    delay(11);
+  } else {
+    delay(6);         // 40Mhz clock
+  }
   
   T2 = millis();
   //DEBUG_PRINTLN(T2-T1);
@@ -184,10 +192,6 @@ void loadParameters(String &statusMsg)
     statusMsg += "   SD   : ERROR!\n\n";
   };
 }
-
-
-
-
 
 //**************************************************************************************
 void configureTimers(String &statusMsg) {
@@ -227,7 +231,6 @@ void configureCore0Tasks(String &statusMsg) {
     0,                   /* priority of the task */
     &displayManagerTask, /* Task handle to keep track of created task */
     0);
-
 }
 
 //**************************************************************************************
@@ -321,7 +324,6 @@ void configureStationMode(String &statusMsg) {
   statusMsg += "   WiFi : OK\n\n";
 }
 
-
 //****************************************************************************************
 // Configure the device as an access point. TODO: move to DigameNetwork.h
 void configureAPMode(String &statusMsg) {
@@ -335,7 +337,6 @@ void configureAPMode(String &statusMsg) {
   displayAPScreen(ssid, WiFi.softAPIP().toString());
   delay(5000);
 }
-
 
 //**************************************************************************************
 int configureLIDAR(String &statusMsg) {
@@ -354,7 +355,6 @@ void configureEinkDisplay(String &statusMsg) {
   displaySplashScreen("(LIDAR Counter)", SW_VERSION);
 }
 
-
 //****************************************************************************************
 // Prepare the GPIOs and debugUART serial port. Bring up the Wire interface for SPI bus.
 void configurePorts(String &statusMsg) {
@@ -365,7 +365,6 @@ void configurePorts(String &statusMsg) {
   delay(1000);               // Give port time to initalize
   Wire.begin();
 }
-
 
 //****************************************************************************************
 void showSplashScreen() {
@@ -395,7 +394,6 @@ void showSplashScreen() {
   DEBUG_PRINTLN();
 }
 
-
 //**************************************************************************************
 // Add a message to the queue for transmission.
 void pushMessage(String message) {
@@ -415,7 +413,6 @@ void pushMessage(String message) {
 }
 
 
-#if USE_LORA
 //****************************************************************************************
 // LoRa can't handle big payloads. We use a terse JSON message in this case.
 String buildLoRaJSONHeader(String eventType, double count, String lane = "1") {
@@ -460,10 +457,7 @@ String buildLoRaJSONHeader(String eventType, double count, String lane = "1") {
   // DEBUG_PRINTLN(loraHeader);
   return loraHeader;
 }
-#endif
 
-
-#if USE_WIFI
 //****************************************************************************************
 // WiFi can handle a more human-readable JSON data payload.
 String buildWiFiJSONHeader(String eventType, double count, String lane = "1") {
@@ -509,8 +503,6 @@ String buildWiFiJSONHeader(String eventType, double count, String lane = "1") {
 
   return jsonHeader;
 }
-#endif
-
 
 //****************************************************************************************
 // LoRa messages to the server all have a similar format. This builds the common header.
@@ -555,7 +547,7 @@ bool inTransmitWindow(int counterNumber, int numCounters = 3) {
   }
 
   int windowInterval = 60 / (numCounters);
-
+  // EX: for four counters, we get windows of...
   // counter 0: 0-14,
   // counter 1:      15-29,
   // counter 2:            30-44,
@@ -591,7 +583,9 @@ void messageManager(void *parameter) {
     if ( (msgBuffer.size() > 0) &&
          (inTransmitWindow(config.counterID.toInt(), config.counterPopulation.toInt())) )
     {
-
+      
+      wifiMessagePending = true;
+        
       if (config.showDataStream == "false") {
         DEBUG_PRINT("Buffer Size: ");
         DEBUG_PRINTLN(msgBuffer.size());
@@ -622,6 +616,8 @@ void messageManager(void *parameter) {
         {
           DEBUG_PRINTLN("Success!");
           DEBUG_PRINTLN();
+          wifiMessagePending = false;
+      
         }
       } else {
         if (config.showDataStream == "false")
@@ -633,14 +629,29 @@ void messageManager(void *parameter) {
     } else {
       #if USE_WIFI
         if (wifiConnected) {
-          if ((millis() - msLastPostTime) > 10000) { // Turn WiFi off after an interval of inactivity
-            DEBUG_PRINTLN("WiFi Stale...");
-            disableWiFi();
+          if (!accessPointMode) { // Don't turn off WiFi if we are in accessPointMode
+            
+            unsigned long timeOut = 120000; 
+            unsigned long tNow    = millis();
+            
+            // Turn WiFi off after an interval of inactivity to save power
+            
+            if ( ((tNow - msLastPostTime)         > timeOut) && 
+                 ((tNow - msLastWebPageEventTime) > timeOut) )
+            { 
+              DEBUG_PRINTLN("WiFi Stale...");
+              disableWiFi();
+              wifiMessagePending = false;
+            }
+            
           }
         }
       #endif
     }
+
+
     vTaskDelay(100 / portTICK_PERIOD_MS);
+
   }
 }
 
@@ -706,7 +717,6 @@ void handleModeButtonPress() {
   }
 }
 
-
 //**************************************************************************************
 void handleBootEvent() {
   if (bootMessageNeeded) {
@@ -729,7 +739,6 @@ void handleResetEvent() {
     ESP.restart();
   }
 }
-
 
 //**************************************************************************************
 void handleHeartBeatEvent() { // Issue a heartbeat message, if needed.
@@ -763,59 +772,52 @@ void handleHeartBeatEvent() { // Issue a heartbeat message, if needed.
 
 
 //**************************************************************************************
+String appendRawDataToMsgPayload(){
+  // Vehicle passing event messages may include raw data from the sensor.
+  // If so, tack the data buffer on the JSON message.
+  msgPayload = msgPayload + ",\"rawSignal\":[";
+  using index_t = decltype(lidarHistoryBuffer)::index_t;
+  for (index_t i = 0; i < lidarHistoryBuffer.size(); i++) {
+    msgPayload = msgPayload + lidarHistoryBuffer[i];
+    if (i < lidarHistoryBuffer.size() - 1) {
+      msgPayload = msgPayload + ",";
+    }
+  }
+  msgPayload = msgPayload + "]";
+}
+
+//**************************************************************************************
 void handleVehicleEvent() { // Test if vehicle event has occured. Route message if needed.
   vehicleMessageNeeded = processLIDARSignal3(config); //
 
+  //DEBUG_PRINTLN(vehicleMessageNeeded);
+
   if (vehicleMessageNeeded > 0) {
     if (lidarBuffer.size() == lidarSamples) { // Fill up the buffer before processing so
-      // we don't get false events at startup.
+                                              // we don't get false events at startup.
       count++;
       config.lidarZone1Count = String(count); // Update this so entities making use of config have access to the current count.
-      // e.g., digameWebServer.h
+                                              // e.g., digameWebServer.h
+                                              // TODO: revisit having count data live in config.-- Seems way too coupled.
 
       if (config.showDataStream == "false") {
         DEBUG_PRINT("Vehicle event! Counts: ");
         DEBUG_PRINTLN(count);
+        DEBUG_PRINTLN("LANE " + String(vehicleMessageNeeded) + " Event !");
+        msgPayload = buildJSONHeader("v", count, String(vehicleMessageNeeded));
       }
 
-      if (vehicleMessageNeeded == 1) {
-        if (config.showDataStream == "false") {
-          DEBUG_PRINTLN("LANE 1 Event!");
-        }
+      #if (USE_WIFI) && (APPEND_RAW_DATA_WIFI)
+        appendRawDataToMsgPayload();
+      #endif
 
-        msgPayload = buildJSONHeader("v", count, "1");
-      }
-
-      if (vehicleMessageNeeded == 2) {
-        if (config.showDataStream == "false") {
-          DEBUG_PRINTLN("LANE 2 Event!");
-        }
-        msgPayload = buildJSONHeader("v", count, "2");
-      }
-
-
-#if (USE_WIFI) && (APPEND_RAW_DATA_WIFI)
-      // Vehicle passing event messages may include raw data from the sensor.
-      // If so, tack the data buffer on the JSON message.
-      msgPayload = msgPayload + ",\"rawSignal\":[";
-      using index_t = decltype(lidarHistoryBuffer)::index_t;
-      for (index_t i = 0; i < lidarHistoryBuffer.size(); i++) {
-        msgPayload = msgPayload + lidarHistoryBuffer[i];
-        if (i < lidarHistoryBuffer.size() - 1) {
-          msgPayload = msgPayload + ",";
-        }
-      }
-      msgPayload = msgPayload + "]";
-#endif
-
-      msgPayload = msgPayload + "}";
+      msgPayload = msgPayload + "}"; // Close out the JSON
 
       pushMessage(msgPayload);
       if (config.logVehicleEvents == "checked") {
         appendTextFile("/eventlog.txt", msgPayload);
       }
-
-    }
-    vehicleMessageNeeded = 0;
-  }
+    }    
+    vehicleMessageNeeded = 0; 
+  } 
 }
