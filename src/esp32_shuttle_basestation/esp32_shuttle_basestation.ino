@@ -190,8 +190,8 @@ void loop(){
     counterStats = sendReceive(btUART1, "c",0); // Clear the counter
     resetShuttleStop(currentShuttleStop);
 
-    titleToDisplay = "LOCATION";
-    textToDisplay = "\n " + currentLocation + "\n\n Awaiting Counts\n\n       ...";
+    //titleToDisplay = "LOCATION";
+    //textToDisplay = "\n " + currentLocation + "\n\n Awaiting Counts...";
   }
  
   // Poll the counters.
@@ -432,7 +432,7 @@ void showCountDisplay(ShuttleStop &shuttleStop){
   char stopInfo [512];
   int n;
     
-  n = sprintf(stopInfo, "\n In  %d\n\n Out %d\n",
+  n = sprintf(stopInfo, "In %d Out %d",
             shuttleStop.counterEvents[SHUTTLE][INBOUND],
             shuttleStop.counterEvents[SHUTTLE][OUTBOUND]);
 
@@ -498,10 +498,10 @@ void configureIO(){
 void configureDisplay(){
   initDisplay();
   displayTitles("Parkdata", "Shuttle Bus");
-  centerPrint("Passenger", 70);
-  centerPrint("Counting System", 90);
-  centerPrint("Version", 110);
-  centerPrint(SW_VERSION, 130);
+  centerPrint("Passenger", 65);
+  centerPrint("Counting System", 85);
+  //centerPrint("Version", 105);
+  centerPrint(SW_VERSION, 105);
   displayCopyright();
 }
 
@@ -554,13 +554,25 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 // to resolve name to address first, but it allows to connect to different devices with the same name.
 // Set CoreDebugLevel to Info to view devices bluetooth address and device names
 
-  displayTextScreen("CONNECTING","\n ...SEARCHING...");
-  DEBUG_PRINT("Connecting to " + counter + "...");
+  initDisplay();
+  displayTitles("CONNECTING", "Searching...");
+  centerPrint("Connecting to:", 70);
+  centerPrint(counter, 90);
+  displayCopyright();
+
+  //displayTextScreen("CONNECTING","\n ...SEARCHING...");
+  //DEBUG_PRINT("Connecting to " + counter + "...");
   bool connected = btUART.connect(counter);
   
   if(connected) {
     DEBUG_PRINTLN(" Success! Awaiting Counts...");
-    displayTextScreen("CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
+    //displayTextScreen("CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
+    initDisplay();
+    displayTitles("CONNECTED", "");
+    centerPrint("SUCCESS!", 70);
+    centerPrint("Awaiting counts...", 90);
+    displayCopyright();
+
   } else {
     DEBUG_PRINTLN(" Failed to connect."); 
     displayTextScreen("CONNECT",  "\n     FAILED!");
