@@ -95,10 +95,10 @@ bool sendReceiveLoRa(String msg)
   String strRetryCount;
   long t2, t1;
 
+  wakeReyax();
+
   t1 = millis();
   t2 = t1;
-
-  wakeReyax();
 
   strRetryCount = String(LoRaRetryCount);
   strRetryCount.trim();
