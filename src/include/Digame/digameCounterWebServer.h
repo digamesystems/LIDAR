@@ -49,6 +49,8 @@ unsigned long upTimeMillis=0;
 const char* http_username = "admin";
 const char* http_password = "admin";
 
+unsigned long msLastWebPageEventTime;
+
 
 //*******************************************************************************************************
 String processor(const String& var){
@@ -172,6 +174,7 @@ void initWebServer() {
     Serial.println("    SPIFFS up!");
   }
 
+  msLastWebPageEventTime = millis(); // Initialize the web page event timer variable
 
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     //request->send(SD, "/index.html", String(), false, processor);
@@ -302,6 +305,7 @@ void initWebServer() {
   server.on("/distance", HTTP_GET, [](AsyncWebServerRequest *request){
     request->send(200, "text/plain", lastDistanceMeasured+","+\
                                      String(config.lidarZone1Count));
+    msLastWebPageEventTime = millis();
   });
 
   server.on("/counters", HTTP_GET, [](AsyncWebServerRequest *request){
