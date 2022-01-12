@@ -35,8 +35,12 @@ GxEPD2_BW<GxEPD2_154, GxEPD2_154::HEIGHT> display1(GxEPD2_154(/*CS=5*/ EPD_CS, /
 // ADAFRUIT 1.54" ePaper Display. SSD1681
 GxEPD2_BW<GxEPD2_154_D67, GxEPD2_154_D67::HEIGHT> display2(GxEPD2_154_D67(/*CS=5*/ EPD_CS, /*DC=*/EPD_DC, /*RST=*/EPD_RESET, /*BUSY=*/EPD_BUSY)); // GDEW0154M09 200x200
 
+// ADAFRUIT 2.13" ePaper Display. 
+GxEPD2_BW<GxEPD2_213_B72, GxEPD2_213_B72::HEIGHT> display3(GxEPD2_213_B72(/*CS=5*/ EPD_CS, /*DC=*/EPD_DC, /*RST=*/EPD_RESET, /*BUSY=*/EPD_BUSY)); // 
+
+
 //GxEPD2_GFX& display = display2;
-String displayType = "SSD1681";
+String displayType = "154_SSD1681";
 
 GxEPD2_GFX *mainDisplay;
 
@@ -44,18 +48,28 @@ GxEPD2_GFX *mainDisplay;
 //******************************************************************************************
 GxEPD2_GFX &getDisplay()
 { // So we can use different displays.
-  if (displayType == "SSD1608")
+  if (displayType == "154_SSD1608")
   {
-    return display1;
+    return display1;//3; //1
   }
-  else
+  
+  if (displayType == "154_SSD1608")
+  
   {
     return display2;
   }
+  
+  if (displayType == "213_SSD1608")
+  {
+    return display3;
+  }
+
 }
 
 void initDisplay()
 {
+  bool changeDisplayType = false; 
+
   DEBUG_PRINTLN(" Initializing eInk Display...");
   DEBUG_PRINTLN("  Reading EEPROM");
 
@@ -64,7 +78,35 @@ void initDisplay()
 
   if (EEPROM.read(0)==255){
     DEBUG_PRINTLN("   ****Display Uninitialized****");
-    DEBUG_PRINTLN("   Enter Display Type 1=SSD1608, 2=SSD1681: ");
+    changeDisplayType = true;
+  }else{
+    DEBUG_PRINTLN("  Current Display Type: " + String(EEPROM.read(0)));
+    DEBUG_PRINT(  "    Change? y/[n] (You have 5 sec to decide) ");
+    unsigned long t1 = millis();
+    unsigned long t2 = t1;
+
+    while (
+            !(debugUART.available()) && 
+            ((t2-t1)<5000)
+          )
+    {
+      t2 = millis();
+      delay(500); // wait for data from the user... 
+      DEBUG_PRINT(".");
+    }
+
+    DEBUG_PRINTLN();
+
+    if (debugUART.available()){
+      String ynString = debugUART.readStringUntil('\n');
+      ynString.trim();
+      if (ynString == "y") {changeDisplayType = true;}
+    }
+
+  }
+
+  if (changeDisplayType){
+    DEBUG_PRINTLN("   Enter Display Type 1=154_SSD1608, 2=154_SSD1681, 3=213_SSD1608: ");
     
     while (!(debugUART.available())){
       delay(10); // wait for data from the user... 
@@ -76,24 +118,31 @@ void initDisplay()
     DEBUG_PRINTLN(inString);
 
     if (inString =="1"){
-       displayType = "SSD1608";
+       displayType = "154_SSD1608";
        EEPROM.write(0,1);
        EEPROM.commit();
     }
 
     if (inString == "2"){
-       displayType = "SSD1681";
+       displayType = "154_SSD1681";
        EEPROM.write(0,2);
+       EEPROM.commit();
+    }
+
+    if (inString == "3"){
+       displayType = "213_SSD1608";
+       EEPROM.write(0,3);
        EEPROM.commit();
     }
   } 
 
-  DEBUG_PRINT("   Display Type: ");
+  DEBUG_PRINT("    Display Type: ");
   DEBUG_PRINT(EEPROM.read(0));
 
 
-  if (EEPROM.read(0)==1){displayType="SSD1608";}
-  if (EEPROM.read(0)==2){displayType="SSD1681";}
+  if (EEPROM.read(0)==1){displayType="154_SSD1608";}
+  if (EEPROM.read(0)==2){displayType="154_SSD1681";}
+  if (EEPROM.read(0)==3){displayType="213_SSD1608";}
 
   DEBUG_PRINT(" = ");
   DEBUG_PRINTLN(displayType);
@@ -143,9 +192,9 @@ void displayTitles(String title1, String title2)
   GxEPD2_GFX &display = getDisplay();
   display.fillScreen(GxEPD_WHITE);
   display.setTextSize(3);
-  centerPrint(title1, 10);
+  centerPrint(title1, 5);
   display.setTextSize(2);
-  centerPrint(title2, 40);
+  centerPrint(title2, 35);
 }
 
 //******************************************************************************************
@@ -197,10 +246,10 @@ void displayTextScreen(String title, String s)
   GxEPD2_GFX &display = getDisplay();
   display.fillScreen(GxEPD_WHITE);
   display.setTextSize(3);
-  centerPrint(title, 15);
+  centerPrint(title, 10);
   display.setTextSize(2);
   //displayTitles(title,s);
-  display.setCursor(0, 50);
+  display.setCursor(0, 45);
   display.print(s);
   displayCopyright();
 }
@@ -212,10 +261,9 @@ void displayTextScreenLarge(String title, String s)
   GxEPD2_GFX &display = getDisplay();
   display.fillScreen(GxEPD_WHITE);
   display.setTextSize(3);
-  centerPrint(title, 15);
-  display.setTextSize(4);
-  display.setCursor(0, 25);
-  display.print(s);
+  centerPrint(title, 10);
+  display.setTextSize(3);
+  centerPrint(s,60);
   displayCopyright();
 }
 
