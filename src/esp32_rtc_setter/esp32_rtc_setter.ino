@@ -15,7 +15,7 @@
 // Globals
 String swVersion = "1.0.0";
 
-Config config;
+//Config config;
 
 // Declares
 void  initPorts(); // Set up the Serial port
