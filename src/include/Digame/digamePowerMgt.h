@@ -31,6 +31,7 @@ void setLowPowerMode() {
     adc_power_off();
     esp_wifi_stop();
     esp_bt_controller_disable();
+    debugUART.println("40 MHz");
     setCpuFrequencyMhz(40); // Slow down the CPU
     debugUART.println("    Done. Low Power Mode Enabled.");
 }
