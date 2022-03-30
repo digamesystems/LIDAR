@@ -78,6 +78,7 @@ float smoothed_LIDAR_2 = 0.0;
 // sees the target first. 
 int previousState = 0; 
 int state         = 0; 
+
 #define OUTBOUND  1
 #define INBOUND   2
 #define BOTH      3
@@ -99,6 +100,8 @@ String jsonPrefix;
 
 
 //****************************************************************************************
+// Overloading print and println to send messages to both serial and bluetooth connections
+// There must be a better way to do this with a #define 
 //****************************************************************************************
 void dualPrintln(String s="");
 void dualPrint(String s="");
@@ -342,7 +345,7 @@ void showSplashScreen(){
   dualPrint("Bluetooth Address: ShuttleCounter_");
   dualPrintln(String(getShortMACAddress()));
   dualPrintln();
-  dualPrintln("Copyright 2021, Digame Systems.");
+  dualPrintln("Copyright 2022, Digame Systems.");
   dualPrintln("All rights reserved.");
   dualPrintln("*******************************************");
   dualPrintln();   

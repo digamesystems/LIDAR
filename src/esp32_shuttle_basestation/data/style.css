@@ -1,0 +1,64 @@
+  html { font-family: Helvetica; display: inline-block; margin: 0px auto; }
+  
+  form { margin:10px auto; 
+    width: 300px; 
+    background-color: #eeeeee; 
+    border: solid;
+    border-radius:  10px; 
+    padding: 5px 15px; }
+
+  h1 { background-color: #ac0014; 
+    border: none; 
+    border-radius: 10px;
+    color:white; 
+    padding: 16px 40px;
+    text-decoration: none; 
+    text-align: center; 
+    margin: 2px; }
+
+  h2 { margin: auto; text-align: center; }
+
+  h3 { margin: auto; text-align: center; font-size: 1.25em; }
+
+  label { width: 170px; 
+          font-weight:bold; 
+          font-style:italic; 
+          text-align: left; 
+          clear: both; 
+          float:left; 
+          margin-right:15px; }
+  
+  small { font-weight:normal;}
+
+  img { display:block; width:175px; margin-left:auto; margin-right:auto; }
+
+  input[type="text"] { width: 280px; }
+  input[type="password"] { width: 280px; }
+  input[type="submit"] { width: 100px; }
+
+  table {border-spacing: 0 5px;}
+
+  td { text-align: center;}
+  table input[type="text"] { width: 120px; }
+  table label { width: 150px; }
+  table input[type="text"].narrow { width: 30px; }
+
+  .center {
+    position: absolute;
+    left: 50%;
+    -ms-transform: translate(-50%, -100%);
+    transform: translate(-50%, -100%);
+  }
+
+  .button {
+    font: 14px Arial;
+    text-decoration: none;
+    background-color: #EEEEEE;
+    color: #333333;
+    padding: 4px 6px 4px 6px;
+    border-top: 1px solid #CCCCCC;
+    border-right: 1px solid #333333;
+    border-bottom: 1px solid #333333;
+    border-left: 1px solid #CCCCCC;
+  }
+

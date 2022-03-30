@@ -1,3 +1,4 @@
+
 //---------------------------------------------------------------------------------------------
 /* HEIMDALL VCS - Vehicle Counting System
    A traffic counting system that uses LIDAR to track pedestrians and vehicles.
@@ -136,9 +137,10 @@ void setup() // DEVICE INITIALIZATION
 
   configureRTC(statusMsg);         // Configure RTC. Set it if NTP is available.
 
+  DEBUG_PRINTLN("RTC CONFIG DONE");
   displayStatusScreen(statusMsg);  // Show the results of the hardware configuration
   delay(5000);
-
+  DEBUG_PRINTLN("DISPLAY STATUS SCREEN DONE");
   displayCountScreen(count);       // Set up the display to show vehicle events
   showValue(count);
   delay(1000);

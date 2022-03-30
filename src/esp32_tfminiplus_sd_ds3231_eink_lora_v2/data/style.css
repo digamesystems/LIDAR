@@ -1,13 +1,15 @@
-  html { font-family: Helvetica; display: inline-block; margin: 0px auto; }
+  html { font-family: 'Poppins'; display: inline-block; margin: 0px auto; }
   
   form { margin:10px auto; 
          width: 300px; 
          background-color: #eeeeee; 
-         border: solid; 
+         border: solid;
+         border-radius:  10px; 
          padding: 5px 15px; }
   
   h1 { background-color: #ac0014; 
        border: none; 
+       border-radius: 10px;
        color:white; 
        padding: 16px 40px;
        text-decoration: none; 

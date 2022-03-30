@@ -35,6 +35,19 @@
 #include <ArduinoJson.h>     
 #include <CircularBuffer.h>   // Adafruit library for handling circular buffers of data. 
 
+
+// For Over the Air (OTA) updates... 
+#include <AsyncTCP.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncElegantOTA.h>
+
+bool useOTA = true; 
+
+//****************************************************************************************
+//****************************************************************************************                        
+// Create AsyncWebServer object on port 80
+AsyncWebServer server(80);
+
 const int samples = 100;
 
 CircularBuffer<String *, samples> shuttleStops; // A buffer containing pointers to JSON messages to be 
@@ -81,6 +94,9 @@ String previousLocation = "UNK";
 String titleToDisplay = "";
 String textToDisplay = "";
 
+int    CTR_RESET = 32;     // Counter Reset Input
+
+
 
 // Multi-Tasking
 SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
@@ -105,6 +121,9 @@ void configureWiFi();
 void configureBluetooth(); 
 void configureEinkManagerTask();
 void loadParameters();
+void saveParameters();
+
+void  configureOTA();
 
 // Bluetooth Counters
 bool connectToCounter(BluetoothSerial &btUART, String counter);
@@ -133,21 +152,37 @@ void setup(){
   mutex_v = xSemaphoreCreateMutex(); // The mutex we will use to protect variables 
                                      // across tasks
 
+
+  configureIO();
+
+  useOTA = ( digitalRead(CTR_RESET) == LOW ); // Button low at boot = AP mode
+  DEBUG_PRINT("USE OTA: ");
+  DEBUG_PRINTLN(useOTA);
+  
   loadParameters();
   showSplashScreen();
   
-  configureIO();
   configureDisplay();
   configureRTC();
-  configureWiFi();
-  configureBluetooth();
 
-  // Setup our counter. 
-  sendReceive(btUART1, "-",0); // Turn off the menu system
-  sendReceive(btUART1, "g",0); // Get a value
-  sendReceive(btUART1, "c",0); // Clear the counter
   
-  resetShuttleStop(currentShuttleStop);
+  
+  configureWiFi();
+
+  if (useOTA){
+    configureOTA();
+    titleToDisplay = "AP Mode";
+    textToDisplay = "IP Address";
+  
+  } else {
+    configureBluetooth();
+    resetShuttleStop(currentShuttleStop);
+    
+    // Setup our counter. 
+    sendReceive(btUART1, "-",0); // Turn off the menu system
+    sendReceive(btUART1, "g",0); // Get a value
+    sendReceive(btUART1, "c",0); // Clear the counter    
+  }
   
   configureEinkManagerTask();
   
@@ -170,38 +205,44 @@ unsigned int counterPollingInterval = 1000;
 void loop(){
 
   t2=millis();
-  
-  // Scan for known SSIDs.
-  if ((t2-t1) > networkScanInterval){
-    currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
-    DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " + currentLocation);
-    t1=millis(); 
-  }
 
-  if (currentLocation != previousLocation){ // We've moved
-    DEBUG_PRINTLN("New Location!");
-    
-    String counterStats = sendReceive(btUART1, "g",0); // Get the current count
-    if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
-    
-    processLocationChange(currentShuttleStop);
-    
-    // Get ready to take data here, at the new location
-    counterStats = sendReceive(btUART1, "c",0); // Clear the counter
-    resetShuttleStop(currentShuttleStop);
+  if (useOTA){
 
-    //titleToDisplay = "LOCATION";
-    //textToDisplay = "\n " + currentLocation + "\n\n Awaiting Counts...";
-  }
- 
-  // Poll the counters.
-  t4 = millis();
-  if ((t4-t3) > counterPollingInterval){
-    String counterStats = sendReceive(btUART1, "g", 0);
-    if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
-    t3 = millis();   
-  }    
+    
+  } else {
+    
+    // Scan for known SSIDs.
+    if ((t2-t1) > networkScanInterval){
+      currentLocation  = scanForKnownLocations(knownLocations, NUMITEMS(knownLocations));
+      DEBUG_PRINTLN("Previous Location: " + previousLocation + " Current Location: " + currentLocation);
+      t1=millis(); 
+    }
   
+    if (currentLocation != previousLocation){ // We've moved
+      DEBUG_PRINTLN("New Location!");
+      
+      String counterStats = sendReceive(btUART1, "g",0); // Get the current count
+      if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
+      
+      processLocationChange(currentShuttleStop);
+      
+      // Get ready to take data here, at the new location
+      counterStats = sendReceive(btUART1, "c",0); // Clear the counter
+      resetShuttleStop(currentShuttleStop);
+  
+      //titleToDisplay = "LOCATION";
+      //textToDisplay = "\n " + currentLocation + "\n\n Awaiting Counts...";
+    }
+   
+    // Poll the counters.
+    t4 = millis();
+    if ((t4-t3) > counterPollingInterval){
+      String counterStats = sendReceive(btUART1, "g", 0);
+      if (counterStats !="") updateShuttleStop(currentShuttleStop, counterStats, 0);
+      t3 = millis();   
+    }
+        
+  }  
   delay(20);
 }
 
@@ -223,12 +264,12 @@ bool countsChanged (ShuttleStop shuttleStop) // Have the shuttleStop's counters 
     lastOutCount = shuttleStop.counterEvents[SHUTTLE][OUTBOUND];   
   }
 
-  DEBUG_PRINTLN("countsChanged says: " + String(retValue));
+  //DEBUG_PRINTLN("countsChanged says: " + String(retValue));
   return retValue; 
   
 }
 
-bool displayTextChanged(String displayText){
+  bool displayTextChanged(String displayText){
   static String oldText = "";
   bool retVal = false;
   
@@ -274,7 +315,7 @@ void eInkManager(void *parameter){
       displayTextScreen(titleToDisplay,textToDisplay);  
     } 
 
-    showPartialXY(rotateSpinner(),180,180);
+    showPartialXY(rotateSpinner(),230,100);
     
   }
 }
@@ -299,7 +340,7 @@ void deliverRouteReport(){
     // for it...
 
     titleToDisplay = "V. CENTER";
-    textToDisplay = "\n\n   Sending\n\n   Report...";
+    textToDisplay = "\n  Sending Report...";
     
     if (WiFi.status() != WL_CONNECTED){  
       while (!(WiFi.status() == WL_CONNECTED)){enableWiFi(networkConfig);}
@@ -327,7 +368,7 @@ void deliverRouteReport(){
 
   
   titleToDisplay = "V. CENTER";
-  textToDisplay = "\n\n   Sending\n\n   Complete.";
+  textToDisplay = "\n  Sending Complete.";
   delay(2000); // Give folks a sec to read the update.
  
    
@@ -399,9 +440,125 @@ void loadParameters(){
       counterNames[i] = String((const char *)doc["counterNames"][i]);
       //DEBUG_PRINTLN(counterNames[i]);
     }
-    
   }    
 }
+
+void saveParameters(){
+// TODO! 
+  
+  
+}
+
+
+//***************************************************************************************
+String processor(const String& var)
+//***************************************************************************************
+{
+
+  if(var == "config.deviceName") return F(shuttleName.c_str()); 
+  if(var == "baseStationName") return F(shuttleName.c_str()); 
+  if(var == "counterName") return F(counterNames[0].c_str()); 
+  if(var == "reportingLocation") return F(reportingLocation.c_str()); 
+  if(var == "password") return F(reportingLocationPassword.c_str()); 
+  if(var == "stop1") return F(knownLocations[0].c_str()); 
+  if(var == "stop2") return F(knownLocations[1].c_str()); 
+  if(var == "stop3") return F(knownLocations[2].c_str()); 
+  if(var == "stop4") return F(knownLocations[3].c_str()); 
+  if(var == "stop5") return F(knownLocations[4].c_str()); 
+  if(var == "stop6") return F(knownLocations[5].c_str()); 
+  
+  return "";
+}
+
+
+//*******************************************************************************************************
+void redirectHome(AsyncWebServerRequest* request){
+    
+    //saveConfiguration(filename,config); // Save any changes before redirecting home
+
+
+    String RedirectUrl = "http://";
+    if (ON_STA_FILTER(request)) {
+      RedirectUrl += WiFi.localIP().toString();
+    } else {
+      RedirectUrl += WiFi.softAPIP().toString();
+    }
+    RedirectUrl += "/";
+    request->redirect(RedirectUrl);
+}
+
+//*******************************************************************************************************
+void processQueryParam(AsyncWebServerRequest *request, String qParam, String *targetParam){
+    //debugUART.println(qParam);
+    if(request->hasParam(qParam)){
+      //debugUART.println("found");
+      AsyncWebParameter* p = request->getParam(qParam);
+
+      debugUART.print(p->value());
+      debugUART.print(" ");
+      debugUART.println(String(p->value()).length());
+
+
+      if (String(p->value()).length() == 0) {
+        //debugUART.println("*******BLANK ENTRY!*******");
+        //debgugUART.println("...ignoring...");
+      
+      } else{
+        *targetParam = String(p->value().c_str());
+        targetParam->replace("%","_"); // Replace the template character. 
+                                     // 'Might cause problems w/ some Passwords...
+                                     // TODO: Think on this. Make '%' illegal in PW? 
+      }
+    }
+}
+
+//****************************************************************************************
+void configureOTA(){
+//****************************************************************************************
+
+  DEBUG_PRINTLN("  Stand-Alone Mode. Setting AP (Access Point)…");  
+  WiFi.mode(WIFI_AP);
+  
+  String netName = "BaseStation_" + getShortMACAddress();
+  const char* ssid = netName.c_str();
+  WiFi.softAP(ssid);
+  
+  IPAddress IP = WiFi.softAPIP();
+  DEBUG_PRINT("    AP IP address: ");
+  DEBUG_PRINTLN(IP);   
+  
+  //delay(3000);  
+  
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    DEBUG_PRINTLN(" Web Request Received.");
+    
+    if(!request->authenticate("admin", "admin"))
+      return request->requestAuthentication();
+      
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  
+  });
+
+  server.on("/parameters",HTTP_GET, [](AsyncWebServerRequest *request){
+    processQueryParam(request, "baseName", &shuttleName);
+    processQueryParam(request, "counterName", &counterNames[0]);
+
+    processQueryParam(request, "reptLocation", &reportingLocation);
+    processQueryParam(request, "password", &reportingLocationPassword);
+
+    for (int i = 0; i<6; i++){
+      processQueryParam(request, "stop" + String(i+1), &knownLocations[i]);
+    }
+     
+    redirectHome(request);
+    
+  });
+
+  server.serveStatic("/", SPIFFS, "/"); // sets the base path for the web server
+  AsyncElegantOTA.begin(&server);   
+  server.begin();
+}
+
 
 
 // UI Routines
@@ -492,6 +649,8 @@ String scanForKnownLocations(String knownLocations[], int arraySize){
 void configureIO(){
   pinMode(0, OUTPUT);
   pinMode(2, INPUT);
+
+  pinMode(CTR_RESET, INPUT_PULLUP);
   digitalWrite(0, HIGH);   // turn the pin
 }
 
@@ -554,7 +713,7 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 // to resolve name to address first, but it allows to connect to different devices with the same name.
 // Set CoreDebugLevel to Info to view devices bluetooth address and device names
 
-  initDisplay();
+  //initDisplay();
   displayTitles("CONNECTING", "Searching...");
   centerPrint("Connecting to:", 70);
   centerPrint(counter, 90);
@@ -567,7 +726,7 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
   if(connected) {
     DEBUG_PRINTLN(" Success! Awaiting Counts...");
     //displayTextScreen("CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
-    initDisplay();
+    //initDisplay();
     displayTitles("CONNECTED", "");
     centerPrint("SUCCESS!", 70);
     centerPrint("Awaiting counts...", 90);
