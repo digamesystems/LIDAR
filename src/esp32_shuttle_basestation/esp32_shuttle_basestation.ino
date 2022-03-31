@@ -156,6 +156,8 @@ void setup(){
   configureIO();
 
   useOTA = ( digitalRead(CTR_RESET) == LOW ); // Button low at boot = AP mode
+
+  useOTA = true; //DEBUG
   DEBUG_PRINT("USE OTA: ");
   DEBUG_PRINTLN(useOTA);
   
@@ -171,8 +173,10 @@ void setup(){
 
   if (useOTA){
     configureOTA();
-    titleToDisplay = "AP Mode";
-    textToDisplay = "IP Address";
+
+    //IPAddress IP = WiFi.localIP();
+    //textToDisplay = "SSID: BaseStation_" + getShortMACAddress() + "\n";
+    //textToDisplay +="IP Address : " + IP;
   
   } else {
     configureBluetooth();
@@ -526,6 +530,16 @@ void configureOTA(){
   IPAddress IP = WiFi.softAPIP();
   DEBUG_PRINT("    AP IP address: ");
   DEBUG_PRINTLN(IP);   
+
+  //displayTitles("NETWORK", "(ACCESS POINT)");
+  //centerPrint("  BaseStation_" + getShortMACAddress(), 70);
+  //centerPrint(WiFi.softAPIP().toString(), 90);
+  
+
+  titleToDisplay = "ACCESS POINT";
+  textToDisplay = "  BaseStation_" + getShortMACAddress() + "\n\n";
+  textToDisplay += "     " + WiFi.softAPIP().toString();
+  displayTextScreen(titleToDisplay, textToDisplay);
   
   //delay(3000);  
   
