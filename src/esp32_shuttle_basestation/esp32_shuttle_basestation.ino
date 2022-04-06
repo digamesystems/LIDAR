@@ -41,7 +41,7 @@
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 
-bool useOTA = true; 
+bool useOTA = false; 
 
 //****************************************************************************************
 //****************************************************************************************                        
@@ -81,6 +81,10 @@ String knownLocations[] = {"_Bighead",
                           "Pretty Fly For A Wi-Fi V4",
                           "_4th_StreetPizzaCo", 
                           "SanPedroSquareMarket",
+                          "Stop 7",
+                          "Stop 8",
+                          "Stop 9",
+                          "Stop 10",
                           "AndroidAP3AE2"};
 
 String counterNames[]     = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
@@ -157,7 +161,7 @@ void setup(){
 
   useOTA = ( digitalRead(CTR_RESET) == LOW ); // Button low at boot = AP mode
 
-  useOTA = true; //DEBUG
+  //useOTA = true; //DEBUG
   DEBUG_PRINT("USE OTA: ");
   DEBUG_PRINTLN(useOTA);
   
@@ -165,19 +169,14 @@ void setup(){
   showSplashScreen();
   
   configureDisplay();
-  configureRTC();
+  configureEinkManagerTask();
 
   
-  
+  configureRTC();
   configureWiFi();
 
   if (useOTA){
     configureOTA();
-
-    //IPAddress IP = WiFi.localIP();
-    //textToDisplay = "SSID: BaseStation_" + getShortMACAddress() + "\n";
-    //textToDisplay +="IP Address : " + IP;
-  
   } else {
     configureBluetooth();
     resetShuttleStop(currentShuttleStop);
@@ -188,7 +187,6 @@ void setup(){
     sendReceive(btUART1, "c",0); // Clear the counter    
   }
   
-  configureEinkManagerTask();
   
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("RUNNING!");
@@ -407,14 +405,19 @@ void processLocationChange(ShuttleStop &currentShuttleStop)
 void loadParameters(){
 //****************************************************************************************
   StaticJsonDocument<2048> doc;  
- 
+  DEBUG_PRINTLN("LOADING DEFAULT PARAMETERS...");
+  
   if(!SPIFFS.begin()){
     DEBUG_PRINTLN("    File System Mount Failed");
+    while (1) {} // Halt and spin...
+  
   } else {
-    //DEBUG_PRINTLN("    SPIFFS up!");
+    DEBUG_PRINTLN("    SPIFFS up!");
     String temp;
-    
+
+    DEBUG_PRINTLN("    Reading file...");
     temp = readFile(SPIFFS, "/config.txt");
+    DEBUG_PRINTLN(temp);
     // Deserialize the JSON document
     DeserializationError error = deserializeJson(doc, temp);
     if (error)
@@ -447,10 +450,65 @@ void loadParameters(){
   }    
 }
 
-void saveParameters(){
-// TODO! 
+//****************************************************************************************
+// Saves the configuration to a file
+void saveParameters()
+{
+  if (SPIFFS.begin()){
+    DEBUG_PRINTLN("SPIFFS up!");  
+  } else { 
+    DEBUG_PRINTLN("Trouble mounting SPIFFS!");
+    return;
+  }
+
+  const char *filename = "/config.txt";
+  SPIFFS.remove(filename);
+
+  File file = SPIFFS.open(filename, FILE_WRITE);
+  if (!file)
+  {
+    Serial.println(F("    Failed to create file!"));
+    return;
+  }
+
+  // Allocate a temporary JsonDocument
+  // Don't forget to change the capacity to match your requirements.
+  // Use https://arduinojson.org/assistant to compute the capacity.
+  StaticJsonDocument<2048> doc;
+
+  // Copy values from the Config struct to the JsonDocument
+  doc["routeName"] = routeName;
+  doc["shuttleName"] = shuttleName;
+  doc["reportingLocation"] = reportingLocation;
+  doc["reportingLocationPassword"] = reportingLocationPassword;
+  doc["counterNames"][0] = counterNames[0];
+  doc["counterNames"][1] = counterNames[1];
+
   
+  doc["knownLocations"][0] = knownLocations[0];
+  doc["knownLocations"][1] = knownLocations[1];
+  doc["knownLocations"][2] = knownLocations[2];
+  doc["knownLocations"][3] = knownLocations[3];
+  doc["knownLocations"][4] = knownLocations[4];
+  doc["knownLocations"][5] = knownLocations[5];
+  doc["knownLocations"][6] = knownLocations[6];
+  doc["knownLocations"][7] = knownLocations[7];
+  doc["knownLocations"][8] = knownLocations[8];
+  doc["knownLocations"][9] = knownLocations[9];
+  doc["knownLocations"][10] = knownLocations[10];
+
   
+  DEBUG_PRINTLN("Writing file...");
+
+  if (serializeJson(doc, file) == 0)
+  {
+    DEBUG_PRINTLN("    Failed to write file!");
+  }
+
+  // Close the file
+  DEBUG_PRINTLN("Closing file...");
+
+  file.close();
 }
 
 
@@ -470,6 +528,10 @@ String processor(const String& var)
   if(var == "stop4") return F(knownLocations[3].c_str()); 
   if(var == "stop5") return F(knownLocations[4].c_str()); 
   if(var == "stop6") return F(knownLocations[5].c_str()); 
+  if(var == "stop7") return F(knownLocations[6].c_str()); 
+  if(var == "stop8") return F(knownLocations[7].c_str()); 
+  if(var == "stop9") return F(knownLocations[8].c_str()); 
+  if(var == "stop10") return F(knownLocations[9].c_str()); 
   
   return "";
 }
@@ -478,8 +540,8 @@ String processor(const String& var)
 //*******************************************************************************************************
 void redirectHome(AsyncWebServerRequest* request){
     
-    //saveConfiguration(filename,config); // Save any changes before redirecting home
-
+    saveParameters(); // Save any changes before redirecting home
+    
 
     String RedirectUrl = "http://";
     if (ON_STA_FILTER(request)) {
@@ -531,16 +593,10 @@ void configureOTA(){
   DEBUG_PRINT("    AP IP address: ");
   DEBUG_PRINTLN(IP);   
 
-  //displayTitles("NETWORK", "(ACCESS POINT)");
-  //centerPrint("  BaseStation_" + getShortMACAddress(), 70);
-  //centerPrint(WiFi.softAPIP().toString(), 90);
-  
-
   titleToDisplay = "ACCESS POINT";
   textToDisplay = "  BaseStation_" + getShortMACAddress() + "\n\n";
-  textToDisplay += "     " + WiFi.softAPIP().toString();
-  displayTextScreen(titleToDisplay, textToDisplay);
-  
+  textToDisplay += "    " + WiFi.softAPIP().toString();
+ 
   //delay(3000);  
   
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -560,7 +616,7 @@ void configureOTA(){
     processQueryParam(request, "reptLocation", &reportingLocation);
     processQueryParam(request, "password", &reportingLocationPassword);
 
-    for (int i = 0; i<6; i++){
+    for (int i = 0; i<9; i++){
       processQueryParam(request, "stop" + String(i+1), &knownLocations[i]);
     }
      
@@ -673,7 +729,6 @@ void configureDisplay(){
   displayTitles("Parkdata", "Shuttle Bus");
   centerPrint("Passenger", 65);
   centerPrint("Counting System", 85);
-  //centerPrint("Version", 105);
   centerPrint(SW_VERSION, 105);
   displayCopyright();
 }
@@ -728,10 +783,13 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 // Set CoreDebugLevel to Info to view devices bluetooth address and device names
 
   //initDisplay();
-  displayTitles("CONNECTING", "Searching...");
-  centerPrint("Connecting to:", 70);
-  centerPrint(counter, 90);
-  displayCopyright();
+  titleToDisplay= "CONNECTING";
+  textToDisplay = " Connecting to: \n\n" + counter;
+  
+  //displayTitles("CONNECTING", "Searching...");
+  //centerPrint("Connecting to:", 70);
+  //centerPrint(counter, 90);
+  //displayCopyright();
 
   //displayTextScreen("CONNECTING","\n ...SEARCHING...");
   //DEBUG_PRINT("Connecting to " + counter + "...");
@@ -741,14 +799,21 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
     DEBUG_PRINTLN(" Success! Awaiting Counts...");
     //displayTextScreen("CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
     //initDisplay();
-    displayTitles("CONNECTED", "");
-    centerPrint("SUCCESS!", 70);
-    centerPrint("Awaiting counts...", 90);
-    displayCopyright();
+
+    titleToDisplay = "CONNECTED";
+    textToDisplay = "\n  Awaiting counts...";
+    //displayTitles("CONNECTED", "");
+    //centerPrint("SUCCESS!", 70);
+    //centerPrint("Awaiting counts...", 90);
+    //displayCopyright();
 
   } else {
     DEBUG_PRINTLN(" Failed to connect."); 
-    displayTextScreen("CONNECT",  "\n     FAILED!");
+    titleToDisplay = "CONNECT";
+    textToDisplay = "Failed!";
+
+    delay(2000);
+    //displayTextScreen("CONNECT",  "\n       FAILED!");
   } 
 
   return connected; 
