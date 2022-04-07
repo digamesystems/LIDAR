@@ -26,7 +26,7 @@
 
 
 // Globals
-const char* ntpServer          = "pool.ntp.org"; // Time server.
+const char* ntpServer          = "time.nist.gov"; //"pool.ntp.org"; // Time server.
 const long  gmtOffset_sec      = 0; // No timezone offset (using GMT)
 const int   daylightOffset_sec = 0; // No Daylight Savings time offset 
 

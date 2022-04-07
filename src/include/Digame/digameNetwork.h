@@ -30,12 +30,23 @@ String getMACAddress()
     String retString;
 
     WiFi.macAddress(mac);
+
+    char buffer[3];
+    for (int i = 0; i<5; i++){
+      sprintf(buffer, "%02x", mac[i]);
+      retString = String(retString + buffer + ":");
+    }
+    sprintf(buffer, "%02x", mac[5]);
+    retString = String(retString + buffer);
+
+    /*
     retString = String(String(mac[0], HEX) + ":");
     retString = String(retString + String(mac[1], HEX) + ":");
     retString = String(retString + String(mac[2], HEX) + ":");
     retString = String(retString + String(mac[3], HEX) + ":");
     retString = String(retString + String(mac[4], HEX) + ":");
     retString = String(retString + String(mac[5], HEX));
+    */
 
     return retString;
 }

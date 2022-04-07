@@ -7,8 +7,10 @@
 #ifndef __DIGAME_DISPLAY_H__
 #define __DIGAME_DISPLAY_H__
 
-// base class GxEPD2_GFX can be used to pass references or pointers to the display instance as parameter, uses ~1.2k more code
+// base class GxEPD2_GFX can be used to pass references or pointers to the display 
+// instance as parameter, uses ~1.2k more code
 // enable or disable GxEPD2_GFX base class
+
 #define ENABLE_GxEPD2_GFX 1 // Took me a longer than it should have to find this! --
 
 #include <digameDebug.h>
@@ -150,11 +152,30 @@ void initDisplay()
   GxEPD2_GFX &display = getDisplay();
    
   display.init(0);
+  display.fillScreen(GxEPD_WHITE);
+  display.refresh(false); // full update
+  
   display.setRotation(3);
   display.setTextSize(2);
   display.setTextColor(GxEPD_BLACK);
-  display.fillScreen(GxEPD_WHITE);
+ 
   return;
+}
+
+void showWhite(){
+  GxEPD2_GFX &display = getDisplay();
+  display.clearScreen();
+  display.refresh(false); // full update
+  display.fillRect(0, 0, 250, 122, GxEPD_WHITE);
+  while (display.nextPage());
+}
+
+void showBlack(){
+  GxEPD2_GFX &display = getDisplay();
+  display.clearScreen();
+  display.refresh(false); // full update
+  display.fillRect(0, 0, 250, 122, GxEPD_BLACK);
+  while (display.nextPage());
 }
 
 //******************************************************************************************
@@ -191,6 +212,7 @@ void displayTitles(String title1, String title2)
 {
   GxEPD2_GFX &display = getDisplay();
   display.fillScreen(GxEPD_WHITE);
+  //display.clearScreen();
   display.setTextSize(3);
   centerPrint(title1, 5);
   display.setTextSize(2);
@@ -205,7 +227,8 @@ void displayCopyright()
   centerPrint("HEIMDALL VCS Family", 170);
   centerPrint("(c) 2021, Digame Systems.", 180);
   centerPrint("All rights reserved.", 190);
-  display.display();
+  //display.display();
+  while (display.nextPage());
 }
 
 //******************************************************************************************
@@ -244,13 +267,14 @@ void displayTextScreen(String title, String s)
 {
   //initDisplay();
   GxEPD2_GFX &display = getDisplay();
-  display.fillScreen(GxEPD_WHITE);
+  //display.fillScreen(GxEPD_WHITE);
   display.setTextSize(3);
   centerPrint(title, 10);
   display.setTextSize(2);
   //displayTitles(title,s);
-  display.setCursor(0, 45);
-  display.print(s);
+  //display.setCursor(0, 45);
+  centerPrint(s,45);
+  //display.print(s); ?????
   displayCopyright();
 }
 
@@ -259,7 +283,7 @@ void displayTextScreenLarge(String title, String s)
 {
   //initDisplay();
   GxEPD2_GFX &display = getDisplay();
-  display.fillScreen(GxEPD_WHITE);
+  //display.fillScreen(GxEPD_WHITE);
   display.setTextSize(3);
   centerPrint(title, 10);
   display.setTextSize(3);
