@@ -30,9 +30,9 @@
 #include <digameNetwork_v2.h> // For connections, MAC Address and reporting.
 #include <digameDisplay.h>    // eInk Display support.
 
-#include "BluetoothSerial.h"  // Virtual UART support for Bluetooth Classic 
+#include "BluetoothSerial.h"  // Virtual UART support for Bluetooth Classic - part of Arduino-ESP32 from Espressif 
 #include <WiFi.h>           
-#include <ArduinoJson.h>     
+#include <ArduinoJson.h>      // Nifty JSON library
 #include <CircularBuffer.h>   // Adafruit library for handling circular buffers of data. 
 
 
@@ -100,8 +100,6 @@ String textToDisplay = "";
 
 int    CTR_RESET = 32;     // Counter Reset Input
 
-
-
 // Multi-Tasking
 SemaphoreHandle_t mutex_v;     // Mutex used to protect variables across RTOS tasks. 
 TaskHandle_t eInkManagerTask;  // A task to update the eInk display.
@@ -124,15 +122,15 @@ void configureRTC();
 void configureWiFi();
 void configureBluetooth(); 
 void configureEinkManagerTask();
+void configureOTA();
+
+// Load/Save Defaults
 void loadParameters();
 void saveParameters();
 
-void  configureOTA();
-
-// Bluetooth Counters
-bool connectToCounter(BluetoothSerial &btUART, String counter);
-bool connectToCounterAddr(BluetoothSerial &btUART, uint8_t counterAddr[]);
-
+// Bluetooth Counter Communication
+bool   connectToCounter(BluetoothSerial &btUART, String counter);
+bool   connectToCounterAddr(BluetoothSerial &btUART, uint8_t counterAddr[]);
 String sendReceive(BluetoothSerial &btUART, String stringToSend, int counterID);
 
 // ShuttleStop wants to be a class...
@@ -140,9 +138,7 @@ void   pushShuttleStop(ShuttleStop &shuttleStop);
 void   resetShuttleStop(ShuttleStop &shuttleStop);
 void   updateShuttleStop(ShuttleStop &shuttleStop, String jsonMessage, int counterNumber);
 String getShuttleStopJSON(ShuttleStop &shuttleStop);
-
-
-void processLocationChange(ShuttleStop &currentShuttleStop);
+void   processLocationChange(ShuttleStop &currentShuttleStop);
 
 
 //****************************************************************************************
@@ -155,7 +151,6 @@ void setup(){
 
   mutex_v = xSemaphoreCreateMutex(); // The mutex we will use to protect variables 
                                      // across tasks
-
 
   configureIO();
 
@@ -283,9 +278,12 @@ bool countsChanged (ShuttleStop shuttleStop) // Have the shuttleStop's counters 
   return retVal;  
 }
 
+
+//****************************************************************************************
+// An "Old-School" UI Element from my DOS days! 
+//****************************************************************************************
 String rotateSpinner(){
   static String spinner = "|";
-  
   //OLD SCHOOL! :)
   if (spinner == "|") {
     spinner = "/";
@@ -405,17 +403,17 @@ void processLocationChange(ShuttleStop &currentShuttleStop)
 void loadParameters(){
 //****************************************************************************************
   StaticJsonDocument<2048> doc;  
-  DEBUG_PRINTLN("LOADING DEFAULT PARAMETERS...");
+  //DEBUG_PRINTLN("LOADING DEFAULT PARAMETERS...");
   
   if(!SPIFFS.begin()){
     DEBUG_PRINTLN("    File System Mount Failed");
     while (1) {} // Halt and spin...
   
   } else {
-    DEBUG_PRINTLN("    SPIFFS up!");
+    //DEBUG_PRINTLN("    SPIFFS up!");
     String temp;
 
-    DEBUG_PRINTLN("    Reading file...");
+    //DEBUG_PRINTLN("    Reading file...");
     temp = readFile(SPIFFS, "/config.txt");
     DEBUG_PRINTLN(temp);
     // Deserialize the JSON document
@@ -452,6 +450,7 @@ void loadParameters(){
 
 //****************************************************************************************
 // Saves the configuration to a file
+//****************************************************************************************
 void saveParameters()
 {
   if (SPIFFS.begin()){
@@ -542,7 +541,6 @@ void redirectHome(AsyncWebServerRequest* request){
     
     saveParameters(); // Save any changes before redirecting home
     
-
     String RedirectUrl = "http://";
     if (ON_STA_FILTER(request)) {
       RedirectUrl += WiFi.localIP().toString();
@@ -630,7 +628,6 @@ void configureOTA(){
 }
 
 
-
 // UI Routines
 
 //****************************************************************************************
@@ -642,7 +639,7 @@ void showSplashScreen(){
   DEBUG_PRINTLN("Version 1.0");
   DEBUG_PRINT("Device Name: ");
   DEBUG_PRINTLN(shuttleName);
-  DEBUG_PRINTLN("Copyright 2021, Digame Systems. All rights reserved.");
+  DEBUG_PRINTLN("Copyright 2022, Digame Systems. All rights reserved.");
   DEBUG_PRINTLN();
   DEBUG_PRINTLN("               Hit <ENTER> for Menu"); 
   DEBUG_PRINTLN("*****************************************************");  
@@ -733,7 +730,6 @@ void configureDisplay(){
   displayCopyright();
 }
 
-
 void configureRTC(){  
   DEBUG_PRINTLN(" RTC...");
   initRTC();
@@ -801,7 +797,7 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
     //initDisplay();
 
     titleToDisplay = "CONNECTED";
-    textToDisplay = "\n  Awaiting counts...";
+    textToDisplay = "\n  Awaiting counts..."; 
     //displayTitles("CONNECTED", "");
     //centerPrint("SUCCESS!", 70);
     //centerPrint("Awaiting counts...", 90);
