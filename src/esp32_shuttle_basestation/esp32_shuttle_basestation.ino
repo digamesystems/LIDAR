@@ -96,7 +96,8 @@ String currentLocation  = "UNK";
 String previousLocation = "UNK";
 
 String titleToDisplay = "";
-String textToDisplay = "";
+String textToDisplay1 = "";
+String textToDisplay2 = "";
 
 int    CTR_RESET = 32;     // Counter Reset Input
 
@@ -228,7 +229,7 @@ void loop(){
       resetShuttleStop(currentShuttleStop);
   
       //titleToDisplay = "LOCATION";
-      //textToDisplay = "\n " + currentLocation + "\n\n Awaiting Counts...";
+      //textToDisplay1 = "\n " + currentLocation + "\n\n Awaiting Counts...";
     }
    
     // Poll the counters.
@@ -311,8 +312,8 @@ void eInkManager(void *parameter){
     // Check if we need an update to the display to show new counts... 
     if (countsChanged(currentShuttleStop)) {
         showCountDisplay(currentShuttleStop);
-    } else if (displayTextChanged(textToDisplay)) {
-      displayTextScreen(titleToDisplay,textToDisplay);  
+    } else if (displayTextChanged(textToDisplay1)) {
+      displayTextScreen(titleToDisplay,textToDisplay1,textToDisplay2);  
     } 
 
     showPartialXY(rotateSpinner(),230,100);
@@ -339,8 +340,9 @@ void deliverRouteReport(){
     // location and someone pulls the plug on the router, we'll hang here forever looking
     // for it...
 
-    titleToDisplay = "V. CENTER";
-    textToDisplay = "\n  Sending Report...";
+    titleToDisplay = "Reporting Hub";
+    textToDisplay1 = "Sending Report...";
+    textToDisplay2 = "";
     
     if (WiFi.status() != WL_CONNECTED){  
       while (!(WiFi.status() == WL_CONNECTED)){enableWiFi(networkConfig);}
@@ -366,9 +368,9 @@ void deliverRouteReport(){
 
   }
 
-  
-  titleToDisplay = "V. CENTER";
-  textToDisplay = "\n  Sending Complete.";
+  titleToDisplay = "Reporting Hub";
+  textToDisplay1 = "Sending Complete.";
+  textToDisplay2 = "";
   delay(2000); // Give folks a sec to read the update.
  
    
@@ -592,8 +594,9 @@ void configureOTA(){
   DEBUG_PRINTLN(IP);   
 
   titleToDisplay = "ACCESS POINT";
-  textToDisplay = "  BaseStation_" + getShortMACAddress() + "\n\n";
-  textToDisplay += "    " + WiFi.softAPIP().toString();
+  textToDisplay1 = "  BaseStation_" + getShortMACAddress() + "\n\n";
+  textToDisplay1 += "    " + WiFi.softAPIP().toString();
+  textToDisplay2 = "";
  
   //delay(3000);  
   
@@ -780,33 +783,22 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 
   //initDisplay();
   titleToDisplay= "CONNECTING";
-  textToDisplay = " Connecting to: \n\n" + counter;
-  
-  //displayTitles("CONNECTING", "Searching...");
-  //centerPrint("Connecting to:", 70);
-  //centerPrint(counter, 90);
-  //displayCopyright();
-
-  //displayTextScreen("CONNECTING","\n ...SEARCHING...");
-  //DEBUG_PRINT("Connecting to " + counter + "...");
+  textToDisplay1 = " Connecting to:";
+  textToDisplay2 = counter;
+ 
   bool connected = btUART.connect(counter);
   
   if(connected) {
     DEBUG_PRINTLN(" Success! Awaiting Counts...");
-    //displayTextScreen("CONNECTED","\n    SUCCESS!!!\n\n Awaiting Counts\n\n       ...");
-    //initDisplay();
-
     titleToDisplay = "CONNECTED";
-    textToDisplay = "\n  Awaiting counts..."; 
-    //displayTitles("CONNECTED", "");
-    //centerPrint("SUCCESS!", 70);
-    //centerPrint("Awaiting counts...", 90);
-    //displayCopyright();
+    textToDisplay1 = "Awaiting counts..."; 
+    textToDisplay2 = "";
 
   } else {
     DEBUG_PRINTLN(" Failed to connect."); 
     titleToDisplay = "CONNECT";
-    textToDisplay = "Failed!";
+    textToDisplay1 = "Failed!";
+    textToDisplay2 = "";
 
     delay(2000);
     //displayTextScreen("CONNECT",  "\n       FAILED!");
