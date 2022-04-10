@@ -246,7 +246,7 @@ void configureLIDARs(){
     initLIDAR(tfmP_1, 1);
      
     DEBUG_PRINTLN("  LIDAR 2...");
-    tfMiniUART_2.begin(115200,SERIAL_8N1,27,26);  // Initialize TFMPLus device serial port.
+    tfMiniUART_2.begin(115200,SERIAL_8N1,17,16);  // Initialize TFMPLus device serial port.
     delay(1000);
     initLIDAR(tfmP_2, 2);
   #endif
