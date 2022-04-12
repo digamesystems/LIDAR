@@ -72,7 +72,7 @@ void initDisplay()
 {
   bool changeDisplayType = false; 
 
-  DEBUG_PRINTLN(" Initializing eInk Display...");
+  DEBUG_PRINTLN("  Initializing eInk Display...");
   DEBUG_PRINTLN("  Reading EEPROM");
 
   EEPROM.begin(10);
@@ -164,7 +164,7 @@ void initDisplay()
 
 void showWhite(){
   GxEPD2_GFX &display = getDisplay();
-  display.clearScreen();
+  //display.clearScreen();
   display.refresh(false); // full update
   display.fillRect(0, 0, 250, 122, GxEPD_WHITE);
   while (display.nextPage());
@@ -271,22 +271,29 @@ void displayTextScreen(String title, String s)
   display.setTextSize(3);
   centerPrint(title, 10);
   display.setTextSize(2);
-  //displayTitles(title,s);
-  //display.setCursor(0, 45);
   centerPrint(s,45);
-  //display.print(s); ?????
+  displayCopyright();
+}
+
+//******************************************************************************************
+// Display a title and 2 lines of centered text.
+void displayTextScreen(String title, String s1, String s2)
+{
+  GxEPD2_GFX &display = getDisplay();
+  display.setTextSize(3);
+  centerPrint(title, 10);
+  display.setTextSize(2);
+  centerPrint(s1, 55);
+  centerPrint(s2, 75);
   displayCopyright();
 }
 
 //******************************************************************************************
 void displayTextScreenLarge(String title, String s)
 {
-  //initDisplay();
   GxEPD2_GFX &display = getDisplay();
-  //display.fillScreen(GxEPD_WHITE);
   display.setTextSize(3);
   centerPrint(title, 10);
-  display.setTextSize(3);
   centerPrint(s,60);
   displayCopyright();
 }

@@ -66,7 +66,7 @@ String processor(const String& var){
   if(var == "MODEL")             return F(model.c_str());
   if(var == "MODEL_DESCRIPTION") return F(model_description.c_str()); 
   if(var == "SW_VERSION")        return F(SW_VERSION.c_str()); 
-  if(var == "MAC_ADDRESS")        return F(getMACAddress().c_str()); 
+  if(var == "MAC_ADDRESS")       return F(getMACAddress().c_str()); 
   
   if(var == "config.heartbeatInterval")  return F(String(config.heartbeatInterval).c_str());
   if(var == "config.ssid")      return F(String(config.ssid).c_str());
