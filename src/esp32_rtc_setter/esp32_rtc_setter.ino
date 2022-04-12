@@ -8,14 +8,14 @@
  
 #define debugUART Serial
 
-#include <digameJSONConfig.h>   // Config Struct
+//#include <digameJSONConfig.h>   // Config Struct
 #include <digameTime.h>         // Digame Time Functions
-#include <digameNetwork.h>      // Digame Network Functions
+#include <digameNetwork_v2.h>      // Digame Network Functions
 
 // Globals
 String swVersion = "1.0.0";
 
-//Config config;
+NetworkConfig config;
 
 // Declares
 void  initPorts(); // Set up the Serial port
@@ -71,14 +71,14 @@ void setup() {
 
   enableWiFi(config);
   
-  debugUART.println("  MAC Address: " + getMACAddress());  
+  debugUART.println("    MAC Address: " + getMACAddress());  
   
-  debugUART.println("Testing for Real-Time-Clock module...");
+  debugUART.println("  Testing for Real-Time-Clock module...");
   if (rtcPresent()){
-    debugUART.print("  RTC found. Time: ");
+    debugUART.print("    RTC found. Time: ");
     debugUART.println(getRTCTime()); 
   }else{
-    debugUART.println("  ERROR! Could NOT find RTC.");   
+    debugUART.println("    ERROR! Could NOT find RTC.");   
   }
 
   if (wifiConnected){ // Attempt to synch ESP32 and DS3231 with NTP server

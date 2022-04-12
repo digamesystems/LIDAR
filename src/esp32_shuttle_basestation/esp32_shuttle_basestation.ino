@@ -69,25 +69,25 @@ struct ShuttleStop {
 
 ShuttleStop currentShuttleStop;
 
-String routeName   = "Route 1";
-String shuttleName = "Shuttle 6";
+String routeName   = "Route Name";
+String shuttleName = "Shuttle Name";
 
-String reportingLocation         = "AndroidAP3AE2";
-String reportingLocationPassword = "ohpp8971";
+String reportingLocation         = "ReportingSSID";
+String reportingLocationPassword = "ReportingPW";
 
-String knownLocations[] = {"_Bighead", 
-                          "Tower88", 
-                          "William Shatner's Toupee", 
-                          "Pretty Fly For A Wi-Fi V4",
-                          "_4th_StreetPizzaCo", 
-                          "SanPedroSquareMarket",
-                          "Stop 7",
-                          "Stop 8",
-                          "Stop 9",
-                          "Stop 10",
-                          "AndroidAP3AE2"};
+String knownLocations[] = {"Stop 1", 
+                           "Stop 2", 
+                           "Stop 3",
+                           "Stop 4",
+                           "Stop 5",
+                           "Stop 6",
+                           "Stop 7",
+                           "Stop 8",
+                           "Stop 9",
+                           "Stop 10",
+                           "Stop 11"};
 
-String counterNames[]     = {"ShuttleCounter_c610", "ShuttleCounter_5ccc"}; 
+String counterNames[]     = {"ShuttleCounter_1234", "ShuttleCounter_2345"}; 
 
 uint8_t counter1Address[] = {0xAC,0x0B,0xFB,0x25,0xC6,0x12};
 uint8_t counter2Address[] = {0xE8,0x68,0xE7,0x30,0xAA,0x0E};
@@ -119,6 +119,7 @@ void eInkManager(void *parameter); // TASK that runs on Core 0
 // Initialization
 void configureIO();
 void configureDisplay();
+void accessPointModeCheck();
 void configureRTC();
 void configureWiFi();
 void configureBluetooth(); 
@@ -155,18 +156,21 @@ void setup(){
 
   configureIO();
 
-  useOTA = ( digitalRead(CTR_RESET) == LOW ); // Button low at boot = AP mode
+  //useOTA = ( digitalRead(CTR_RESET) == LOW ); // Button low at boot = AP mode
 
   //useOTA = true; //DEBUG
-  DEBUG_PRINT("USE OTA: ");
+  //DEBUG_PRINT("USE OTA: ");
   DEBUG_PRINTLN(useOTA);
   
   loadParameters();
   showSplashScreen();
   
   configureDisplay();
+  accessPointModeCheck();
+  
   configureEinkManagerTask();
-
+  
+  
   
   configureRTC();
   configureWiFi();
@@ -593,10 +597,9 @@ void configureOTA(){
   DEBUG_PRINT("    AP IP address: ");
   DEBUG_PRINTLN(IP);   
 
-  titleToDisplay = "ACCESS POINT";
-  textToDisplay1 = "  BaseStation_" + getShortMACAddress() + "\n\n";
-  textToDisplay1 += "    " + WiFi.softAPIP().toString();
-  textToDisplay2 = "";
+  titleToDisplay = "Access Point";
+  textToDisplay1 = "BaseStation_" + getShortMACAddress();
+  textToDisplay2 = WiFi.softAPIP().toString();;
  
   //delay(3000);  
   
@@ -731,6 +734,35 @@ void configureDisplay(){
   centerPrint("Counting System", 85);
   centerPrint(SW_VERSION, 105);
   displayCopyright();
+  delay(1000);
+}
+
+void accessPointModeCheck(){
+ 
+  //initDisplay();
+  displayTitles("Access Point", "Mode Check");
+  centerPrint("Press Button", 65);
+  centerPrint("To Enter", 85);
+  centerPrint("(5 Seconds...)", 105);
+  displayCopyright();
+
+  unsigned long t1, t2;
+
+  t1 = millis();
+  t2 = t1; 
+
+  useOTA = false;
+  while ( ((t2-t1)<5000) && (useOTA == false) ) {
+    useOTA = ( digitalRead(CTR_RESET) == LOW ); // Button low at boot = AP mode
+    delay(10);
+    t2 = millis();
+  }
+
+  showWhite();
+  
+  DEBUG_PRINT("USE OTA: ");
+  DEBUG_PRINTLN(useOTA);
+  
 }
 
 void configureRTC(){  
@@ -782,7 +814,7 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
 // Set CoreDebugLevel to Info to view devices bluetooth address and device names
 
   //initDisplay();
-  titleToDisplay= "CONNECTING";
+  titleToDisplay= "Connecting...";
   textToDisplay1 = " Connecting to:";
   textToDisplay2 = counter;
  
@@ -790,7 +822,7 @@ bool connectToCounter(BluetoothSerial &btUART, String counter){
   
   if(connected) {
     DEBUG_PRINTLN(" Success! Awaiting Counts...");
-    titleToDisplay = "CONNECTED";
+    titleToDisplay = "Connected";
     textToDisplay1 = "Awaiting counts..."; 
     textToDisplay2 = "";
 
